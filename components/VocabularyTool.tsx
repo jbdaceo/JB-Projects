@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { getPronunciation, decodeBase64Audio, decodeAudioData } from '../services/gemini';
 import { Language } from '../types';
 import { motion } from 'https://esm.sh/framer-motion@11.11.11?external=react,react-dom';
@@ -38,11 +38,23 @@ const VocabularyTool: React.FC<VocabularyToolProps> = ({ lang }) => {
     growingDesc: lang === 'es' ? 'Agregamos nuevos conceptos cada semana enfocados en Tech, Startups y Finanzas.' : 'We add new concepts every week focused on Tech, Startups, and Finance.'
   };
 
-  useEffect(() => {
-    // Shuffle and pick 6 words on mount
+  const randomizeWords = useCallback(() => {
+    // Simple shuffle
     const shuffled = [...ALL_WORDS].sort(() => 0.5 - Math.random());
     setDisplayWords(shuffled.slice(0, 6));
   }, []);
+
+  useEffect(() => {
+    // Initial load and on language change
+    randomizeWords();
+
+    // Auto-refresh every 5 minutes (300,000 ms)
+    const intervalId = setInterval(() => {
+      randomizeWords();
+    }, 300000);
+
+    return () => clearInterval(intervalId);
+  }, [lang, randomizeWords]);
 
   const handlePlay = async (text: string) => {
     try {
@@ -91,7 +103,7 @@ const VocabularyTool: React.FC<VocabularyToolProps> = ({ lang }) => {
       >
         {displayWords.map((itemObj, idx) => (
           <motion.div 
-            key={idx} 
+            key={`${itemObj.word}-${idx}`} 
             variants={item}
             whileHover={{ y: -12, backgroundColor: 'rgba(30, 41, 59, 0.6)' }}
             className="bg-slate-900/40 p-10 rounded-[40px] border border-slate-800 shadow-2xl hover:shadow-blue-500/10 transition-all group relative overflow-hidden backdrop-blur-sm"

@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Language } from '../types';
 import { motion, AnimatePresence } from 'https://esm.sh/framer-motion@11.11.11?external=react,react-dom';
@@ -54,6 +55,9 @@ const CoachingSessions: React.FC<CoachingSessionsProps> = ({ lang }) => {
   ];
 
   const handleBook = () => {
+    // Simulate setting "Pro" status on successful booking/payment
+    localStorage.setItem('tmc_pro_status_v2', 'true');
+    window.dispatchEvent(new Event('tmc-level-update'));
     setConfirmed(true);
   };
 
@@ -70,6 +74,9 @@ const CoachingSessions: React.FC<CoachingSessionsProps> = ({ lang }) => {
           <p className="text-slate-400 max-w-lg mx-auto text-xl leading-relaxed font-medium">
             {text.waitMsg} <span className="text-white font-black underline decoration-emerald-500">{formData.date}</span> {text.at} <span className="text-white font-black underline decoration-emerald-500">{formData.time}</span>. 
             {text.emailMsg}
+          </p>
+          <p className="text-amber-400 font-bold uppercase tracking-widest text-sm mt-4 animate-pulse">
+            {lang === 'es' ? '¡Nivel PRO Desbloqueado!' : 'PRO Level Unlocked!'}
           </p>
         </div>
         <motion.button

@@ -8,8 +8,8 @@ interface MascotProps {
   lang: Language;
 }
 
-type MascotState = 'idle' | 'walking' | 'sleeping' | 'sitting' | 'pet' | 'eating' | 'drinking' | 'playing' | 'roaming';
-type PetType = 'dog' | 'cat' | 'lion' | 'dragon' | 'shark' | 'frog';
+type MascotState = 'idle' | 'walking' | 'sleeping' | 'sitting' | 'pet' | 'eating' | 'drinking' | 'playing' | 'roaming' | 'happy';
+type PetType = 'dog' | 'cat' | 'lion' | 'dragon' | 'shark' | 'frog' | 'man' | 'woman' | 'baby';
 
 const PETS: { id: PetType; label: string; icon: string }[] = [
   { id: 'dog', label: 'Poco', icon: '🐶' },
@@ -18,6 +18,9 @@ const PETS: { id: PetType; label: string; icon: string }[] = [
   { id: 'dragon', label: 'Drako', icon: '🦎' },
   { id: 'shark', label: 'Fin', icon: '🦈' },
   { id: 'frog', label: 'Pepe', icon: '🐸' },
+  { id: 'baby', label: 'Baby', icon: '👶' },
+  { id: 'man', label: 'Pro', icon: '👨‍💼' },
+  { id: 'woman', label: 'Exec', icon: '👩‍💼' },
 ];
 
 const Mascot: React.FC<MascotProps> = ({ activeSection, lang }) => {
@@ -42,6 +45,16 @@ const Mascot: React.FC<MascotProps> = ({ activeSection, lang }) => {
 
   const defaultDirection = isMobile ? 'right' : 'left';
 
+  // Listen for happy event from KidsZone
+  useEffect(() => {
+    const handleHappy = () => {
+      setState('happy');
+      setTimeout(() => setState('idle'), 3000);
+    };
+    window.addEventListener('tmc-mascot-happy', handleHappy);
+    return () => window.removeEventListener('tmc-mascot-happy', handleHappy);
+  }, []);
+
   // Load persistence
   useEffect(() => {
     const saved = localStorage.getItem('tmc_mascot_type');
@@ -62,14 +75,9 @@ const Mascot: React.FC<MascotProps> = ({ activeSection, lang }) => {
   useEffect(() => {
     if (!isVisible) return;
     
-    // Initial state setup
-    if (state === 'idle') {
-       // Start idle breathing
-    }
-
     const behaviorLoop = setInterval(() => {
       if (Math.random() > 0.6) return; 
-      if (['roaming', 'eating', 'drinking', 'playing', 'pet'].includes(state)) return;
+      if (['roaming', 'eating', 'drinking', 'playing', 'pet', 'happy'].includes(state)) return;
 
       const r = Math.random();
       let nextAction: MascotState = 'idle';
@@ -105,11 +113,21 @@ const Mascot: React.FC<MascotProps> = ({ activeSection, lang }) => {
   const handlePet = (e: React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation();
     if (!isVisible) return;
-    setState('pet');
-    const newHeart = { id: Date.now(), x: Math.random() * 40 - 20, y: Math.random() * -40 - 20 };
-    setHearts(prev => [...prev, newHeart]);
-    setTimeout(() => setHearts(prev => prev.filter(h => h.id !== newHeart.id)), 1000);
-    setTimeout(() => setState('idle'), 800);
+
+    if (activeSection === AppSection.Kids) {
+      // Dispatch help request in Kids Mode
+      window.dispatchEvent(new CustomEvent('tmc-help-request', { detail: { source: 'pet' } }));
+      // Small animation to acknowledge click
+      setState('pet');
+      setTimeout(() => setState('idle'), 1000);
+    } else {
+      // Normal Petting
+      setState('pet');
+      const newHeart = { id: Date.now(), x: Math.random() * 40 - 20, y: Math.random() * -40 - 20 };
+      setHearts(prev => [...prev, newHeart]);
+      setTimeout(() => setHearts(prev => prev.filter(h => h.id !== newHeart.id)), 1000);
+      setTimeout(() => setState('idle'), 800);
+    }
   };
 
   const handleMouseEnter = () => {
@@ -155,9 +173,13 @@ const Mascot: React.FC<MascotProps> = ({ activeSection, lang }) => {
       idle: { 
         x: 0, 
         scaleX: defaultDirection === 'left' ? 1 : -1,
-        // Lifelike breathing
         scaleY: [1, 1.03, 1],
         transition: { repeat: Infinity, duration: 2, ease: "easeInOut" }
+      },
+      happy: {
+        y: [0, -20, 0],
+        scaleX: defaultDirection === 'left' ? 1 : -1,
+        transition: { repeat: Infinity, duration: 0.5 }
       },
       walking: { x: 0 },
       sitting: { x: 0 },
@@ -296,12 +318,15 @@ const PropsLayer = ({ state }: { state: MascotState }) => (
 );
 
 const PetRenderer = ({ type, state, defaultDirection }: { type: PetType, state: MascotState, defaultDirection: string }) => {
-  const isWalking = ['walking', 'roaming'].includes(state);
+  const isWalking = ['walking', 'roaming', 'happy'].includes(state);
   const isShark = type === 'shark';
   const isFrog = type === 'frog';
+  const isBaby = type === 'baby';
 
   const bodyAnim = isShark 
     ? { y: [0, -5, 0], rotate: [0, 2, 0] }
+    : isBaby && isWalking
+    ? { rotate: [-10, 0, 10, 0], y: [10, 10, 10] } // Crawling low
     : isFrog && isWalking
     ? { y: [0, -15, 0], scaleY: [0.8, 1.1, 0.8] }
     : isWalking
@@ -312,7 +337,7 @@ const PetRenderer = ({ type, state, defaultDirection }: { type: PetType, state: 
     ? { y: 15, rotate: -15 }
     : { }; // Idle handled in parent variant
 
-  const animDuration = isShark ? 1.5 : (isFrog && isWalking) ? 0.5 : isWalking ? 0.3 : 2;
+  const animDuration = isShark ? 1.5 : (isFrog && isWalking) ? 0.5 : (isBaby && isWalking) ? 0.6 : isWalking ? 0.3 : 2;
 
   const renderInner = () => {
     switch(type) {
@@ -321,6 +346,9 @@ const PetRenderer = ({ type, state, defaultDirection }: { type: PetType, state: 
       case 'dragon': return <DragonSVG state={state} />;
       case 'shark': return <SharkSVG state={state} />;
       case 'frog': return <FrogSVG state={state} />;
+      case 'baby': return <BabySVG state={state} />;
+      case 'man': return <ManSVG state={state} />;
+      case 'woman': return <WomanSVG state={state} />;
       default: return <DogSVG state={state} />;
     }
   };
@@ -339,7 +367,6 @@ const PetRenderer = ({ type, state, defaultDirection }: { type: PetType, state: 
 };
 
 // --- Individual Pet SVGs ---
-// Key Fix: Tails are rendered BEFORE the body (lower in SVG stack) so they look attached behind.
 
 const Bandana = ({ type = "neck" }: { type?: "neck" | "fin" | "bowtie" }) => {
   const dynamicColor = "hsl(var(--brand-hue) var(--brand-sat) 50%)";
@@ -367,7 +394,7 @@ const DogSVG = ({ state }: { state: MascotState }) => (
       strokeWidth="6" 
       strokeLinecap="round" 
       fill="none" 
-      animate={['walking', 'roaming', 'playing'].includes(state) ? { rotate: [-10, 10, -10], d: "M50 60 Q 25 50 20 30" } : { rotate: [-2, 2, -2] }} 
+      animate={['walking', 'roaming', 'playing', 'happy'].includes(state) ? { rotate: [-10, 10, -10], d: "M50 60 Q 25 50 20 30" } : { rotate: [-2, 2, -2] }} 
       transition={{ repeat: Infinity, duration: 0.5 }} 
       style={{ originX: 0.5, originY: 0.6 }} // Relative to bounding box, approximates 50,60
     />
@@ -497,6 +524,102 @@ const FrogSVG = ({ state }: { state: MascotState }) => (
       <path d="M15 25 Q 25 30 35 25" fill="none" stroke="#0f172a" strokeWidth="2" />
       {['eating', 'drinking', 'pet'].includes(state) && <path d="M25 25 Q 30 35 25 35" fill="#fda4af" stroke="#be123c" strokeWidth="1" />}
     </g>
+  </>
+);
+
+const BabySVG = ({ state }: { state: MascotState }) => {
+  const isCrawling = ['walking', 'roaming'].includes(state);
+  return (
+    <>
+      <g transform="translate(20, 30)">
+        {/* Head */}
+        <circle cx="30" cy="20" r="18" fill="#f1d5b5" />
+        {/* Hair Sprig */}
+        <path d="M30 2 Q 25 -5 32 -8" fill="none" stroke="#6b21a8" strokeWidth="2" strokeLinecap="round" />
+        
+        {/* Face */}
+        <Eyes state={state} cx1={24} cx2={36} cy={22} />
+        <path d="M28 30 Q 30 32 32 30" fill="none" stroke="#0f172a" strokeWidth="1" />
+        {['eating', 'drinking', 'pet'].includes(state) && (
+             <circle cx="20" cy="25" r="3" fill="#fda4af" opacity="0.6" />
+        )}
+        {['eating', 'drinking', 'pet'].includes(state) && (
+             <circle cx="40" cy="25" r="3" fill="#fda4af" opacity="0.6" />
+        )}
+
+        {/* Body - Diaper */}
+        {/* Crawling posture logic via parent variants, here we draw the body shape */}
+        <ellipse cx="30" cy="50" rx="14" ry="12" fill="#f1d5b5" />
+        <path d="M20 50 Q 30 65 40 50 L 40 45 L 20 45 Z" fill="#fff" stroke="#e2e8f0" strokeWidth="1" /> {/* Diaper */}
+        
+        {/* Arms/Legs - Simple rounded limbs */}
+        <motion.rect x="12" y="45" width="8" height="15" rx="4" fill="#f1d5b5" animate={isCrawling ? { rotate: [20, -20, 20] } : { rotate: 20 }} style={{originY: 0}} />
+        <motion.rect x="40" y="45" width="8" height="15" rx="4" fill="#f1d5b5" animate={isCrawling ? { rotate: [-20, 20, -20] } : { rotate: -20 }} style={{originY: 0}} />
+        
+        {/* Legs when crawling are knees */}
+        <motion.circle cx="20" cy="60" r="5" fill="#f1d5b5" animate={isCrawling ? { x: [2, -2, 2] } : {}} />
+        <motion.circle cx="40" cy="60" r="5" fill="#f1d5b5" animate={isCrawling ? { x: [-2, 2, -2] } : {}} />
+      </g>
+    </>
+  );
+};
+
+const ManSVG = ({ state }: { state: MascotState }) => (
+  <>
+    {/* Legs - Dark Trousers */}
+    <motion.path d="M42 90 L42 100" stroke="#0f172a" strokeWidth="7" strokeLinecap="round" animate={['walking', 'roaming'].includes(state) ? { y: [-2, 2, -2] } : {}} transition={{ repeat: Infinity, duration: 0.3 }}/>
+    <motion.path d="M58 90 L58 100" stroke="#0f172a" strokeWidth="7" strokeLinecap="round" animate={['walking', 'roaming'].includes(state) ? { y: [2, -2, 2] } : {}} transition={{ repeat: Infinity, duration: 0.3 }}/>
+    
+    {/* Body - Navy Suit Jacket */}
+    <path d="M35 45 L65 45 L62 90 L38 90 Z" fill="#1e3a8a" /> 
+    <path d="M35 45 L38 90 L62 90 L65 45" stroke="#1e40af" strokeWidth="1" fill="none"/>
+    
+    {/* White Shirt Collar area */}
+    <path d="M50 45 L42 55 L58 55 Z" fill="#fff" />
+    
+    {/* Tie */}
+    <path d="M50 45 L46 55 L50 68 L54 55 Z" fill="#dc2626" />
+    
+    {/* Head */}
+    <g transform="translate(35, 15)">
+      <rect x="5" y="5" width="20" height="24" rx="8" fill="#e5c29f" /> 
+      {/* Short Hair - Dark Brown */}
+      <path d="M5 12 L5 8 Q 15 0 25 8 L25 12 L22 10 L18 10 L15 8 L10 10 Z" fill="#3f2c22" />
+      <Eyes state={state} cx1={10} cx2={20} cy={16} />
+      <path d="M12 24 Q 15 26 18 24" fill="none" stroke="#000" strokeWidth="1" />
+    </g>
+    
+    {/* Suit Arms */}
+    <motion.rect x="26" y="46" width="8" height="28" rx="4" fill="#1e3a8a" animate={['walking', 'roaming'].includes(state) ? { rotate: [15, -15, 15] } : {}} style={{originY:0}} />
+    <motion.rect x="66" y="46" width="8" height="28" rx="4" fill="#1e3a8a" animate={['walking', 'roaming'].includes(state) ? { rotate: [-15, 15, -15] } : {}} style={{originY:0}} />
+  </>
+);
+
+const WomanSVG = ({ state }: { state: MascotState }) => (
+  <>
+    {/* Legs - Skirt/Legs */}
+    <motion.rect x="40" y="85" width="6" height="15" fill="#e5c29f" animate={['walking', 'roaming'].includes(state) ? { y: [-1, 1, -1] } : {}} />
+    <motion.rect x="54" y="85" width="6" height="15" fill="#e5c29f" animate={['walking', 'roaming'].includes(state) ? { y: [1, -1, 1] } : {}} />
+    
+    {/* Body - Red Blazer/Dress */}
+    <path d="M35 45 Q 32 65 30 90 L 70 90 Q 68 65 65 45 Z" fill="#be123c" />
+    
+    {/* Scarf / Blouse */}
+    <path d="M50 45 L42 58 L58 58 Z" fill="#fce7f3" />
+    
+    {/* Head */}
+    <g transform="translate(35, 15)">
+      <rect x="5" y="5" width="20" height="22" rx="6" fill="#e5c29f" />
+      {/* Long Hair - Black */}
+      <path d="M0 15 Q -5 5 5 0 Q 15 -5 25 0 Q 35 5 30 15 L 30 35 L 25 35 L 25 10 L 5 10 L 5 35 L 0 35 Z" fill="#0f172a" />
+      <Eyes state={state} cx1={10} cx2={20} cy={16} />
+      {/* Red Lips */}
+      <path d="M12 23 Q 15 25 18 23" fill="none" stroke="#be123c" strokeWidth="1.5" />
+    </g>
+    
+    {/* Arms */}
+    <motion.rect x="28" y="48" width="7" height="26" rx="3.5" fill="#be123c" animate={['walking', 'roaming'].includes(state) ? { rotate: [10, -10, 10] } : {}} style={{originY:0}} />
+    <motion.rect x="65" y="48" width="7" height="26" rx="3.5" fill="#be123c" animate={['walking', 'roaming'].includes(state) ? { rotate: [-10, 10, -10] } : {}} style={{originY:0}} />
   </>
 );
 

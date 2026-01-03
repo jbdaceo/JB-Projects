@@ -8,9 +8,11 @@ interface SidebarProps {
   onNavigate: (section: AppSection) => void;
   lang: Language;
   onLangToggle: () => void;
+  tmcLevel: 'Novice' | 'Semi Pro' | 'Pro';
+  onOpenLevelInfo: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activeSection, onNavigate, lang, onLangToggle }) => {
+const Sidebar: React.FC<SidebarProps> = ({ activeSection, onNavigate, lang, onLangToggle, tmcLevel, onOpenLevelInfo }) => {
   const items = [
     { id: AppSection.Home, label: lang === 'es' ? 'Bienvenida' : 'Welcome', icon: '🏠' },
     { id: AppSection.Lessons, label: lang === 'es' ? 'Lecciones' : 'Lessons', icon: '📚' },
@@ -85,6 +87,20 @@ const Sidebar: React.FC<SidebarProps> = ({ activeSection, onNavigate, lang, onLa
           ))}
         </div>
 
+        {/* Level Indicator (Desktop) */}
+        <button 
+          onClick={onOpenLevelInfo}
+          className="w-full p-3 bg-white/5 rounded-2xl flex items-center justify-between px-4 border border-white/5 hover:border-white/20 transition-all group"
+        >
+          <div className="flex flex-col items-start">
+            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Level Status</span>
+            <span className={`text-xs font-black uppercase tracking-widest ${tmcLevel === 'Pro' ? 'text-amber-400' : tmcLevel === 'Semi Pro' ? 'text-cyan-400' : 'text-slate-300'}`}>
+              {tmcLevel}
+            </span>
+          </div>
+          <span className="text-xl">{tmcLevel === 'Pro' ? '⚡' : tmcLevel === 'Semi Pro' ? '🚀' : '🌱'}</span>
+        </button>
+
         {/* Language Toggle */}
         <button 
           onClick={onLangToggle}
@@ -99,7 +115,11 @@ const Sidebar: React.FC<SidebarProps> = ({ activeSection, onNavigate, lang, onLa
           </div>
         </button>
 
-        <div className="p-5 bg-white/5 rounded-[28px] border border-white/5 backdrop-blur-sm">
+        <motion.div 
+          whileTap={{ scale: 1.15 }}
+          transition={{ type: "spring", stiffness: 300, damping: 15 }}
+          className="p-5 bg-white/5 rounded-[28px] border border-white/5 backdrop-blur-sm cursor-pointer select-none"
+        >
           <div className="flex items-center gap-4">
             <div className="relative">
               <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-600/20 to-indigo-600/20 flex items-center justify-center border border-white/10 text-2xl">
@@ -112,7 +132,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeSection, onNavigate, lang, onLa
               <p className="text-[10px] text-brand-400 font-bold uppercase tracking-widest mt-1">Professor Online</p>
             </div>
           </div>
-        </div>
+        </motion.div>
       </div>
     </aside>
   );

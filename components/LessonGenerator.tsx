@@ -1,7 +1,9 @@
+
 import React, { useState } from 'react';
 import { generateLesson } from '../services/gemini';
 import { Lesson, Language } from '../types';
 import { motion, AnimatePresence } from 'https://esm.sh/framer-motion@11.11.11?external=react,react-dom';
+import confetti from 'https://esm.sh/canvas-confetti@1.9.2';
 
 interface LessonGeneratorProps {
   lang: Language;
@@ -15,6 +17,7 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang }) => {
   const [quizScore, setQuizScore] = useState<number | null>(null);
   const [userAnswers, setUserAnswers] = useState<Record<number, string>>({});
   const [viewMode, setViewMode] = useState<'deep' | 'quick'>('quick');
+  const [inputError, setInputError] = useState(false);
 
   const text = {
     title: lang === 'es' ? 'Maestría Personalizada' : 'Personalized Mastery',
@@ -35,11 +38,16 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang }) => {
     finishBtn: lang === 'es' ? 'Finalizar Lección' : 'Finish Lesson',
     powerWords: lang === 'es' ? 'Palabras de Poder' : 'Power Words',
     proTipTitle: lang === 'es' ? 'Consejo de Profe Tomas' : 'Pro Tip from Tomas',
-    proTipText: lang === 'es' ? '"No solo estudies el idioma, vive el idioma. Si quieres ganar en dólares, debes empezar a pensar en dólares hoy."' : '"Don\'t just study the language, live the language. If you want to earn in dollars, start thinking in dollars today."'
+    proTipText: lang === 'es' ? '"No solo estudies el idioma, vive el idioma. Si quieres ganar en dólares, debes empezar a pensar en dólares hoy."' : '"Don\'t just study the language, live the language. If you want to earn in dollars, start thinking in dollars today."',
+    validationMsg: lang === 'es' ? 'Por favor ingresa un tema para crear tu clase.' : 'Please enter a topic to create your lesson.'
   };
 
   const handleGenerate = async () => {
-    if (!topic) return;
+    if (!topic.trim()) {
+      setInputError(true);
+      return;
+    }
+    setInputError(false);
     setLoading(true);
     setLesson(null);
     setQuizScore(null);
@@ -63,6 +71,29 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang }) => {
       if (userAnswers[idx] === q.answer) score++;
     });
     setQuizScore(score);
+
+    // Trigger Fireworks if perfect score (3/3 or whatever length)
+    if (score === lesson.quiz.length) {
+      const duration = 3000;
+      const animationEnd = Date.now() + duration;
+      const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 100 };
+
+      const randomInRange = (min: number, max: number) => Math.random() * (max - min) + min;
+
+      const interval: any = setInterval(function() {
+        const timeLeft = animationEnd - Date.now();
+
+        if (timeLeft <= 0) {
+          return clearInterval(interval);
+        }
+
+        const particleCount = 50 * (timeLeft / duration);
+        
+        // since particles fall down, start a bit higher than random
+        confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } });
+        confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 } });
+      }, 250);
+    }
   };
 
   return (
@@ -102,14 +133,28 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang }) => {
         className="bg-slate-900/40 p-8 md:p-10 rounded-[40px] border border-slate-800 shadow-2xl flex flex-col xl:flex-row gap-8 items-end backdrop-blur-md"
       >
         <div className="flex-1 space-y-3 w-full">
-          <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] px-2">{text.topicLabel}</label>
+          <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] px-2">
+            {text.topicLabel} <span className="text-red-500">*</span>
+          </label>
           <input 
             type="text" 
             placeholder={text.topicPlaceholder}
-            className="w-full px-8 py-5 bg-slate-950 border border-slate-700/50 rounded-2xl text-white focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder:text-slate-600 text-lg shadow-inner"
+            className={`w-full px-8 py-5 bg-slate-950 border rounded-2xl text-white outline-none transition-all placeholder:text-slate-600 text-lg shadow-inner ${
+              inputError 
+                ? 'border-red-500 focus:ring-4 focus:ring-red-500/20 animate-pulse' 
+                : 'border-slate-700/50 focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500'
+            }`}
             value={topic}
-            onChange={(e) => setTopic(e.target.value)}
+            onChange={(e) => {
+              setTopic(e.target.value);
+              if (e.target.value.trim()) setInputError(false);
+            }}
           />
+          {inputError && (
+            <motion.p initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="text-red-400 text-xs font-bold px-2">
+              ⚠️ {text.validationMsg}
+            </motion.p>
+          )}
         </div>
         <div className="w-full xl:w-56 space-y-3">
           <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] px-2">{text.levelLabel}</label>

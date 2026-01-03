@@ -13,6 +13,7 @@ import KidsZone from './components/KidsZone';
 import AIAssistant from './components/AIAssistant';
 import Mascot from './components/Mascot';
 import AuthModal from './components/AuthModal';
+import LevelRequirementsModal from './components/LevelRequirementsModal';
 import { motion, AnimatePresence } from 'https://esm.sh/framer-motion@11.11.11?external=react,react-dom';
 
 // Base Hue Mapping for Themes
@@ -32,6 +33,8 @@ const App: React.FC = () => {
   const [isAssistantOpen, setAssistantOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(true);
+  const [tmcLevel, setTmcLevel] = useState<'Novice' | 'Semi Pro' | 'Pro'>('Novice');
+  const [showLevelModal, setShowLevelModal] = useState(false);
 
   // Theme Randomizer Logic
   useEffect(() => {
@@ -48,6 +51,29 @@ const App: React.FC = () => {
     document.documentElement.style.setProperty('--brand-sat', `${finalSat}%`);
   }, [activeSection]);
 
+  const checkLevel = () => {
+    // Check Semi Pro Status (All 5 games >= 100)
+    const games = ['voice_voyager', 'trivia_titan', 'match_master', 'word_wizard', 'sonic_scout'];
+    const allGamesPassed = games.every(g => parseInt(localStorage.getItem(`tmc_game_score_${g}`) || '0') >= 100);
+    
+    // Check Pro Status (Payment/Booking) - Version 2 key to reset legacy
+    const hasPaid = localStorage.getItem('tmc_pro_status_v2') === 'true';
+
+    if (hasPaid) {
+      setTmcLevel('Pro');
+    } else if (allGamesPassed) {
+      setTmcLevel('Semi Pro');
+    } else {
+      setTmcLevel('Novice');
+    }
+  };
+
+  useEffect(() => {
+    checkLevel();
+    window.addEventListener('tmc-level-update', checkLevel);
+    return () => window.removeEventListener('tmc-level-update', checkLevel);
+  }, []);
+
   const handleLogin = () => {
     setIsLoggedIn(true);
     setShowAuthModal(false);
@@ -58,10 +84,15 @@ const App: React.FC = () => {
     setShowAuthModal(false);
   };
 
+  const handleAiClick = () => {
+    // Always open assistant to be "responsive at all times"
+    setAssistantOpen(true);
+  };
+
   const renderContent = () => {
     switch (activeSection) {
       case AppSection.Home:
-        return <Home onStart={() => setActiveSection(AppSection.Lessons)} lang={lang} />;
+        return <Home onStart={() => setActiveSection(AppSection.Coaching)} lang={lang} />;
       case AppSection.Lessons:
         return <LessonGenerator lang={lang} />;
       case AppSection.Speaking:
@@ -75,7 +106,7 @@ const App: React.FC = () => {
       case AppSection.Kids:
         return <KidsZone lang={lang} />;
       default:
-        return <Home onStart={() => setActiveSection(AppSection.Lessons)} lang={lang} />;
+        return <Home onStart={() => setActiveSection(AppSection.Coaching)} lang={lang} />;
     }
   };
 
@@ -83,6 +114,13 @@ const App: React.FC = () => {
     <div className="flex flex-col lg:flex-row min-h-screen bg-slate-950 text-slate-100 overflow-hidden font-sans selection:bg-brand-500/30">
       
       <AuthModal isOpen={showAuthModal} onLogin={handleLogin} onGuest={handleGuest} />
+      
+      <LevelRequirementsModal 
+        isOpen={showLevelModal} 
+        onClose={() => setShowLevelModal(false)} 
+        lang={lang} 
+        currentLevel={tmcLevel} 
+      />
 
       {/* Dynamic Header / Island - Visible on Mobile & Tablet Portrait */}
       <div className="fixed top-0 left-0 right-0 z-40 p-4 lg:hidden pointer-events-none flex justify-center items-center relative">
@@ -100,16 +138,26 @@ const App: React.FC = () => {
           </span>
         </button>
 
-        <div className="h-8 glass-morphism rounded-full flex items-center justify-center px-4 pointer-events-auto border-white/5 shadow-lg backdrop-blur-md">
-          <span className="text-[10px] font-black uppercase tracking-widest text-brand-400">
-            TMC Level: {isLoggedIn ? 'Pro ⚡' : 'Guest'}
+        <button 
+          onClick={() => setShowLevelModal(true)}
+          className="h-8 glass-morphism rounded-full flex items-center justify-center px-4 pointer-events-auto border-white/5 shadow-lg backdrop-blur-md active-scale"
+        >
+          <span className={`text-[10px] font-black uppercase tracking-widest ${tmcLevel === 'Pro' ? 'text-amber-400' : tmcLevel === 'Semi Pro' ? 'text-cyan-400' : 'text-slate-400'}`}>
+            Level: {tmcLevel} {tmcLevel === 'Pro' ? '⚡' : tmcLevel === 'Semi Pro' ? '🚀' : '🌱'}
           </span>
-        </div>
+        </button>
       </div>
 
       {/* Desktop/Tablet Landscape Sidebar - Visible only on LG+ */}
       <div className="hidden lg:block">
-        <Sidebar activeSection={activeSection} onNavigate={setActiveSection} lang={lang} onLangToggle={() => setLang(l => l === 'es' ? 'en' : 'es')} />
+        <Sidebar 
+          activeSection={activeSection} 
+          onNavigate={setActiveSection} 
+          lang={lang} 
+          onLangToggle={() => setLang(l => l === 'es' ? 'en' : 'es')} 
+          tmcLevel={tmcLevel}
+          onOpenLevelInfo={() => setShowLevelModal(true)}
+        />
       </div>
 
       {/* Main Content Area */}
@@ -133,12 +181,12 @@ const App: React.FC = () => {
       {/* Mascot Companion - "Poco" */}
       <Mascot activeSection={activeSection} lang={lang} />
 
-      {/* AI Agent Floating Toggle */}
-      <div className="fixed right-6 bottom-28 lg:bottom-8 z-50">
+      {/* AI Agent Floating Toggle - Increased Z-Index for Mobile */}
+      <div className="fixed right-6 bottom-28 lg:bottom-8 z-[150]">
         <motion.button
           whileHover={{ scale: 1.1, rotate: 10 }}
           whileTap={{ scale: 0.9 }}
-          onClick={() => setAssistantOpen(true)}
+          onClick={handleAiClick}
           className="w-14 h-14 bg-brand-600 rounded-2xl flex items-center justify-center text-2xl shadow-2xl shadow-brand-500/40 border border-white/20 active-scale text-white"
         >
           🤖

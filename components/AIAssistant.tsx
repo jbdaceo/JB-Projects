@@ -162,14 +162,14 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, lang, curren
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60]"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[160]"
           />
           <motion.div
             initial={{ x: '100%' }}
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed right-0 top-0 bottom-0 w-full max-w-md bg-slate-900 border-l border-white/10 z-[70] shadow-2xl flex flex-col overflow-hidden"
+            className="fixed right-0 top-0 bottom-0 w-full max-w-md bg-slate-900 border-l border-white/10 z-[170] shadow-2xl flex flex-col overflow-hidden"
           >
             {/* Header with Close and Identity */}
             <div className="p-4 border-b border-white/10 flex items-center justify-between bg-slate-950/50 backdrop-blur-xl">

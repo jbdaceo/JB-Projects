@@ -179,6 +179,38 @@ export const getPronunciation = async (text: string): Promise<string> => {
   return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || '';
 };
 
+export const generateKidVideo = async (topicPrompt: string): Promise<string | null> => {
+  // Re-instantiate to ensure fresh key if changed in dialog
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  try {
+    let operation = await ai.models.generateVideos({
+      model: 'veo-3.1-fast-generate-preview',
+      prompt: `${topicPrompt}. Create a cute, friendly, colorful 3D animated video for young kids. High quality, smooth motion.`,
+      config: {
+        numberOfVideos: 1,
+        resolution: '720p',
+        aspectRatio: '16:9'
+      }
+    });
+
+    while (!operation.done) {
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      operation = await ai.operations.getVideosOperation({operation: operation});
+    }
+
+    const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
+    if (!downloadLink) return null;
+
+    // Fetch the MP4 bytes using the key
+    const response = await fetch(`${downloadLink}&key=${process.env.API_KEY}`);
+    const blob = await response.blob();
+    return URL.createObjectURL(blob);
+  } catch (error) {
+    console.error("Video generation failed:", error);
+    return null;
+  }
+};
+
 // Implement manual decoding as required for raw PCM streams.
 export const decodeBase64Audio = (base64: string): Uint8Array => {
   const binaryString = atob(base64);
