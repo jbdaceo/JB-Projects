@@ -8,7 +8,14 @@ interface VocabularyToolProps {
   lang: Language;
 }
 
-const ALL_WORDS = [
+interface WordItem {
+  word: string;
+  translation: string;
+  defEn: string;
+  defEs: string;
+}
+
+const ALL_WORDS: WordItem[] = [
   { word: 'Scholarship', translation: 'Becas', defEn: 'A grant or payment made to support a student\'s education.', defEs: 'Una subvención o pago realizado para apoyar la educación de un estudiante.' },
   { word: 'Remote Work', translation: 'Trabajo Remoto', defEn: 'The practice of working from a location other than an office.', defEs: 'La práctica de trabajar desde un lugar distinto a una oficina.' },
   { word: 'Breakthrough', translation: 'Gran Avance', defEn: 'A sudden, dramatic, and important discovery or development.', defEs: 'Un descubrimiento o desarrollo repentino, dramático e importante.' },
@@ -28,7 +35,7 @@ const ALL_WORDS = [
 
 const VocabularyTool: React.FC<VocabularyToolProps> = ({ lang }) => {
   const [loadingWord, setLoadingWord] = useState<string | null>(null);
-  const [displayWords, setDisplayWords] = useState<typeof ALL_WORDS>([]);
+  const [displayWords, setDisplayWords] = useState<WordItem[]>([]);
   
   const text = {
     title: lang === 'es' ? 'Léxico del Éxito' : 'Lexicon of Success',
@@ -56,10 +63,16 @@ const VocabularyTool: React.FC<VocabularyToolProps> = ({ lang }) => {
     return () => clearInterval(intervalId);
   }, [lang, randomizeWords]);
 
-  const handlePlay = async (text: string) => {
+  const handlePlay = async (item: WordItem) => {
     try {
-      setLoadingWord(text);
-      const base64 = await getPronunciation(text);
+      setLoadingWord(item.word);
+      
+      // If English toggle selected (lang='en'), read Spanish definition (defEs)
+      // If Spanish toggle selected (lang='es'), read English definition (defEn)
+      const definitionToRead = lang === 'en' ? item.defEs : item.defEn;
+      const textToSpeak = `${item.word}. ${definitionToRead}`;
+
+      const base64 = await getPronunciation(textToSpeak);
       if (base64) {
         const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
         const buffer = await decodeAudioData(decodeBase64Audio(base64), audioContext);
@@ -115,7 +128,7 @@ const VocabularyTool: React.FC<VocabularyToolProps> = ({ lang }) => {
                 {text.professional}
               </span>
               <motion.button 
-                onClick={() => handlePlay(itemObj.word)}
+                onClick={() => handlePlay(itemObj)}
                 whileHover={{ scale: 1.15, rotate: 5 }}
                 whileTap={{ scale: 0.9 }}
                 className={`w-14 h-14 rounded-2xl flex items-center justify-center text-2xl transition-all shadow-2xl ${

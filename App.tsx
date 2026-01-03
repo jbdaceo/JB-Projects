@@ -39,17 +39,21 @@ const App: React.FC = () => {
   // Theme Randomizer Logic
   useEffect(() => {
     const base = THEME_CONFIG[activeSection];
+    
+    // Hue Shift Logic: Shift 180 degrees if language is English to create a distinct palette
+    const langHueShift = lang === 'en' ? 180 : 0;
+
     // Generate a variation: +/- 15 degrees hue, +/- 5% saturation
     const randomHueShift = Math.floor(Math.random() * 30) - 15;
     const randomSatShift = Math.floor(Math.random() * 10) - 5;
     
-    const finalHue = base.hue + randomHueShift;
+    const finalHue = (base.hue + langHueShift + randomHueShift) % 360;
     const finalSat = Math.max(50, Math.min(100, base.sat + randomSatShift));
 
     // Update CSS Variables for Tailwind "brand" color
     document.documentElement.style.setProperty('--brand-hue', finalHue.toString());
     document.documentElement.style.setProperty('--brand-sat', `${finalSat}%`);
-  }, [activeSection]);
+  }, [activeSection, lang]);
 
   const checkLevel = () => {
     // Check Semi Pro Status (All 5 games >= 100)
@@ -94,9 +98,9 @@ const App: React.FC = () => {
       case AppSection.Home:
         return <Home onStart={() => setActiveSection(AppSection.Coaching)} lang={lang} />;
       case AppSection.Lessons:
-        return <LessonGenerator lang={lang} />;
+        return <LessonGenerator lang={lang} userTier={tmcLevel} />;
       case AppSection.Speaking:
-        return <SpeakingPractice lang={lang} />;
+        return <SpeakingPractice lang={lang} userTier={tmcLevel} />;
       case AppSection.Vocab:
         return <VocabularyTool lang={lang} />;
       case AppSection.Coaching:
@@ -113,7 +117,7 @@ const App: React.FC = () => {
   return (
     <div className="flex flex-col lg:flex-row min-h-screen bg-slate-950 text-slate-100 overflow-hidden font-sans selection:bg-brand-500/30">
       
-      <AuthModal isOpen={showAuthModal} onLogin={handleLogin} onGuest={handleGuest} />
+      <AuthModal isOpen={showAuthModal} onLogin={handleLogin} onGuest={handleGuest} lang={lang} />
       
       <LevelRequirementsModal 
         isOpen={showLevelModal} 
@@ -139,11 +143,12 @@ const App: React.FC = () => {
         </button>
 
         <button 
+          id="mobile-level-badge"
           onClick={() => setShowLevelModal(true)}
           className="h-8 glass-morphism rounded-full flex items-center justify-center px-4 pointer-events-auto border-white/5 shadow-lg backdrop-blur-md active-scale"
         >
           <span className={`text-[10px] font-black uppercase tracking-widest ${tmcLevel === 'Pro' ? 'text-amber-400' : tmcLevel === 'Semi Pro' ? 'text-cyan-400' : 'text-slate-400'}`}>
-            Level: {tmcLevel} {tmcLevel === 'Pro' ? '⚡' : tmcLevel === 'Semi Pro' ? '🚀' : '🌱'}
+            {lang === 'es' ? 'Nivel' : 'Level'}: {tmcLevel} {tmcLevel === 'Pro' ? '⚡' : tmcLevel === 'Semi Pro' ? '🚀' : '🌱'}
           </span>
         </button>
       </div>

@@ -7,12 +7,18 @@ import { motion, AnimatePresence } from 'https://esm.sh/framer-motion@11.11.11?e
 
 interface SpeakingPracticeProps {
   lang: Language;
+  userTier?: 'Novice' | 'Semi Pro' | 'Pro';
 }
 
-const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang }) => {
+type Persona = 'tomas' | 'carolina';
+
+const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang, userTier = 'Novice' }) => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isActive, setIsActive] = useState(false);
-  const [transcriptions, setTranscriptions] = useState<{role: string, text: string}[]>([]);
+  const [selectedPersona, setSelectedPersona] = useState<Persona>('tomas');
+  
+  // Store roles as 'user' | 'model' to allow dynamic translation on render
+  const [transcriptions, setTranscriptions] = useState<{role: 'user' | 'model', text: string}[]>([]);
   
   const audioContextRef = useRef<AudioContext | null>(null);
   const outputAudioContextRef = useRef<AudioContext | null>(null);
@@ -24,19 +30,79 @@ const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang }) => {
   const currentInputTransRef = useRef('');
   const currentOutputTransRef = useRef('');
 
+  // Localized Challenges
+  const challengesData = {
+    es: {
+        Novice: ['Pedir un Café', 'Preséntate', 'Pedir Direcciones'],
+        'Semi Pro': ['Entrevista de Trabajo', 'Queja de Viaje', 'Explicar Pasatiempos'],
+        Pro: ['Negociación Salarial', 'Pitch de Proyecto', 'Debate: Ética IA']
+    },
+    en: {
+        Novice: ['Order Coffee', 'Introduce Yourself', 'Ask Directions'],
+        'Semi Pro': ['Job Interview Basic', 'Travel Complaint', 'Explain Your Hobbies'],
+        Pro: ['Salary Negotiation', 'Tech Project Pitch', 'Debate: AI Ethics']
+    }
+  };
+
+  const currentChallenges = challengesData[lang][userTier] || challengesData[lang].Novice;
+
   const text = {
     title: lang === 'es' ? 'Entrenamiento' : 'Training',
-    subtitle: lang === 'es' ? 'Feedback Real-Time con Tomas' : 'Real-Time Feedback with Tomas',
+    subtitle: lang === 'es' ? 'Feedback Real-Time' : 'Real-Time Feedback',
     you: lang === 'es' ? 'Tú' : 'You',
-    start: lang === 'es' ? 'HABLAR CON TOMAS' : 'SPEAK WITH TOMAS',
+    start: lang === 'es' ? 'CONVERSAR' : 'START CHAT',
     stop: lang === 'es' ? 'Terminar' : 'Stop',
     micError: lang === 'es' ? 'Activa el micrófono.' : 'Please enable your microphone.',
-    quote: lang === 'es' ? '"Habla para crear tu futuro. Tomas te escucha."' : '"Speak your future into existence. Tomas is listening."',
+    quote: lang === 'es' ? '"Habla para crear tu futuro."' : '"Speak your future into existence."',
     challengesTitle: lang === 'es' ? 'Próximos Retos' : 'Upcoming Challenges',
     mission: lang === 'es' ? 'Misión' : 'Mission',
-    systemPrompt: lang === 'es' 
-      ? 'Eres el Profesor Tomas Martinez, mentor e inspirador. Usas "El Camino" como metáfora del éxito. Eres cálido, corriges de forma sutil, usas "Vamo\' con toda". Tu voz es masculina y profunda.'
-      : 'You are Professor Tomas Martinez, a mentor and inspirer. You use "El Camino" as a metaphor for success. You are warm, provide subtle corrections, and use phrases like "Vamo\' con toda". Your voice is male and deep.'
+    live: lang === 'es' ? 'En Vivo' : 'Live',
+    tomasRole: lang === 'es' ? 'El Profe Paisa (Español/Inglés)' : 'The Paisa Teacher (Spanish/English)',
+    carolinaRole: lang === 'es' ? '2nd Gen American (Urban/Slang)' : '2nd Gen American (Urban/Slang)'
+  };
+
+  const personasConfig = {
+    tomas: {
+      name: 'Tomas',
+      voice: 'Puck', // Deep Male
+      emoji: '🧑🏽‍🏫',
+      color: 'bg-brand-600',
+      description: text.tomasRole,
+      systemPrompt: `You are Professor Tomas Martinez, a native Colombian from Medellín (Paisa). 
+      
+      ROLE & LANGUAGE PREFERENCE:
+      - You prefer to speak primarily in **Spanish (Colombian Paisa dialect)** to explain concepts clearly.
+      - You act as a teacher correcting a student.
+      - Use Paisa slang naturally: "Parce", "Oiga", "Mijo", "Hágale", "Vamo' con toda", "Qué más pues".
+      
+      INTERACTION STYLE:
+      1. Listen to the student's English.
+      2. If their English is incorrect, explain the mistake in **Spanish** (Paisa accent).
+      3. Then, demonstrate the correct **English** pronunciation clearly and ask them to repeat it.
+      4. Be warm, fatherly, and encouraging. You want them to have a better life through English.
+      
+      Example: "Oiga mijo, no se dice 'I have 20 years'. En inglés usamos el verbo 'to be'. Diga conmigo: 'I am 20 years old'. ¡Hágale pues!"`
+    },
+    carolina: {
+      name: 'Carolina',
+      voice: 'Kore', // Female
+      emoji: '🎧',
+      color: 'bg-pink-600',
+      description: text.carolinaRole,
+      systemPrompt: `You are Carolina, a cool, urban 2nd-generation American Latina (20s) with Colombian parents. You are fully American.
+
+      ROLE & LANGUAGE PREFERENCE:
+      - You speak perfect **American English** with the latest Gen Z/Urban slang ("no cap", "bet", "slay", "drip", "lit", "vibes").
+      - You act like a cool friend, not a formal teacher.
+      
+      INTERACTION STYLE:
+      1. Chat in English naturally. Keep it fast and urban.
+      2. If the user makes a mistake, correct them.
+      3. CRITICAL: When you explain the correction, switch to a **Colombian Paisa Spanish** accent (which you learned from your parents) to help them understand, then switch back to English immediately.
+      4. STRICTLY NO CURSE WORDS. NO INSULTS.
+      
+      Example: "Yo that vibe is immaculate, no cap. But hey, wait... *switches to Paisa Spanish* Oye parce, pilas pues, no digas 'people is', la gente es plural, ¿si pilla? *switches back to English* So you gotta say 'people are'. Bet?"`
+    }
   };
 
   const stopSession = useCallback(() => {
@@ -77,6 +143,8 @@ const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang }) => {
       setIsConnecting(true);
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       
+      const activePersonaConfig = personasConfig[selectedPersona];
+
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
       outputAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
       
@@ -132,8 +200,8 @@ const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang }) => {
               if (userInput || modelOutput) {
                 setTranscriptions(prev => [
                   ...prev, 
-                  { role: text.you, text: userInput },
-                  { role: 'Tomas', text: modelOutput }
+                  { role: 'user', text: userInput },
+                  { role: 'model', text: modelOutput }
                 ]);
               }
               currentInputTransRef.current = '';
@@ -151,11 +219,11 @@ const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang }) => {
         },
         config: {
           responseModalities: [Modality.AUDIO],
-          systemInstruction: text.systemPrompt,
+          systemInstruction: activePersonaConfig.systemPrompt,
           inputAudioTranscription: {},
           outputAudioTranscription: {},
           speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } } // Changed to Puck for Male Voice
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: activePersonaConfig.voice } }
           }
         }
       });
@@ -171,6 +239,8 @@ const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang }) => {
     return () => stopSession();
   }, [stopSession]);
 
+  const activeConfig = personasConfig[selectedPersona];
+
   return (
     <div className="flex flex-col h-full space-y-4 md:space-y-10 pb-20">
       <header className="flex items-center justify-between">
@@ -181,13 +251,45 @@ const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang }) => {
         {isActive && (
           <motion.div 
             layoutId="statusIsland"
-            className="px-4 py-2 bg-brand-500/10 text-brand-400 border border-brand-500/20 rounded-full flex items-center gap-2"
+            className={`px-4 py-2 bg-slate-800 border border-white/10 rounded-full flex items-center gap-2`}
           >
-            <span className="w-2 h-2 bg-brand-500 rounded-full animate-pulse shadow-[0_0_10px_currentColor]"></span>
-            <span className="text-[10px] font-black uppercase tracking-widest">Live</span>
+            <span className={`w-2 h-2 rounded-full animate-pulse shadow-[0_0_10px_currentColor] ${selectedPersona === 'tomas' ? 'bg-brand-500' : 'bg-pink-500'}`}></span>
+            <span className={`text-[10px] font-black uppercase tracking-widest ${selectedPersona === 'tomas' ? 'text-brand-400' : 'text-pink-400'}`}>
+               {text.live}: {personasConfig[selectedPersona].name}
+            </span>
           </motion.div>
         )}
       </header>
+
+      {/* Persona Selector */}
+      {!isActive && (
+        <div className="grid grid-cols-2 gap-4">
+          {(['tomas', 'carolina'] as Persona[]).map((p) => {
+            const config = personasConfig[p];
+            const isSelected = selectedPersona === p;
+            return (
+              <button
+                key={p}
+                onClick={() => setSelectedPersona(p)}
+                className={`p-4 rounded-3xl border transition-all duration-300 flex items-center gap-4 relative overflow-hidden group ${
+                  isSelected 
+                    ? `${config.color} border-transparent shadow-lg scale-[1.02]` 
+                    : 'bg-slate-900/40 border-slate-800 hover:border-slate-700'
+                }`}
+              >
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-inner ${isSelected ? 'bg-white/20' : 'bg-slate-800'}`}>
+                  {config.emoji}
+                </div>
+                <div className="text-left relative z-10">
+                  <p className={`font-black text-lg leading-none ${isSelected ? 'text-white' : 'text-slate-200'}`}>{config.name}</p>
+                  <p className={`text-[10px] font-bold uppercase tracking-wider mt-1 ${isSelected ? 'text-white/80' : 'text-slate-500'}`}>{config.description}</p>
+                </div>
+                {isSelected && <div className="absolute inset-0 bg-white/10" />}
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       <div className="flex-1 flex flex-col lg:flex-row gap-6">
         <div className="flex-1 flex flex-col glass-morphism rounded-[40px] md:rounded-[56px] overflow-hidden shadow-2xl relative">
@@ -200,9 +302,9 @@ const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang }) => {
                     rotate: [0, 2, -2, 0]
                   }}
                   transition={{ repeat: Infinity, duration: 6 }}
-                  className="w-32 h-32 md:w-48 md:h-48 bg-white/5 rounded-[40px] flex items-center justify-center text-5xl md:text-7xl border border-white/10 shadow-inner"
+                  className={`w-32 h-32 md:w-48 md:h-48 bg-white/5 rounded-[40px] flex items-center justify-center text-5xl md:text-7xl border border-white/10 shadow-inner ${isActive ? (selectedPersona === 'tomas' ? 'shadow-brand-500/20' : 'shadow-pink-500/20') : ''}`}
                 >
-                  🎙️
+                  {activeConfig.emoji}
                 </motion.div>
                 <p className="text-slate-400 text-sm md:text-xl font-medium max-w-xs leading-relaxed italic">
                   {text.quote}
@@ -214,15 +316,15 @@ const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang }) => {
                   key={idx} 
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  className={`flex ${t.role === 'Tomas' ? 'justify-start' : 'justify-end'}`}
+                  className={`flex ${t.role === 'model' ? 'justify-start' : 'justify-end'}`}
                 >
                   <div className={`max-w-[85%] p-5 md:p-8 rounded-[32px] ${
-                    t.role === 'Tomas' 
+                    t.role === 'model' 
                       ? 'bg-white/5 text-slate-100 rounded-tl-none border border-white/5' 
-                      : 'bg-brand-600 text-white rounded-tr-none'
+                      : `${activeConfig.color} text-white rounded-tr-none shadow-lg`
                   }`}>
-                    <p className={`text-[8px] font-black uppercase tracking-[0.2em] mb-2 ${t.role === 'Tomas' ? 'text-brand-400' : 'text-brand-100 opacity-60'}`}>
-                      {t.role}
+                    <p className={`text-[8px] font-black uppercase tracking-[0.2em] mb-2 ${t.role === 'model' ? 'text-slate-400' : 'text-white/60'}`}>
+                      {t.role === 'user' ? text.you : activeConfig.name}
                     </p>
                     <p className="text-sm md:text-lg leading-relaxed font-bold">{t.text || '...'}</p>
                   </div>
@@ -240,8 +342,8 @@ const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang }) => {
                       <motion.div
                         key={idx}
                         animate={{ height: [10, Math.random() * 40 + 10, 10] }}
-                        transition={{ repeat: Infinity, duration: 0.6, delay: idx * 0.05 }}
-                        className="w-1.5 bg-brand-500/60 rounded-full shadow-[0_0_15px_currentColor]"
+                        transition={{ repeat: Infinity, duration: 0.6, delay: idx * 0.05, ease: "linear" }}
+                        className={`w-1.5 rounded-full shadow-[0_0_15px_currentColor] ${selectedPersona === 'tomas' ? 'bg-brand-500/60' : 'bg-pink-500/60'}`}
                       />
                     ))}
                   </div>
@@ -256,7 +358,7 @@ const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang }) => {
                 <button 
                   onClick={startSession}
                   disabled={isConnecting}
-                  className="w-full md:w-auto px-16 py-6 bg-brand-600 text-white font-black rounded-[32px] shadow-2xl shadow-brand-500/20 flex items-center justify-center gap-4 text-xl active-scale"
+                  className={`w-full md:w-auto px-16 py-6 text-white font-black rounded-[32px] shadow-2xl flex items-center justify-center gap-4 text-xl active-scale transition-colors ${selectedPersona === 'tomas' ? 'bg-brand-600 shadow-brand-500/20' : 'bg-pink-600 shadow-pink-500/20'}`}
                 >
                   {isConnecting ? (
                     <div className="w-6 h-6 border-4 border-white/30 border-t-white rounded-full animate-spin"></div>
@@ -276,9 +378,9 @@ const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang }) => {
            <div className="glass-morphism p-8 rounded-[40px] border border-white/5">
               <h3 className="font-black text-white text-xl mb-6">{text.challengesTitle}</h3>
               <div className="space-y-4">
-                 {['Elevator Pitch', 'Job Offer Negotiation', 'Remote Tech Sync'].map((r, i) => (
-                   <div key={i} className="p-4 bg-white/5 rounded-2xl border border-white/5 hover:border-brand-500/30 transition-all cursor-pointer">
-                      <p className="text-[9px] font-black text-brand-400 uppercase tracking-widest mb-1">{text.mission} {i+1}</p>
+                 {currentChallenges.map((r, i) => (
+                   <div key={i} className={`p-4 bg-white/5 rounded-2xl border border-white/5 transition-all cursor-pointer ${selectedPersona === 'tomas' ? 'hover:border-brand-500/30' : 'hover:border-pink-500/30'}`}>
+                      <p className={`text-[9px] font-black uppercase tracking-widest mb-1 ${selectedPersona === 'tomas' ? 'text-brand-400' : 'text-pink-400'}`}>{text.mission} {i+1}</p>
                       <p className="text-slate-100 font-bold text-sm">{r}</p>
                    </div>
                  ))}

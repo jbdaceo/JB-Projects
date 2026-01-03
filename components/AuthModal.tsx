@@ -1,14 +1,16 @@
 
 import React from 'react';
 import { motion, AnimatePresence } from 'https://esm.sh/framer-motion@11.11.11?external=react,react-dom';
+import { Language } from '../types';
 
 interface AuthModalProps {
   isOpen: boolean;
   onLogin: () => void;
   onGuest: () => void;
+  lang: Language;
 }
 
-const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onLogin, onGuest }) => {
+const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onLogin, onGuest, lang }) => {
   if (!isOpen) return null;
 
   const socialButtons = [
@@ -35,7 +37,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onLogin, onGuest }) => {
         <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-brand-500/20 to-transparent pointer-events-none"></div>
 
         <div className="relative text-center space-y-2 mb-10">
-          <div className="w-16 h-16 rounded-2xl colombia-gradient flex items-center justify-center text-3xl shadow-lg mx-auto mb-6">C</div>
+          <div className={`w-16 h-16 rounded-2xl ${lang === 'es' ? 'colombia-gradient' : 'usa-gradient'} flex items-center justify-center text-3xl shadow-lg mx-auto mb-6`}>C</div>
           <h2 className="text-3xl font-black text-white">Welcome Back</h2>
           <p className="text-slate-400 text-sm font-medium">Continue your journey with El Camino.</p>
         </div>

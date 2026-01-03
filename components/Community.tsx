@@ -180,7 +180,7 @@ const Community: React.FC<CommunityProps> = ({ lang }) => {
                 value={newChatText}
                 onChange={(e) => setNewChatText(e.target.value)}
               />
-              <button className="w-14 h-14 bg-blue-600 text-white rounded-2xl flex items-center justify-center text-xl shadow-lg active-scale">
+              <button className="w-14 h-14 bg-blue-600 text-white rounded-2xl flex items-center justify-center text-xl shadow-lg active:scale-95">
                 🚀
               </button>
             </form>
@@ -232,6 +232,12 @@ const Community: React.FC<CommunityProps> = ({ lang }) => {
                     placeholder={text.sharePlaceholder}
                     value={newCommentText}
                     onChange={(e) => setNewCommentText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handlePostComment(e);
+                      }
+                    }}
                   ></textarea>
                   <button className="w-full py-4 bg-blue-600 text-white font-black rounded-2xl shadow-xl shadow-blue-500/20 active:scale-95 transition-all uppercase tracking-widest text-xs">
                     {text.publish}

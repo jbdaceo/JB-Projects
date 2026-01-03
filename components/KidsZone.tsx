@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'https://esm.sh/framer-motion@11.11.11?external=react,react-dom';
 import confetti from 'https://esm.sh/canvas-confetti@1.9.2';
 import { Language } from '../types';
@@ -23,6 +23,19 @@ interface WordItem {
   factEs: string;
 }
 
+interface ConversationItem {
+  id: number;
+  level: number;
+  scenarioEn: string;
+  scenarioEs: string;
+  botEn: string;
+  botEs: string;
+  optionsEn: string[];
+  optionsEs: string[];
+  answerEn: string;
+  answerEs: string;
+}
+
 interface GameShow {
   id: string;
   titleEn: string;
@@ -31,13 +44,13 @@ interface GameShow {
   descriptionEs: string;
   gradient: string;
   icon: string;
-  type: 'voice' | 'quiz' | 'match' | 'spell' | 'listen';
+  type: 'conversation' | 'quiz' | 'match' | 'spell' | 'listen';
 }
 
 // --- Content Pools ---
 
 const GAME_SHOWS: GameShow[] = [
-  { id: 'voice_voyager', titleEn: 'Voice Voyager', titleEs: 'Viajero de Voz', descriptionEn: 'Speak the word!', descriptionEs: '¡Di la palabra!', gradient: 'from-cyan-400 to-blue-600', icon: '🎙️', type: 'voice' },
+  { id: 'voice_voyager', titleEn: 'Chat Champion', titleEs: 'Campeón de Chat', descriptionEn: 'Pick the right reply!', descriptionEs: '¡Elige la respuesta!', gradient: 'from-cyan-400 to-blue-600', icon: '💬', type: 'conversation' },
   { id: 'trivia_titan', titleEn: 'Trivia Titan', titleEs: 'Titán de Trivia', descriptionEn: 'Choose the best answer.', descriptionEs: 'Elige la mejor respuesta.', gradient: 'from-violet-500 to-purple-700', icon: '🧠', type: 'quiz' },
   { id: 'match_master', titleEn: 'Match Master', titleEs: 'Maestro de Parejas', descriptionEn: 'Find the translation.', descriptionEs: 'Encuentra la traducción.', gradient: 'from-emerald-400 to-green-600', icon: '🧩', type: 'match' },
   { id: 'word_wizard', titleEn: 'Word Wizard', titleEs: 'Mago de Letras', descriptionEn: 'Unscramble the magic.', descriptionEs: 'Ordena la magia.', gradient: 'from-amber-400 to-orange-600', icon: '🧙‍♂️', type: 'spell' },
@@ -65,6 +78,19 @@ const LEARN_POOL: WordItem[] = [
   { id: 18, level: 9, emoji: '👨‍🚀', word: 'Astronaut', translation: 'Astronauta', hintEn: 'I wear a helmet and float in zero gravity. Who am I?', hintEs: 'Uso casco y floto en gravedad cero. ¿Quién soy?', factEn: 'Astronauts can grow taller in space.', factEs: 'Los astronautas pueden crecer en el espacio.' },
   { id: 19, level: 9, emoji: '💎', word: 'Diamond', translation: 'Diamante', hintEn: 'I am the hardest stone on earth, clear and sparkly. What am I?', hintEs: 'Soy la piedra más dura, clara y brillante. ¿Qué soy?', factEn: 'Diamonds are made of carbon.', factEs: 'Los diamantes están hechos de carbono.' },
   { id: 20, level: 10, emoji: '🤖', word: 'Robot', translation: 'Robot', hintEn: 'I am made of metal, have wires, and act like a human. What am I?', hintEs: 'Hecho de metal, tengo cables y actúo como humano. ¿Qué soy?', factEn: 'The word robot comes from "robota" meaning work.', factEs: 'La palabra robot viene de "trabajo".' },
+];
+
+const CONVERSATION_POOL: ConversationItem[] = [
+  { id: 1, level: 1, scenarioEn: "Greeting", scenarioEs: "Saludo", botEn: "Hello! How are you today?", botEs: "¡Hola! ¿Cómo estás hoy?", optionsEn: ["I am happy!", "I am a table.", "Goodbye."], optionsEs: ["¡Estoy feliz!", "Soy una mesa.", "Adiós."], answerEn: "I am happy!", answerEs: "¡Estoy feliz!" },
+  { id: 2, level: 1, scenarioEn: "Name", scenarioEs: "Nombre", botEn: "What is your name?", botEs: "¿Cómo te llamas?", optionsEn: ["My name is Sam.", "Yes, please.", "Red."], optionsEs: ["Me llamo Sam.", "Sí, por favor.", "Rojo."], answerEn: "My name is Sam.", answerEs: "Me llamo Sam." },
+  { id: 3, level: 2, scenarioEn: "Food", scenarioEs: "Comida", botEn: "Do you like pizza?", botEs: "¿Te gusta la pizza?", optionsEn: ["Yes, it is yummy!", "I am pizza.", "Wall."], optionsEs: ["¡Sí, es rica!", "Soy pizza.", "Pared."], answerEn: "Yes, it is yummy!", answerEs: "¡Sí, es rica!" },
+  { id: 4, level: 2, scenarioEn: "Activity", scenarioEs: "Actividad", botEn: "Let's play soccer!", botEs: "¡Juguemos fútbol!", optionsEn: ["Okay, let's go!", "I am sleeping.", "Yellow."], optionsEs: ["¡Ok, vamos!", "Estoy durmiendo.", "Amarillo."], answerEn: "Okay, let's go!", answerEs: "¡Ok, vamos!" },
+  { id: 5, level: 3, scenarioEn: "Color", scenarioEs: "Color", botEn: "What is your favorite color?", botEs: "¿Cuál es tu color favorito?", optionsEn: ["I like blue.", "Apple.", "Run."], optionsEs: ["Me gusta el azul.", "Manzana.", "Correr."], answerEn: "I like blue.", answerEs: "Me gusta el azul." },
+  { id: 6, level: 4, scenarioEn: "Time", scenarioEs: "Hora", botEn: "Is it time for lunch?", botEs: "¿Es hora del almuerzo?", optionsEn: ["Yes, I am hungry.", "My cat is flying.", "Chair."], optionsEs: ["Sí, tengo hambre.", "Mi gato vuela.", "Silla."], answerEn: "Yes, I am hungry.", answerEs: "Sí, tengo hambre." },
+  { id: 7, level: 5, scenarioEn: "Pets", scenarioEs: "Mascotas", botEn: "Do you have a dog?", botEs: "¿Tienes un perro?", optionsEn: ["No, I have a cat.", "I like clouds.", "Tuesday."], optionsEs: ["No, tengo un gato.", "Me gustan las nubes.", "Martes."], answerEn: "No, I have a cat.", answerEs: "No, tengo un gato." },
+  { id: 8, level: 6, scenarioEn: "Feelings", scenarioEs: "Sentimientos", botEn: "Why are you crying?", botEs: "¿Por qué lloras?", optionsEn: ["I am sad.", "I am happy.", "I am a banana."], optionsEs: ["Estoy triste.", "Estoy feliz.", "Soy una banana."], answerEn: "I am sad.", answerEs: "Estoy triste." },
+  { id: 9, level: 7, scenarioEn: "Directions", scenarioEs: "Direcciones", botEn: "Where is the library?", botEs: "¿Dónde está la biblioteca?", optionsEn: ["Down the street.", "Up the sky.", "In my shoe."], optionsEs: ["Al final de la calle.", "En el cielo.", "En mi zapato."], answerEn: "Down the street.", answerEs: "Al final de la calle." },
+  { id: 10, level: 8, scenarioEn: "Future", scenarioEs: "Futuro", botEn: "What will you be when you grow up?", botEs: "¿Qué serás cuando crezcas?", optionsEn: ["An astronaut.", "A baby.", "Yesterday."], optionsEs: ["Un astronauta.", "Un bebé.", "Ayer."], answerEn: "An astronaut.", answerEs: "Un astronauta." },
 ];
 
 const SUPPORT_MESSAGES = [
@@ -244,10 +270,6 @@ const KidsZone: React.FC<KidsZoneProps> = ({ lang }) => {
   
   // --- Learn Mode State ---
   const [learnIndex, setLearnIndex] = useState(0);
-  const [isListening, setIsListening] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(0); 
-  const recognitionRef = useRef<any>(null);
-  const timerRef = useRef<any>(null);
   
   // --- Game Show State ---
   const [selectedShow, setSelectedShow] = useState<GameShow | null>(null);
@@ -281,13 +303,6 @@ const KidsZone: React.FC<KidsZoneProps> = ({ lang }) => {
     return () => window.removeEventListener('tmc-help-request', handleHelpRequest as EventListener);
   }, [view, selectedShow, gameQuestion, learnIndex]);
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      stopListeningState();
-    }
-  }, []);
-
   // Audio helper for listening game
   useEffect(() => {
     if (view === 'gameshow' && selectedShow?.type === 'listen' && gameQuestion?.rawItem?.word) {
@@ -308,19 +323,22 @@ const KidsZone: React.FC<KidsZoneProps> = ({ lang }) => {
 
   const playAudio = async (text: string) => {
     try {
+      setDragonState('talking');
       const base64 = await getPronunciation(text); 
-      if (!base64) return;
+      if (!base64) {
+        setDragonState('idle');
+        return;
+      }
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
       const buffer = await decodeAudioData(decodeBase64Audio(base64), audioContext);
       const source = audioContext.createBufferSource();
       source.buffer = buffer;
       source.connect(audioContext.destination);
       source.start();
-      return new Promise((resolve) => {
-        source.onended = resolve;
-      });
+      source.onended = () => setDragonState('idle');
     } catch (e) {
       console.error(e);
+      setDragonState('idle');
     }
   };
 
@@ -328,137 +346,7 @@ const KidsZone: React.FC<KidsZoneProps> = ({ lang }) => {
     setDragonState('happy');
     window.dispatchEvent(new Event('tmc-mascot-happy'));
     await playAudio(word);
-    await new Promise(r => setTimeout(r, 300));
-    await playAudio(translation);
     setDragonState('idle');
-  };
-
-  // --- Speech Recognition ---
-  const startListening = (targetLang: string) => {
-    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      alert(t("Your browser doesn't support speech recognition. Try Chrome!", "Tu navegador no soporta reconocimiento de voz. ¡Prueba Chrome!", lang));
-      return;
-    }
-
-    // Clean up any existing session properly
-    stopListeningState();
-
-    setIsListening(true);
-    setDragonState('listening');
-    setDragonMessage(t("I'm listening...", "Te escucho...", lang));
-    setTimeLeft(5);
-    
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
-    recognitionRef.current = recognition;
-    
-    recognition.lang = targetLang;
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
-    recognition.continuous = false; 
-
-    recognition.onresult = (event: any) => {
-      const speechResult = event.results[0][0].transcript.toLowerCase();
-      stopListeningState(); 
-      
-      if (view === 'learn') {
-          handleLearnSpeechResult(speechResult);
-      } else if (view === 'gameshow' && selectedShow?.type === 'voice') {
-          handleGameAnswer(speechResult);
-      }
-    };
-
-    recognition.onerror = (event: any) => {
-      // Ignore no-speech errors, we rely on the timer to stop
-      if (event.error === 'no-speech') return;
-      if (event.error === 'aborted') return;
-      
-      console.error("Speech Error:", event.error);
-      stopListeningState();
-    };
-
-    recognition.onend = () => {
-       // Only restart if the timer is still running and this recognition instance matches current
-       if (timerRef.current && recognitionRef.current === recognition) {
-         // Add a small delay to prevent rapid-fire loop limits in some browsers
-         setTimeout(() => {
-            if (timerRef.current && recognitionRef.current === recognition) {
-                try {
-                  recognition.start();
-                } catch(e) {
-                  console.error("Restart fail", e);
-                  // Optional: stop listening if we fail repeatedly, but usually catch handles per-instance
-                }
-            }
-         }, 100);
-       } else {
-         // Natural stop
-         setIsListening(false); 
-         if (dragonState === 'listening') setDragonState('idle');
-       }
-    };
-
-    try {
-      recognition.start();
-    } catch(e) {
-      console.error("Start failed", e);
-      setIsListening(false);
-    }
-
-    timerRef.current = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 1) {
-           stopListeningState();
-           setDragonState('supporting');
-           setDragonMessage(t("Didn't catch that. Try again!", "No entendí. ¡Intenta de nuevo!", lang));
-           return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  };
-
-  const stopListeningState = () => {
-    if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null; // Signal manual stop
-    }
-    if (recognitionRef.current) {
-        const rec = recognitionRef.current;
-        recognitionRef.current = null; // Nullify ref first so onend logic knows we are done
-        try { rec.stop(); } catch(e){}
-    }
-    setIsListening(false);
-    setTimeLeft(0);
-    if (dragonState === 'listening') setDragonState('idle');
-  }
-
-  const handleLearnSpeechResult = async (transcript: string) => {
-    const currentWord = LEARN_POOL[learnIndex % LEARN_POOL.length];
-    
-    const isEnglishTarget = learnIndex % 2 === 0; 
-    const targetWord = isEnglishTarget ? currentWord.word : currentWord.translation;
-
-    if (transcript.toLowerCase().includes(targetWord.toLowerCase())) {
-      setDragonMessage(t("Correct! 🎉", "¡Correcto! 🎉", lang));
-      triggerFireworks();
-      triggerScreenShake('success');
-      await playRewardSequence(currentWord.word, currentWord.translation);
-      if (userLevel < 100) {
-        setUserLevel(prev => {
-          const newLevel = prev + 1;
-          localStorage.setItem('tmc_kids_level', newLevel.toString());
-          return newLevel;
-        });
-      }
-      setLearnIndex(prev => prev + 1);
-    } else {
-      triggerScreenShake('error');
-      setDragonState('supporting');
-      const msg = SUPPORT_MESSAGES[Math.floor(Math.random() * SUPPORT_MESSAGES.length)];
-      setDragonMessage(t(msg, "¡Casi! ¡Intenta de nuevo!", lang));
-      await playAudio(targetWord);
-    }
   };
 
   // --- Game Show Logic ---
@@ -486,83 +374,101 @@ const KidsZone: React.FC<KidsZoneProps> = ({ lang }) => {
   };
 
   const generateGameQuestion = (show: GameShow, currentUsedIds: number[] = usedQuestionIds) => {
-    // Session duplicate prevention
-    let availablePool = LEARN_POOL.filter(p => !currentUsedIds.includes(p.id));
+    let questionData: any = {};
     
-    if (availablePool.length === 0) {
-      // If exhausted, reset pool but keep score (Endless mode)
-      availablePool = LEARN_POOL;
-      setUsedQuestionIds([]);
-      currentUsedIds = [];
-    }
+    // Determine difficulty tier based on user level (1-100) -> 1-10 scale
+    const difficultyTier = Math.min(10, Math.ceil(userLevel / 10));
 
-    const poolIndex = Math.floor(Math.random() * availablePool.length);
-    const poolItem = availablePool[poolIndex];
-    
-    // Update used list
-    setUsedQuestionIds(prev => [...prev, poolItem.id]);
+    if (show.type === 'conversation') {
+      // Logic for Conversation Game (Chat Champion)
+      // Filter by level difficulty to make it harder
+      let availablePool = CONVERSATION_POOL.filter(p => !currentUsedIds.includes(p.id) && p.level <= difficultyTier);
+      
+      if (availablePool.length === 0) {
+        // Fallback to all items if filtered pool is empty
+        availablePool = CONVERSATION_POOL;
+        setUsedQuestionIds([]);
+        currentUsedIds = [];
+      }
+      
+      const poolIndex = Math.floor(Math.random() * availablePool.length);
+      const poolItem = availablePool[poolIndex];
+      setUsedQuestionIds(prev => [...prev, poolItem.id]);
 
-    let questionData: any = { rawItem: poolItem };
-    
-    const showType = show.type;
-    const englishWord = poolItem.word;
-    const spanishWord = poolItem.translation;
+      const isEs = lang === 'es';
+      const options = isEs ? [...poolItem.optionsEs] : [...poolItem.optionsEn];
+      const answer = isEs ? poolItem.answerEs : poolItem.answerEn;
+      
+      questionData = {
+        type: 'conversation',
+        text: isEs ? poolItem.botEs : poolItem.botEn,
+        answer: answer,
+        options: options.sort(() => 0.5 - Math.random()) // Shuffle
+      };
 
-    if (showType === 'spell') {
-       // Unscramble English
-       const scrambled = englishWord.split('').sort(() => 0.5 - Math.random()).join('');
-       questionData = {
-         type: 'input',
-         text: t(`Unscramble: ${scrambled}`, `Ordena: ${scrambled}`, lang),
-         answer: englishWord,
-         hint: t(`It means: ${spanishWord}`, `Significa: ${spanishWord}`, lang)
-       };
-    } else if (showType === 'voice') {
-       // Speak English
-       questionData = {
-         type: 'voice',
-         text: t(`Say in English: "${spanishWord}"`, `Di en Inglés: "${spanishWord}"`, lang),
-         answer: englishWord,
-         hint: t("Speak clearly!", "¡Habla claro!", lang)
-       };
-    } else if (showType === 'match') {
-       // Match Spanish -> English
-       questionData = {
-         type: 'options',
-         text: t(`Select the English for: "${spanishWord}"`, `Selecciona el inglés para: "${spanishWord}"`, lang),
-         answer: englishWord,
-         options: getOptions(poolItem, 3, 'english_words')
-       };
-    } else if (showType === 'listen') {
-       // Listen English -> Select English Text
-       questionData = {
-         type: 'options',
-         text: t("Listen and select the word", "Escucha y selecciona la palabra", lang),
-         answer: englishWord,
-         options: getOptions(poolItem, 2, 'english_words') // 3 options total
-       };
     } else {
-       // Default Quiz (Trivia)
-       questionData = {
-         type: 'options',
-         text: t(`What is this? ${poolItem.emoji}`, `¿Qué es esto? ${poolItem.emoji}`, lang),
-         answer: englishWord,
-         options: getOptions(poolItem, 3, 'english_words')
-       };
+      // Logic for Learn Pool Games
+      // Filter learn pool by difficulty level
+      let availablePool = LEARN_POOL.filter(p => !currentUsedIds.includes(p.id) && p.level <= difficultyTier);
+      
+      if (availablePool.length === 0) {
+        availablePool = LEARN_POOL;
+        setUsedQuestionIds([]);
+        currentUsedIds = [];
+      }
+
+      const poolIndex = Math.floor(Math.random() * availablePool.length);
+      const poolItem = availablePool[poolIndex];
+      setUsedQuestionIds(prev => [...prev, poolItem.id]);
+
+      questionData = { rawItem: poolItem };
+      
+      const showType = show.type;
+      const englishWord = poolItem.word;
+      const spanishWord = poolItem.translation;
+
+      if (showType === 'spell') {
+         const scrambled = englishWord.split('').sort(() => 0.5 - Math.random()).join('');
+         questionData = {
+           type: 'input',
+           text: t(`Unscramble: ${scrambled}`, `Ordena: ${scrambled}`, lang),
+           answer: englishWord,
+           hint: t(`It means: ${spanishWord}`, `Significa: ${spanishWord}`, lang)
+         };
+      } else if (showType === 'match') {
+         questionData = {
+           type: 'options',
+           text: t(`Select the English for: "${spanishWord}"`, `Selecciona el inglés para: "${spanishWord}"`, lang),
+           answer: englishWord,
+           options: getOptions(poolItem, 3, 'english_words')
+         };
+      } else if (showType === 'listen') {
+         questionData = {
+           type: 'options',
+           text: t("Listen and select the word", "Escucha y selecciona la palabra", lang),
+           answer: englishWord,
+           options: getOptions(poolItem, 2, 'english_words') // 3 options total
+         };
+      } else {
+         // Default Quiz (Trivia)
+         questionData = {
+           type: 'options',
+           text: t(`What is this? ${poolItem.emoji}`, `¿Qué es esto? ${poolItem.emoji}`, lang),
+           answer: englishWord,
+           options: getOptions(poolItem, 3, 'english_words')
+         };
+      }
     }
 
     setGameQuestion(questionData);
   };
 
   const handleGameAnswer = (ans: string) => {
-    if (selectedAnswer && selectedShow?.type !== 'voice') return; 
+    if (selectedAnswer) return; 
     setSelectedAnswer(ans);
     setHighlightedAnswer(null);
 
-    // Fuzzy check for voice or exact for text
-    const isCorrect = selectedShow?.type === 'voice' 
-        ? ans.toLowerCase().includes(gameQuestion.answer.toLowerCase())
-        : ans.toLowerCase() === gameQuestion.answer.toLowerCase();
+    const isCorrect = ans.toLowerCase() === gameQuestion.answer.toLowerCase();
 
     if (isCorrect) {
       setAnswerStatus('correct');
@@ -617,15 +523,28 @@ const KidsZone: React.FC<KidsZoneProps> = ({ lang }) => {
   };
 
   const handleHelp = (source: 'draco' | 'robot' | 'pet') => {
-    const item = view === 'learn' ? LEARN_POOL[learnIndex % LEARN_POOL.length] : (gameQuestion?.rawItem as WordItem);
-    if (!item) return;
+    // Determine item based on game type
+    let hint = "";
+    let fact = "";
+    
+    if (view === 'learn') {
+       const item = LEARN_POOL[learnIndex % LEARN_POOL.length];
+       hint = lang === 'es' ? item.hintEs : item.hintEn;
+       fact = lang === 'es' ? item.factEs : item.factEn;
+    } else if (gameQuestion?.rawItem) {
+       const item = gameQuestion.rawItem as WordItem;
+       hint = lang === 'es' ? item.hintEs : item.hintEn;
+       fact = lang === 'es' ? item.factEs : item.factEn;
+    } else {
+       // Conversation game fallback
+       hint = t("Pick the response that fits best!", "¡Elige la respuesta que mejor encaje!", lang);
+       fact = t("Conversations are about listening!", "¡Conversar es escuchar!", lang);
+    }
 
     if (source === 'draco') {
       setDragonState('happy');
-      const hint = lang === 'es' ? item.hintEs : item.hintEn;
       setDragonMessage(`💡 ${hint}`);
     } else if (source === 'robot') {
-      const fact = lang === 'es' ? item.factEs : item.factEn;
       setRobotMessage(`🤖 ${fact}`);
       setTimeout(() => setRobotMessage(null), 5000);
     } else if (source === 'pet') {
@@ -640,6 +559,17 @@ const KidsZone: React.FC<KidsZoneProps> = ({ lang }) => {
           setPetMessage(t("You can do it!", "¡Tú puedes!", lang));
           setTimeout(() => setPetMessage(null), 3000);
       }
+    }
+  };
+
+  const nextLearnCard = () => {
+    setLearnIndex(prev => prev + 1);
+    if (userLevel < 100) {
+        setUserLevel(prev => {
+          const newLevel = prev + 1;
+          localStorage.setItem('tmc_kids_level', newLevel.toString());
+          return newLevel;
+        });
     }
   };
 
@@ -692,8 +622,8 @@ const KidsZone: React.FC<KidsZoneProps> = ({ lang }) => {
         >
           <div className="relative z-10 flex flex-col items-center text-center space-y-4">
             <span className="text-7xl drop-shadow-md">🗣️</span>
-            <h3 className="text-3xl font-black text-white uppercase tracking-wide">{t("Learn to Speak", "Aprende a Hablar", lang)}</h3>
-            <p className="text-white/90 font-bold text-lg">{t("100 Levels • Voice Activated", "100 Niveles • Voz Activada", lang)}</p>
+            <h3 className="text-3xl font-black text-white uppercase tracking-wide">{t("Learn Words", "Aprende Palabras", lang)}</h3>
+            <p className="text-white/90 font-bold text-lg">{t("Flashcards • Pronunciation", "Tarjetas • Pronunciación", lang)}</p>
           </div>
           <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
         </motion.button>
@@ -720,12 +650,9 @@ const KidsZone: React.FC<KidsZoneProps> = ({ lang }) => {
     const progress = (userLevel % 100);
     
     // Alternating Logic
-    // Even index (0, 2, 4): Target is English. Display Spanish.
-    // Odd index (1, 3, 5): Target is Spanish. Display English.
     const isEnglishTarget = learnIndex % 2 === 0; 
     const displayWord = isEnglishTarget ? currentWord.translation : currentWord.word;
     const targetWord = isEnglishTarget ? currentWord.word : currentWord.translation;
-    const targetLangCode = isEnglishTarget ? 'en-US' : 'es-ES';
     const displaySubtitle = isEnglishTarget ? "En Español" : "In English";
 
     return (
@@ -749,25 +676,32 @@ const KidsZone: React.FC<KidsZoneProps> = ({ lang }) => {
             className="bg-white/10 backdrop-blur-md p-10 rounded-[48px] border-4 border-white/20 text-center w-full shadow-2xl relative"
           >
             <div className="text-9xl mb-6 drop-shadow-2xl">{currentWord.emoji}</div>
-            {/* Show the SOURCE language word */}
             <h2 className="text-5xl font-black text-white mb-2">{displayWord}</h2>
             <p className="text-xl text-blue-300 font-bold opacity-60">{displaySubtitle}</p>
+            <div className="mt-6 p-4 bg-black/20 rounded-2xl">
+               <p className="text-white font-bold text-lg mb-1">{t("Translation:", "Traducción:", lang)}</p>
+               <p className="text-yellow-400 font-black text-3xl">{targetWord}</p>
+            </div>
           </motion.div>
 
-          <motion.button
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            onClick={() => startListening(targetLangCode)}
-            disabled={isListening}
-            className={`w-24 h-24 rounded-full flex items-center justify-center text-4xl shadow-2xl border-4 border-white/20 transition-all ${isListening ? 'bg-red-500 animate-pulse' : 'bg-blue-600 hover:bg-blue-500'}`}
-          >
-            {isListening ? <span className="text-2xl font-black text-white">{timeLeft}s</span> : '🎙️'}
-          </motion.button>
-          <p className="text-slate-400 font-bold animate-pulse text-center">
-            {isListening 
-              ? t("Listening...", "Escuchando...", lang) 
-              : t(`Tap & Say "${targetWord}"!`, `¡Toca y Di "${targetWord}"!`, lang)}
-          </p>
+          <div className="flex gap-4">
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={() => playAudio(targetWord)}
+              className="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center text-3xl shadow-xl border-4 border-white/20"
+            >
+              🔊
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={nextLearnCard}
+              className="h-20 px-8 bg-green-500 rounded-full flex items-center justify-center text-xl font-black text-white shadow-xl border-4 border-white/20 uppercase tracking-wide"
+            >
+              {t("Next Word →", "Siguiente →", lang)}
+            </motion.button>
+          </div>
         </div>
         
         <AnimatePresence>
@@ -775,12 +709,6 @@ const KidsZone: React.FC<KidsZoneProps> = ({ lang }) => {
                 <motion.div initial={{opacity:0, y:20}} animate={{opacity:1, y:0}} exit={{opacity:0}} className="fixed bottom-32 right-8 bg-blue-600 text-white p-4 rounded-2xl max-w-xs shadow-xl z-50 border border-white/20">
                     {robotMessage}
                     <div className="absolute -bottom-2 right-6 w-4 h-4 bg-blue-600 rotate-45"></div>
-                </motion.div>
-            )}
-            {petMessage && (
-                <motion.div initial={{opacity:0, y:20}} animate={{opacity:1, y:0}} exit={{opacity:0}} className="fixed bottom-32 left-8 lg:left-auto lg:right-32 bg-yellow-500 text-black font-bold p-4 rounded-2xl max-w-xs shadow-xl z-50 border border-white/20">
-                    {petMessage}
-                     <div className="absolute -bottom-2 right-6 lg:right-auto lg:left-6 w-4 h-4 bg-yellow-500 rotate-45"></div>
                 </motion.div>
             )}
         </AnimatePresence>
@@ -808,77 +736,103 @@ const KidsZone: React.FC<KidsZoneProps> = ({ lang }) => {
              {renderDragon()}
 
              <div className="relative z-10 w-full max-w-md bg-white/90 rounded-[32px] p-8 text-center shadow-2xl text-slate-900 mt-4">
-                <h3 className="text-2xl font-black mb-6 uppercase tracking-tight text-slate-800">{gameQuestion?.text}</h3>
                 
-                {/* Audio Replay for Listen Game */}
-                {selectedShow.type === 'listen' && gameQuestion?.rawItem?.word && (
-                  <button 
-                    onClick={() => playAudio(gameQuestion.rawItem.word)}
-                    className="mb-6 w-16 h-16 bg-blue-600 rounded-full text-white text-2xl shadow-lg hover:scale-110 transition-transform active:scale-95 flex items-center justify-center mx-auto"
-                  >
-                    🔊
-                  </button>
+                {/* Conversation Game Layout */}
+                {selectedShow.type === 'conversation' ? (
+                   <div className="flex flex-col gap-6">
+                      <div className="flex items-start gap-4">
+                         <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center text-2xl shrink-0">🦎</div>
+                         <div className="bg-purple-100 p-4 rounded-2xl rounded-tl-none relative">
+                            <p className="font-bold text-lg text-purple-900">{gameQuestion?.text}</p>
+                         </div>
+                      </div>
+                      <div className="grid grid-cols-1 gap-3 mt-4">
+                         {gameQuestion?.options?.map((opt: string) => {
+                            const isSelected = selectedAnswer === opt;
+                            const isCorrect = answerStatus === 'correct';
+                            const isWrong = answerStatus === 'wrong';
+                            let btnClass = "bg-slate-100 text-slate-700 hover:bg-slate-200 border-2 border-slate-200";
+                            
+                            if (isSelected) {
+                                if (isCorrect) btnClass = "bg-green-500 text-white border-green-600";
+                                else if (isWrong) btnClass = "bg-red-500 text-white border-red-600";
+                            } 
+
+                            return (
+                              <button 
+                                key={opt}
+                                onClick={() => handleGameAnswer(opt)}
+                                className={`p-4 rounded-xl font-bold text-left transition-all active:scale-95 ${btnClass}`}
+                                disabled={!!selectedAnswer}
+                              >
+                                {opt}
+                              </button>
+                            );
+                         })}
+                      </div>
+                   </div>
+                ) : (
+                   /* Default Quiz Layout */
+                   <>
+                    <h3 className="text-2xl font-black mb-6 uppercase tracking-tight text-slate-800">{gameQuestion?.text}</h3>
+                    
+                    {selectedShow.type === 'listen' && gameQuestion?.rawItem?.word && (
+                      <button 
+                        onClick={() => playAudio(gameQuestion.rawItem.word)}
+                        className="mb-6 w-16 h-16 bg-blue-600 rounded-full text-white text-2xl shadow-lg hover:scale-110 transition-transform active:scale-95 flex items-center justify-center mx-auto"
+                      >
+                        🔊
+                      </button>
+                    )}
+
+                    <div className="grid grid-cols-1 gap-3">
+                       {gameQuestion?.options ? (
+                          gameQuestion.options.map((opt: string) => {
+                            const isSelected = selectedAnswer === opt;
+                            const isCorrect = answerStatus === 'correct';
+                            const isWrong = answerStatus === 'wrong';
+                            
+                            let btnClass = "bg-blue-600 text-white border-transparent";
+                            
+                            if (isSelected) {
+                                if (isCorrect) btnClass = "bg-green-500 text-white border-green-400 scale-105 shadow-green-500/50";
+                                else if (isWrong) btnClass = "bg-red-500 text-white border-red-400 shake";
+                                else btnClass = "bg-yellow-400 text-yellow-900 border-yellow-500 scale-105";
+                            } else if (highlightedAnswer === opt) {
+                                btnClass = "bg-yellow-400 text-yellow-900 border-yellow-500 scale-110 animate-bounce";
+                            }
+
+                            return (
+                              <button 
+                                key={opt}
+                                onClick={() => handleGameAnswer(opt)}
+                                className={`font-bold py-4 rounded-xl shadow-lg transition-all border-4 hover:scale-105 active:scale-95 ${btnClass}`}
+                                disabled={!!selectedAnswer}
+                              >
+                                {opt}
+                              </button>
+                            );
+                          })
+                       ) : (
+                          <div className="flex gap-2">
+                            <input 
+                              type="text" 
+                              placeholder={t("Type answer...", "Escribe...", lang)}
+                              className="flex-1 bg-slate-200 p-4 rounded-xl text-center text-2xl font-bold uppercase outline-none focus:ring-4 ring-blue-500/30"
+                              onKeyDown={(e) => {
+                                 if (e.key === 'Enter') {
+                                   const val = (e.target as HTMLInputElement).value;
+                                   handleGameAnswer(val);
+                                   (e.target as HTMLInputElement).value = '';
+                                 }
+                              }}
+                            />
+                            <button className="bg-blue-600 text-white p-4 rounded-xl font-bold">↵</button>
+                          </div>
+                       )}
+                    </div>
+                   </>
                 )}
-
-                <div className="grid grid-cols-1 gap-3">
-                   {selectedShow.type === 'voice' ? (
-                      <div className="flex flex-col items-center gap-4">
-                         <motion.button
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                            onClick={() => startListening('en-US')}
-                            disabled={isListening}
-                            className={`w-32 h-32 rounded-full flex items-center justify-center text-5xl shadow-2xl border-4 border-slate-200 transition-all ${isListening ? 'bg-red-500 animate-pulse text-white' : 'bg-blue-600 text-white'}`}
-                          >
-                            {isListening ? timeLeft : '🎙️'}
-                          </motion.button>
-                          <p className="font-bold text-slate-500">{isListening ? t("Listening...", "Escuchando...", lang) : t("Tap to Speak", "Toca para Hablar", lang)}</p>
-                      </div>
-                   ) : gameQuestion?.options ? (
-                      gameQuestion.options.map((opt: string) => {
-                        const isSelected = selectedAnswer === opt;
-                        const isCorrect = answerStatus === 'correct';
-                        const isWrong = answerStatus === 'wrong';
-                        
-                        let btnClass = "bg-blue-600 text-white border-transparent";
-                        
-                        if (isSelected) {
-                            if (isCorrect) btnClass = "bg-green-500 text-white border-green-400 scale-105 shadow-green-500/50";
-                            else if (isWrong) btnClass = "bg-red-500 text-white border-red-400 shake";
-                            else btnClass = "bg-yellow-400 text-yellow-900 border-yellow-500 scale-105";
-                        } else if (highlightedAnswer === opt) {
-                            btnClass = "bg-yellow-400 text-yellow-900 border-yellow-500 scale-110 animate-bounce";
-                        }
-
-                        return (
-                          <button 
-                            key={opt}
-                            onClick={() => handleGameAnswer(opt)}
-                            className={`font-bold py-4 rounded-xl shadow-lg transition-all border-4 hover:scale-105 active:scale-95 ${btnClass}`}
-                            disabled={!!selectedAnswer}
-                          >
-                            {opt}
-                          </button>
-                        );
-                      })
-                   ) : (
-                      <div className="flex gap-2">
-                        <input 
-                          type="text" 
-                          placeholder={t("Type answer...", "Escribe...", lang)}
-                          className="flex-1 bg-slate-200 p-4 rounded-xl text-center text-2xl font-bold uppercase outline-none focus:ring-4 ring-blue-500/30"
-                          onKeyDown={(e) => {
-                             if (e.key === 'Enter') {
-                               const val = (e.target as HTMLInputElement).value;
-                               handleGameAnswer(val);
-                               (e.target as HTMLInputElement).value = '';
-                             }
-                          }}
-                        />
-                        <button className="bg-blue-600 text-white p-4 rounded-xl font-bold">↵</button>
-                      </div>
-                   )}
-                </div>
              </div>
              
             <AnimatePresence>

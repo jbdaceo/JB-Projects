@@ -2,11 +2,17 @@
 export interface Lesson {
   title: string;
   topic: string;
-  level: 'Beginner' | 'Intermediate' | 'Advanced';
+  level: string; // The academic grade string (e.g. "Grade 10")
+  numericLevel?: number; // Internal numeric tracker
   content: string;
   summary: string;
   vocabulary: { word: string; translation: string; example: string }[];
   quiz: { question: string; options: string[]; answer: string }[];
+}
+
+export interface SavedLesson extends Lesson {
+  id: string;
+  dateSaved: number;
 }
 
 export type Language = 'es' | 'en';

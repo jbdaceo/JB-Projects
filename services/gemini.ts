@@ -5,12 +5,118 @@ import { Lesson, AppSection, AssistantMessage } from "../types";
 // Always use process.env.API_KEY directly in the named parameter object.
 const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-export const generateLesson = async (topic: string, level: string): Promise<Lesson> => {
+export const generateLesson = async (
+  topic: string, 
+  level: number, 
+  lang: 'es' | 'en' = 'es',
+  userTier: 'Novice' | 'Semi Pro' | 'Pro' = 'Novice'
+): Promise<Lesson> => {
   const ai = getAI();
-  const prompt = `Create a comprehensive English lesson for a Colombian student. 
-  Topic: ${topic}
-  Level: ${level}
-  Format as JSON with: title, topic, level, summary (3-4 bullet points), content (main body), vocabulary (5 items with word, translation, example), quiz (3 questions).`;
+  
+  let academicGrade = "";
+  let complexityInstruction = "";
+  let quizComplexity = "";
+
+  // Logic: Map numeric level to Grades 4-12 + Collegiate
+  if (level > 90 && userTier !== 'Pro') {
+    academicGrade = "Grade 12 (Advanced C2)";
+    complexityInstruction = "Use sophisticated vocabulary, complex sentence structures (inversion, conditionals type 3), and idioms.";
+    quizComplexity = "Questions must be very difficult. Use trick answers (distractors that are almost correct). Focus on nuance, tone, and inference.";
+  } else {
+    if (level <= 10) {
+      academicGrade = "Grade 4 (Elementary A1)";
+      complexityInstruction = "Use very basic vocabulary (Top 500 words). Short, simple sentences (Subject-Verb-Object). Focus on nouns and basic verbs.";
+      quizComplexity = "Questions must be direct and literal. Options should be obviously different.";
+    } else if (level <= 20) {
+      academicGrade = "Grade 5 (Beginner A1+)";
+      complexityInstruction = "Introduce basic adjectives and prepositions. Present simple and continuous tenses.";
+      quizComplexity = "Questions focus on basic comprehension. Distractors should be grammatically incorrect.";
+    } else if (level <= 30) {
+      academicGrade = "Grade 6 (Lower Intermediate A2)";
+      complexityInstruction = "Introduce past simple. Connectors like 'but', 'because'. Vocabulary related to daily routines and travel.";
+      quizComplexity = "Questions require understanding simple context clues.";
+    } else if (level <= 40) {
+      academicGrade = "Grade 7 (Intermediate A2+)";
+      complexityInstruction = "Introduce future forms (will/going to). Comparatives and superlatives. Social media vocabulary.";
+      quizComplexity = "Questions involve comparing information. Options are grammatically correct but factually wrong.";
+    } else if (level <= 50) {
+      academicGrade = "Grade 8 (Upper Intermediate B1)";
+      complexityInstruction = "Present perfect tense. Modals (should, must, can). Business networking vocabulary intro.";
+      quizComplexity = "Questions test usage of modals and context. Distractors are plausible but less optimal.";
+    } else if (level <= 60) {
+      academicGrade = "Grade 9 (Advanced B1+)";
+      complexityInstruction = "First and Second Conditionals. Passive voice basics. Professional email terminology.";
+      quizComplexity = "Questions involve conditionals. Requires understanding cause and effect.";
+    } else if (level <= 70) {
+      academicGrade = "Grade 10 (Proficient B2)";
+      complexityInstruction = "Reported speech. Phrasal verbs. Abstract concepts in business and entrepreneurship.";
+      quizComplexity = "Questions test phrasal verbs and indirect speech. High difficulty distractors.";
+    } else if (level <= 85) {
+      academicGrade = "Grade 11 (Advanced C1)";
+      complexityInstruction = "Mixed conditionals. Advanced phrasal verbs. Nuanced arguments and persuasion.";
+      quizComplexity = "Questions require critical thinking. Distractors hinge on subtle meaning differences.";
+    } else if (level <= 90) {
+      academicGrade = "Grade 12 (Mastery C2)";
+      complexityInstruction = "Full fluency. Idiomatic mastery. Complex academic and professional structures.";
+      quizComplexity = "Mastery level. Questions should be challenging even for native speakers. focus on idiom usage.";
+    } else {
+      academicGrade = `Collegiate Year ${Math.ceil((level - 90) / 10)} (Pro Tier)`;
+      complexityInstruction = "University/Ivy League level English. GRE/GMAT vocabulary. Rhetorical devices. Highly specialized business/tech jargon.";
+      quizComplexity = "Extreme difficulty. Focus on rhetorical analysis, etymology, and complex logic.";
+    }
+  }
+
+  const pedagogyEs = `
+    PEDAGOGY (The TMC Method):
+    1.  **Context**: Spanish to English. Explain concepts in Spanish so the student understands 100%, but give examples in English.
+    2.  **Culture**: Constantly compare **Colombian phrases/slang** with **American equivalents**.
+    3.  **Goal**: Focus on Travel, Meeting New People, Growing Business, and Gaining Followers.
+    4.  **Tone**: Motivational, energetic, like a cool Colombian mentor.
+    `;
+
+  const pedagogyEn = `
+    PEDAGOGY (The TMC Method - Full Immersion):
+    1.  **Context**: English to English. Explain concepts in simple English suitable for the level.
+    2.  **Culture**: Explain American culture and idioms relevant to Colombians.
+    3.  **Goal**: Focus on Travel, Meeting New People, Growing Business, and Gaining Followers.
+    4.  **Tone**: Motivational, energetic, like a cool mentor.
+    `;
+
+  const prompt = `
+  Act as Professor Tomas Martinez. Create a personalized English lesson.
+  
+  TOPIC: ${topic}
+  LEVEL: ${level} -> ${academicGrade}
+  INSTRUCTION: ${complexityInstruction}
+  QUIZ DIFFICULTY: ${quizComplexity}
+  ${lang === 'es' ? pedagogyEs : pedagogyEn}
+
+  STRUCTURE THE JSON EXACTLY AS FOLLOWS:
+  {
+    "title": "Catchy Title in English",
+    "topic": "${topic}",
+    "level": "${academicGrade}",
+    "numericLevel": ${level},
+    "summary": "A 3-bullet point summary in ${lang === 'es' ? 'Spanish' : 'English'} explaining why this helps them travel or make money.",
+    "content": "A comprehensive explanation. Use markdown. \n- Explain the grammar/concept in ${lang === 'es' ? 'Spanish' : 'English'}.\n- Provide a real-world scenario (Travel, Business, or Social Media).\n- Show the 'Colombian Way' to say it vs the 'American Way'.",
+    "vocabulary": [
+      {
+        "word": "English Phrase",
+        "translation": "${lang === 'es' ? 'Spanish Meaning (Colombian context)' : 'Simple English Definition'}",
+        "example": "A sentence relevant to travel/business/followers using the specific grammar of this level."
+      }
+      // ... 5 items total
+    ],
+    "quiz": [
+      {
+        "question": "A scenario-based question matching ${academicGrade} difficulty.",
+        "options": ["Option A", "Option B", "Option C"],
+        "answer": "The correct option text"
+      }
+      // ... 3 questions total
+    ]
+  }
+  `;
 
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
@@ -23,6 +129,7 @@ export const generateLesson = async (topic: string, level: string): Promise<Less
           title: { type: Type.STRING },
           topic: { type: Type.STRING },
           level: { type: Type.STRING },
+          numericLevel: { type: Type.NUMBER },
           summary: { type: Type.STRING },
           content: { type: Type.STRING },
           vocabulary: {
@@ -56,6 +163,41 @@ export const generateLesson = async (topic: string, level: string): Promise<Less
   });
 
   return JSON.parse(response.text || '{}');
+};
+
+export const generateEncouragingFact = async (
+  category: string, 
+  userAnswer: string, 
+  lang: 'es' | 'en'
+): Promise<{ text: string, fact: string }> => {
+  const ai = getAI();
+  const prompt = `
+    The user just finished an English lesson.
+    I asked them: "What is your favorite ${category}?"
+    They answered: "${userAnswer}".
+    
+    1. Compliment their taste enthusiastically as Professor Tomas (Short, 1 sentence).
+    2. Provide a super interesting, obscure, or "cool" fact about ${userAnswer} (or the category in general) that makes it even better.
+    
+    Language: ${lang === 'es' ? 'Spanish' : 'English'}.
+  `;
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          text: { type: Type.STRING, description: "The enthusiastic compliment" },
+          fact: { type: Type.STRING, description: "The interesting fact" }
+        }
+      }
+    }
+  });
+
+  return JSON.parse(response.text || '{"text": "Awesome!", "fact": "Did you know that is cool?"}');
 };
 
 export const translateUI = async (text: string, targetLang: string): Promise<string> => {
