@@ -38,7 +38,7 @@ const VocabularyTool: React.FC<VocabularyToolProps> = ({ lang }) => {
   const [displayWords, setDisplayWords] = useState<WordItem[]>([]);
   
   const text = {
-    title: lang === 'es' ? 'Léxico del Éxito' : 'Lexicon of Success',
+    title: lang === 'es' ? 'Léxico del Éxito' : 'Success Lexicon',
     subtitle: lang === 'es' ? 'Conceptos clave para dominar el mercado global.' : 'Key concepts to master the global market.',
     professional: lang === 'es' ? 'Profesional' : 'Professional',
     growingWithYou: lang === 'es' ? 'Creciendo Contigo' : 'Growing With You',
@@ -46,32 +46,21 @@ const VocabularyTool: React.FC<VocabularyToolProps> = ({ lang }) => {
   };
 
   const randomizeWords = useCallback(() => {
-    // Simple shuffle
     const shuffled = [...ALL_WORDS].sort(() => 0.5 - Math.random());
     setDisplayWords(shuffled.slice(0, 6));
   }, []);
 
   useEffect(() => {
-    // Initial load and on language change
     randomizeWords();
-
-    // Auto-refresh every 5 minutes (300,000 ms)
     const intervalId = setInterval(() => {
       randomizeWords();
     }, 300000);
-
     return () => clearInterval(intervalId);
   }, [lang, randomizeWords]);
 
-  const handlePlay = async (item: WordItem) => {
+  const handlePlay = async (textToSpeak: string) => {
     try {
-      setLoadingWord(item.word);
-      
-      // If English toggle selected (lang='en'), read Spanish definition (defEs)
-      // If Spanish toggle selected (lang='es'), read English definition (defEn)
-      const definitionToRead = lang === 'en' ? item.defEs : item.defEn;
-      const textToSpeak = `${item.word}. ${definitionToRead}`;
-
+      setLoadingWord(textToSpeak);
       const base64 = await getPronunciation(textToSpeak);
       if (base64) {
         const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
@@ -90,10 +79,7 @@ const VocabularyTool: React.FC<VocabularyToolProps> = ({ lang }) => {
 
   const container = {
     hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: { staggerChildren: 0.12 }
-    }
+    show: { opacity: 1, transition: { staggerChildren: 0.12 } }
   };
 
   const item = {
@@ -114,43 +100,54 @@ const VocabularyTool: React.FC<VocabularyToolProps> = ({ lang }) => {
         animate="show"
         className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 md:gap-10"
       >
-        {displayWords.map((itemObj, idx) => (
-          <motion.div 
-            key={`${itemObj.word}-${idx}`} 
-            variants={item}
-            whileHover={{ y: -12, backgroundColor: 'rgba(30, 41, 59, 0.6)' }}
-            className="bg-slate-900/40 p-10 rounded-[40px] border border-slate-800 shadow-2xl hover:shadow-blue-500/10 transition-all group relative overflow-hidden backdrop-blur-sm"
-          >
-            <div className="absolute -top-12 -right-12 w-40 h-40 bg-blue-500/5 rounded-full group-hover:scale-150 transition-transform duration-700 pointer-events-none"></div>
-            
-            <div className="flex justify-between items-start mb-8 relative">
-              <span className="px-5 py-2 bg-blue-600/10 text-blue-400 rounded-2xl text-[10px] font-black uppercase tracking-[0.25em] border border-blue-500/20 shadow-inner">
-                {text.professional}
-              </span>
-              <motion.button 
-                onClick={() => handlePlay(itemObj)}
-                whileHover={{ scale: 1.15, rotate: 5 }}
-                whileTap={{ scale: 0.9 }}
-                className={`w-14 h-14 rounded-2xl flex items-center justify-center text-2xl transition-all shadow-2xl ${
-                  loadingWord === itemObj.word 
-                    ? 'bg-blue-600 shadow-blue-500/50' 
-                    : 'bg-slate-800 text-slate-300 hover:bg-blue-600 hover:text-white'
-                }`}
+        {displayWords.map((itemObj, idx) => {
+            // Logic Flip:
+            // If lang='es' (User is Spanish): Main word is English (word), Sub is Spanish (translation)
+            // If lang='en' (User is English): Main word is Spanish (translation), Sub is English (word)
+            const isSpanishUser = lang === 'es';
+            const mainWord = isSpanishUser ? itemObj.word : itemObj.translation;
+            const subWord = isSpanishUser ? itemObj.translation : itemObj.word;
+            const definition = isSpanishUser ? itemObj.defEs : itemObj.defEn;
+            const key = `${mainWord}-${idx}`;
+
+            return (
+              <motion.div 
+                key={key} 
+                variants={item}
+                whileHover={{ y: -12, backgroundColor: 'rgba(30, 41, 59, 0.6)' }}
+                className="bg-slate-900/40 p-10 rounded-[40px] border border-slate-800 shadow-2xl hover:shadow-blue-500/10 transition-all group relative overflow-hidden backdrop-blur-sm"
               >
-                {loadingWord === itemObj.word ? (
-                  <div className="w-6 h-6 border-4 border-white/30 border-t-white rounded-full animate-spin"></div>
-                ) : '🔊'}
-              </motion.button>
-            </div>
-            
-            <h3 className="text-3xl font-black text-white mb-3 group-hover:text-blue-400 transition-colors tracking-tight">{itemObj.word}</h3>
-            <p className="text-blue-300/60 font-black mb-8 text-base italic leading-tight">"{itemObj.translation}"</p>
-            
-            <p className="text-slate-400 text-base leading-relaxed border-l-4 border-blue-500/30 pl-5 py-2 font-medium">
-              {lang === 'es' ? itemObj.defEs : itemObj.defEn}
-            </p>
-          </motion.div>
-        ))}
+                <div className="absolute -top-12 -right-12 w-40 h-40 bg-blue-500/5 rounded-full group-hover:scale-150 transition-transform duration-700 pointer-events-none"></div>
+                
+                <div className="flex justify-between items-start mb-8 relative">
+                  <span className="px-5 py-2 bg-blue-600/10 text-blue-400 rounded-2xl text-[10px] font-black uppercase tracking-[0.25em] border border-blue-500/20 shadow-inner">
+                    {text.professional}
+                  </span>
+                  <motion.button 
+                    onClick={() => handlePlay(`${mainWord}. ${definition}`)}
+                    whileHover={{ scale: 1.15, rotate: 5 }}
+                    whileTap={{ scale: 0.9 }}
+                    className={`w-14 h-14 rounded-2xl flex items-center justify-center text-2xl transition-all shadow-2xl ${
+                      loadingWord === `${mainWord}. ${definition}`
+                        ? 'bg-blue-600 shadow-blue-500/50' 
+                        : 'bg-slate-800 text-slate-300 hover:bg-blue-600 hover:text-white'
+                    }`}
+                  >
+                    {loadingWord === `${mainWord}. ${definition}` ? (
+                      <div className="w-6 h-6 border-4 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    ) : '🔊'}
+                  </motion.button>
+                </div>
+                
+                <h3 className="text-3xl font-black text-white mb-3 group-hover:text-blue-400 transition-colors tracking-tight">{mainWord}</h3>
+                <p className="text-blue-300/60 font-black mb-8 text-base italic leading-tight">"{subWord}"</p>
+                
+                <p className="text-slate-400 text-base leading-relaxed border-l-4 border-blue-500/30 pl-5 py-2 font-medium">
+                  {definition}
+                </p>
+              </motion.div>
+          );
+        })}
 
         <motion.div 
           variants={item}

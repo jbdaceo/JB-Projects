@@ -366,8 +366,10 @@ const KidsZone: React.FC<KidsZoneProps> = ({ lang }) => {
       .sort(() => 0.5 - Math.random())
       .slice(0, count);
     
-    const correctVal = correctItem.word; // Always English word
-    const options = distractors.map(d => d.word); // Always English words
+    // IF lang is 'en', we want to learn SPANISH, so options should be Spanish
+    const isEnglishUser = lang === 'en';
+    const correctVal = isEnglishUser ? correctItem.translation : correctItem.word;
+    const options = distractors.map(d => isEnglishUser ? d.translation : d.word);
     
     // Shuffle all
     return [...options, correctVal].sort(() => 0.5 - Math.random());
@@ -375,17 +377,15 @@ const KidsZone: React.FC<KidsZoneProps> = ({ lang }) => {
 
   const generateGameQuestion = (show: GameShow, currentUsedIds: number[] = usedQuestionIds) => {
     let questionData: any = {};
-    
-    // Determine difficulty tier based on user level (1-100) -> 1-10 scale
     const difficultyTier = Math.min(10, Math.ceil(userLevel / 10));
 
+    // For simplicity in this logic, we assume English User -> Learns Spanish
+    const isEnglishUser = lang === 'en';
+
     if (show.type === 'conversation') {
-      // Logic for Conversation Game (Chat Champion)
-      // Filter by level difficulty to make it harder
       let availablePool = CONVERSATION_POOL.filter(p => !currentUsedIds.includes(p.id) && p.level <= difficultyTier);
       
       if (availablePool.length === 0) {
-        // Fallback to all items if filtered pool is empty
         availablePool = CONVERSATION_POOL;
         setUsedQuestionIds([]);
         currentUsedIds = [];
@@ -395,22 +395,21 @@ const KidsZone: React.FC<KidsZoneProps> = ({ lang }) => {
       const poolItem = availablePool[poolIndex];
       setUsedQuestionIds(prev => [...prev, poolItem.id]);
 
-      const isEs = lang === 'es';
-      const options = isEs ? [...poolItem.optionsEs] : [...poolItem.optionsEn];
-      const answer = isEs ? poolItem.answerEs : poolItem.answerEn;
+      // If user is Spanish -> Bot speaks English.
+      // If user is English -> Bot speaks Spanish.
+      const botText = isEnglishUser ? poolItem.botEs : poolItem.botEn;
+      const answer = isEnglishUser ? poolItem.answerEs : poolItem.answerEn;
+      const options = isEnglishUser ? poolItem.optionsEs : poolItem.optionsEn;
       
       questionData = {
         type: 'conversation',
-        text: isEs ? poolItem.botEs : poolItem.botEn,
+        text: botText,
         answer: answer,
-        options: options.sort(() => 0.5 - Math.random()) // Shuffle
+        options: [...options].sort(() => 0.5 - Math.random()) // Shuffle
       };
 
     } else {
-      // Logic for Learn Pool Games
-      // Filter learn pool by difficulty level
       let availablePool = LEARN_POOL.filter(p => !currentUsedIds.includes(p.id) && p.level <= difficultyTier);
-      
       if (availablePool.length === 0) {
         availablePool = LEARN_POOL;
         setUsedQuestionIds([]);
@@ -424,37 +423,38 @@ const KidsZone: React.FC<KidsZoneProps> = ({ lang }) => {
       questionData = { rawItem: poolItem };
       
       const showType = show.type;
-      const englishWord = poolItem.word;
-      const spanishWord = poolItem.translation;
+      // Target word is what we are learning
+      const targetWord = isEnglishUser ? poolItem.translation : poolItem.word;
+      const sourceWord = isEnglishUser ? poolItem.word : poolItem.translation;
 
       if (showType === 'spell') {
-         const scrambled = englishWord.split('').sort(() => 0.5 - Math.random()).join('');
+         const scrambled = targetWord.split('').sort(() => 0.5 - Math.random()).join('');
          questionData = {
            type: 'input',
            text: t(`Unscramble: ${scrambled}`, `Ordena: ${scrambled}`, lang),
-           answer: englishWord,
-           hint: t(`It means: ${spanishWord}`, `Significa: ${spanishWord}`, lang)
+           answer: targetWord,
+           hint: t(`It means: ${sourceWord}`, `Significa: ${sourceWord}`, lang)
          };
       } else if (showType === 'match') {
          questionData = {
            type: 'options',
-           text: t(`Select the English for: "${spanishWord}"`, `Selecciona el inglés para: "${spanishWord}"`, lang),
-           answer: englishWord,
+           text: t(`Select translation for: "${sourceWord}"`, `Traduce: "${sourceWord}"`, lang),
+           answer: targetWord,
            options: getOptions(poolItem, 3, 'english_words')
          };
       } else if (showType === 'listen') {
          questionData = {
            type: 'options',
-           text: t("Listen and select the word", "Escucha y selecciona la palabra", lang),
-           answer: englishWord,
-           options: getOptions(poolItem, 2, 'english_words') // 3 options total
+           text: t("Listen and select", "Escucha y selecciona", lang),
+           answer: targetWord,
+           options: getOptions(poolItem, 2, 'english_words') 
          };
       } else {
          // Default Quiz (Trivia)
          questionData = {
            type: 'options',
            text: t(`What is this? ${poolItem.emoji}`, `¿Qué es esto? ${poolItem.emoji}`, lang),
-           answer: englishWord,
+           answer: targetWord,
            options: getOptions(poolItem, 3, 'english_words')
          };
       }
@@ -472,12 +472,11 @@ const KidsZone: React.FC<KidsZoneProps> = ({ lang }) => {
 
     if (isCorrect) {
       setAnswerStatus('correct');
-      const points = 100; // Flat points for clarity
+      const points = 100;
       const newScore = gameScore + points;
       setGameScore(newScore);
       setGameLevel(l => l + 1);
       
-      // Save Score logic
       if (selectedShow) {
           localStorage.setItem(`tmc_game_score_${selectedShow.id}`, newScore.toString());
           checkMiddleLevelStatus();
@@ -510,20 +509,16 @@ const KidsZone: React.FC<KidsZoneProps> = ({ lang }) => {
   };
 
   const checkMiddleLevelStatus = () => {
-      // Check if all 5 games have at least 100 points
       const allPassed = GAME_SHOWS.every(game => {
           const score = parseInt(localStorage.getItem(`tmc_game_score_${game.id}`) || '0');
           return score >= 100;
       });
-      
       if (allPassed) {
-          // Trigger global update, handled in App.tsx
           window.dispatchEvent(new Event('tmc-level-update'));
       }
   };
 
   const handleHelp = (source: 'draco' | 'robot' | 'pet') => {
-    // Determine item based on game type
     let hint = "";
     let fact = "";
     
@@ -536,7 +531,6 @@ const KidsZone: React.FC<KidsZoneProps> = ({ lang }) => {
        hint = lang === 'es' ? item.hintEs : item.hintEn;
        fact = lang === 'es' ? item.factEs : item.factEn;
     } else {
-       // Conversation game fallback
        hint = t("Pick the response that fits best!", "¡Elige la respuesta que mejor encaje!", lang);
        fact = t("Conversations are about listening!", "¡Conversar es escuchar!", lang);
     }
@@ -649,11 +643,15 @@ const KidsZone: React.FC<KidsZoneProps> = ({ lang }) => {
     const currentWord = LEARN_POOL[learnIndex % LEARN_POOL.length];
     const progress = (userLevel % 100);
     
-    // Alternating Logic
-    const isEnglishTarget = learnIndex % 2 === 0; 
-    const displayWord = isEnglishTarget ? currentWord.translation : currentWord.word;
-    const targetWord = isEnglishTarget ? currentWord.word : currentWord.translation;
-    const displaySubtitle = isEnglishTarget ? "En Español" : "In English";
+    // Logic Flip: If lang='en', we learn Spanish. So displayWord = Spanish, targetWord = English
+    const isEnglishUser = lang === 'en';
+    const displayWord = isEnglishUser ? currentWord.translation : currentWord.word;
+    const targetWord = isEnglishUser ? currentWord.word : currentWord.translation;
+    const displaySubtitle = isEnglishUser ? "En Español" : "In English";
+    
+    // NOTE: For 'Learn' mode, we often show the TARGET language first so they learn it. 
+    // If English User -> Show Spanish Word -> Reveal English Meaning.
+    // If Spanish User -> Show English Word -> Reveal Spanish Meaning.
 
     return (
       <div className="max-w-2xl mx-auto py-6 px-4 flex flex-col h-full">
@@ -676,11 +674,11 @@ const KidsZone: React.FC<KidsZoneProps> = ({ lang }) => {
             className="bg-white/10 backdrop-blur-md p-10 rounded-[48px] border-4 border-white/20 text-center w-full shadow-2xl relative"
           >
             <div className="text-9xl mb-6 drop-shadow-2xl">{currentWord.emoji}</div>
-            <h2 className="text-5xl font-black text-white mb-2">{displayWord}</h2>
-            <p className="text-xl text-blue-300 font-bold opacity-60">{displaySubtitle}</p>
+            <h2 className="text-5xl font-black text-white mb-2">{isEnglishUser ? currentWord.translation : currentWord.word}</h2>
+            <p className="text-xl text-blue-300 font-bold opacity-60">{isEnglishUser ? "Español" : "English"}</p>
             <div className="mt-6 p-4 bg-black/20 rounded-2xl">
-               <p className="text-white font-bold text-lg mb-1">{t("Translation:", "Traducción:", lang)}</p>
-               <p className="text-yellow-400 font-black text-3xl">{targetWord}</p>
+               <p className="text-white font-bold text-lg mb-1">{t("Meaning:", "Significa:", lang)}</p>
+               <p className="text-yellow-400 font-black text-3xl">{isEnglishUser ? currentWord.word : currentWord.translation}</p>
             </div>
           </motion.div>
 
@@ -688,7 +686,7 @@ const KidsZone: React.FC<KidsZoneProps> = ({ lang }) => {
             <motion.button
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
-              onClick={() => playAudio(targetWord)}
+              onClick={() => playAudio(isEnglishUser ? currentWord.translation : currentWord.word)}
               className="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center text-3xl shadow-xl border-4 border-white/20"
             >
               🔊
@@ -699,7 +697,7 @@ const KidsZone: React.FC<KidsZoneProps> = ({ lang }) => {
               onClick={nextLearnCard}
               className="h-20 px-8 bg-green-500 rounded-full flex items-center justify-center text-xl font-black text-white shadow-xl border-4 border-white/20 uppercase tracking-wide"
             >
-              {t("Next Word →", "Siguiente →", lang)}
+              {t("Next →", "Siguiente →", lang)}
             </motion.button>
           </div>
         </div>
@@ -776,9 +774,9 @@ const KidsZone: React.FC<KidsZoneProps> = ({ lang }) => {
                    <>
                     <h3 className="text-2xl font-black mb-6 uppercase tracking-tight text-slate-800">{gameQuestion?.text}</h3>
                     
-                    {selectedShow.type === 'listen' && gameQuestion?.rawItem?.word && (
+                    {selectedShow.type === 'listen' && gameQuestion?.rawItem && (
                       <button 
-                        onClick={() => playAudio(gameQuestion.rawItem.word)}
+                        onClick={() => playAudio(lang === 'en' ? gameQuestion.rawItem.translation : gameQuestion.rawItem.word)}
                         className="mb-6 w-16 h-16 bg-blue-600 rounded-full text-white text-2xl shadow-lg hover:scale-110 transition-transform active:scale-95 flex items-center justify-center mx-auto"
                       >
                         🔊

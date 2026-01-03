@@ -38,7 +38,7 @@ const PERSONAL_QUESTIONS_POOL = [
   { id: 'talent', es: 'Talento oculto', en: 'Hidden Talent' },
   { id: 'coffee_tea', es: '¿Café o Té?', en: 'Coffee or Tea?' },
   { id: 'weekend', es: 'Actividad de fin de semana', en: 'Weekend Activity' },
-  { id: 'lang_goal', es: 'Meta con el inglés', en: 'English Goal' },
+  { id: 'lang_goal', es: 'Meta con el idioma', en: 'Language Goal' },
   { id: 'pet_peeve', es: 'Lo que más te molesta', en: 'Pet Peeve' }
 ];
 
@@ -97,18 +97,18 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang, userTier = 'Nov
   }, []);
 
   const text = {
-    title: lang === 'es' ? 'Maestría 4-12 Pro' : 'Mastery 4-12 Pro',
-    subtitle: lang === 'es' ? 'Currículo de Grado 4 a 12 adaptado para Negocios, Viajes y Redes.' : 'Grade 4-12 curriculum adapted for Business, Travel & Social Media.',
+    title: lang === 'es' ? 'Maestría en Inglés' : 'Spanish Mastery',
+    subtitle: lang === 'es' ? 'Currículo de Grado 4 a 12 adaptado para Negocios y Viajes.' : 'Grade 4-12 curriculum adapted for Travel, Business & Immersion.',
     quickMission: lang === 'es' ? 'Misión Rápida' : 'Quick Mission',
     deepDive: lang === 'es' ? 'Deep Dive' : 'Deep Dive',
     topicLabel: lang === 'es' ? 'Tu Objetivo Global' : 'Your Global Goal',
-    topicPlaceholder: lang === 'es' ? 'Ej: Viaje a Miami, Pitch de Negocios, Ganar Seguidores...' : 'Ex: Trip to Miami, Business Pitch, Gaining Followers...',
+    topicPlaceholder: lang === 'es' ? 'Ej: Viaje a Miami, Pitch de Negocios, Ganar Seguidores...' : 'Ex: Trip to Medellin, Business Pitch, Digital Nomad...',
     levelLabel: lang === 'es' ? 'Nivel de Maestría' : 'Mastery Level',
     lvl: lang === 'es' ? 'Nvl' : 'Lvl',
     generateBtn: lang === 'es' ? 'Generar Clase' : 'Generate Lesson',
     preparingBtn: lang === 'es' ? 'Diseñando Estrategia...' : 'Designing Strategy...',
-    loadingTitle: lang === 'es' ? 'El Profe Tomas está traduciendo tu mundo...' : 'Professor Tomas is translating your world...',
-    loadingQuote: lang === 'es' ? '"De Colombia para el mundo. Aprende lo que realmente sirve."' : '"From Colombia to the world. Learn what actually works."',
+    loadingTitle: lang === 'es' ? 'El Profe Tomas está traduciendo tu mundo...' : 'Professor Tomas is creating your path...',
+    loadingQuote: lang === 'es' ? '"De Colombia para el mundo. Aprende lo que realmente sirve."' : '"From English to Spanish. Learn what locals actually say."',
     missionObjectives: lang === 'es' ? 'Objetivos de la Misión' : 'Mission Objectives',
     viewFull: lang === 'es' ? 'Ver explicación completa →' : 'View full explanation →',
     challengeTitle: lang === 'es' ? 'Desafío Real' : 'Real Challenge',
@@ -118,8 +118,7 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang, userTier = 'Nov
     retryMsg: lang === 'es' ? '¡Casi! Repitamos las que fallaste para dominar el tema.' : 'Almost! Let\'s retry the ones you missed to master this.',
     powerWords: lang === 'es' ? 'Vocabulario de Alto Valor' : 'High Value Vocabulary',
     proTipTitle: lang === 'es' ? 'Consejo de Profe Tomas' : 'Pro Tip from Tomas',
-    proTipText: lang === 'es' ? '"En Estados Unidos no dices \'Me regalas\', dices \'Can I have\'. Pequeños cambios, grandes resultados."' : '"In the US you don\'t say \'Me regalas\', you say \'Can I have\'. Small changes, big results."',
-    validationMsg: lang === 'es' ? 'Por favor ingresa un tema (Ej: Viajes, Negocios).' : 'Please enter a topic (Ex: Travel, Business).',
+    validationMsg: lang === 'es' ? 'Por favor ingresa un tema.' : 'Please enter a topic.',
     levelUp: lang === 'es' ? '¡NIVEL COMPLETADO!' : 'LEVEL COMPLETED!',
     nowLevel: lang === 'es' ? 'Ahora eres Nivel' : 'You are now Level',
     nextLevelBtn: lang === 'es' ? 'Continuar' : 'Continue',
@@ -135,7 +134,6 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang, userTier = 'Nov
     upsellCta: lang === 'es' ? 'Ver Tutorías' : 'View Coaching',
     upsellSkip: lang === 'es' ? 'Quizás luego' : 'Maybe later',
     proRequired: lang === 'es' ? 'Requiere Nivel Pro' : 'Pro Level Required',
-    collegiate: lang === 'es' ? 'Nivel Universitario' : 'Collegiate Level'
   };
 
   const changeLevel = (delta: number) => {
@@ -164,18 +162,17 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang, userTier = 'Nov
     const levelToUse = levelOverride || masteryLevel;
 
     try {
+      // Calls generateLesson with user's native lang context
       const result = await generateLesson(topic, levelToUse, lang, userTier);
       
-      // Auto-save lesson to history - KEEP ONLY ONE TOPIC (THE LATEST)
       const newSavedLesson: SavedLesson = { 
         ...result, 
         id: Date.now().toString(), 
         dateSaved: Date.now(),
         numericLevel: levelToUse
       };
-      // Overwrite history with only the new lesson
-      const updatedHistory = [newSavedLesson];
       
+      const updatedHistory = [newSavedLesson];
       setSavedLessons(updatedHistory);
       localStorage.setItem('tmc_saved_lessons', JSON.stringify(updatedHistory));
 
@@ -184,7 +181,7 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang, userTier = 'Nov
       setViewMode('quick');
     } catch (error) {
       console.error(error);
-      alert(lang === 'es' ? 'Hubo un error al preparar tu clase. Intentémoslo de nuevo.' : 'There was an error preparing your lesson. Let\'s try again.');
+      alert(lang === 'es' ? 'Hubo un error al preparar tu clase.' : 'There was an error preparing your lesson.');
     } finally {
       setLoading(false);
     }
@@ -248,8 +245,6 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang, userTier = 'Nov
     let newUsedIds = [...usedQuestionIds];
 
     if (availableQuestions.length === 0) {
-      // If pool exhausted, pick random and reset used list (except current one to avoid immediate repeat if possible)
-      // Or just clear the list and start fresh.
       const freshStart = PERSONAL_QUESTIONS_POOL;
       selectedQ = freshStart[Math.floor(Math.random() * freshStart.length)];
       newUsedIds = [selectedQ.id];
@@ -258,11 +253,9 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang, userTier = 'Nov
       newUsedIds.push(selectedQ.id);
     }
 
-    // Save persistence
     setUsedQuestionIds(newUsedIds);
     localStorage.setItem('tmc_used_personal_questions', JSON.stringify(newUsedIds));
 
-    // Set UI state
     setPersonalCategory(lang === 'es' ? selectedQ.es : selectedQ.en);
     setPersonalQStep('ask');
     setPersonalAnswer('');
@@ -278,7 +271,6 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang, userTier = 'Nov
       setPersonalQStep('response');
     } catch (e) {
       console.error(e);
-      // Skip if error
       finishPersonalInteraction();
     } finally {
       setIsAiResponding(false);
@@ -288,8 +280,6 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang, userTier = 'Nov
   const finishPersonalInteraction = () => {
     setShowPersonalModal(false);
     setAiPersonalResponse(null);
-    
-    // Check for Upsell every 5 levels
     if (masteryLevel > 1 && masteryLevel % 5 === 0) {
       setShowUpsellModal(true);
     } else {

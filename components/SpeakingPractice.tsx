@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality, Blob } from '@google/genai';
 import { encodeAudio, decodeBase64Audio, decodeAudioData } from '../services/gemini';
 import { Language } from '../types';
@@ -12,98 +12,272 @@ interface SpeakingPracticeProps {
 
 type Persona = 'tomas' | 'carolina';
 
+interface Challenge {
+  id: number;
+  text: string;
+  difficulty: number;
+}
+
 const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang, userTier = 'Novice' }) => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isActive, setIsActive] = useState(false);
   const [selectedPersona, setSelectedPersona] = useState<Persona>('tomas');
+  const [showMobileChallenges, setShowMobileChallenges] = useState(false);
   
-  // Store roles as 'user' | 'model' to allow dynamic translation on render
   const [transcriptions, setTranscriptions] = useState<{role: 'user' | 'model', text: string}[]>([]);
   
   const audioContextRef = useRef<AudioContext | null>(null);
   const outputAudioContextRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const sessionPromiseRef = useRef<Promise<any> | null>(null);
+  const sessionPromiseRef = useRef<Promise<any> | null>(null); // Keep track of the session
   const nextStartTimeRef = useRef<number>(0);
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
   
   const currentInputTransRef = useRef('');
   const currentOutputTransRef = useRef('');
 
-  // Localized Challenges
-  const challengesData = {
-    es: {
-        Novice: ['Pedir un Café', 'Preséntate', 'Pedir Direcciones'],
-        'Semi Pro': ['Entrevista de Trabajo', 'Queja de Viaje', 'Explicar Pasatiempos'],
-        Pro: ['Negociación Salarial', 'Pitch de Proyecto', 'Debate: Ética IA']
-    },
-    en: {
-        Novice: ['Order Coffee', 'Introduce Yourself', 'Ask Directions'],
-        'Semi Pro': ['Job Interview Basic', 'Travel Complaint', 'Explain Your Hobbies'],
-        Pro: ['Salary Negotiation', 'Tech Project Pitch', 'Debate: AI Ethics']
+  // --- Dynamic Challenge System ---
+  const [challenges, setChallenges] = useState<Challenge[]>([]);
+  const [missionCounter, setMissionCounter] = useState(1);
+
+  // Challenge Generator
+  const generateChallenge = (missionNum: number, lang: Language): string => {
+    const isEnglishTarget = lang === 'es'; // User speaks Spanish (Native), learns English (Target)
+    const level = missionNum;
+
+    // Topics: Travel, Food, Dating, Money, Social Media
+    const topicsEn = [
+      'Budget Backpacking Strategies',      // Travel
+      'Local Street Food Hygiene',          // Food
+      'First Date Etiquette abroad',        // Dating
+      'Passive Income Streams',             // Money
+      'Going Viral on TikTok',              // Social Media
+      'Navigating Airport Customs',         // Travel
+      'Ordering in Fine Dining',            // Food
+      'Long Distance Relationships',        // Dating
+      'Salary Negotiation Tips',            // Money
+      'Building a Personal Brand',          // Social Media
+      'Digital Nomad Visas',                // Travel
+      'Dietary Restrictions',               // Food
+      'Flirting in a Second Language',      // Dating
+      'Cryptocurrency Basics',              // Money
+      'Influencer Marketing'                // Social Media
+    ];
+
+    const topicsEs = [
+      'Estrategias de Mochilero Económico', // Viajes
+      'Higiene de Comida Callejera',        // Comida
+      'Etiqueta de Primera Cita',           // Citas
+      'Flujos de Ingresos Pasivos',         // Dinero
+      'Hacerse Viral en TikTok',            // Redes
+      'Navegar Aduanas del Aeropuerto',     // Viajes
+      'Pedir en Restaurantes de Lujo',      // Comida
+      'Relaciones a Larga Distancia',       // Citas
+      'Tips de Negociación Salarial',       // Dinero
+      'Construir Marca Personal',           // Redes
+      'Visas para Nómadas Digitales',       // Viajes
+      'Restricciones Dietéticas',           // Comida
+      'Coquetear en Otro Idioma',           // Citas
+      'Conceptos Básicos de Cripto',        // Dinero
+      'Marketing de Influencers'            // Redes
+    ];
+    
+    const verbsEn = ['explain', 'debate', 'critique', 'pitch', 'ask advice on', 'share a story about'];
+    const verbsEs = ['explicar', 'debatir', 'criticar', 'vender/pitch', 'pedir consejo sobre', 'contar historia sobre'];
+
+    const constraintsEn = ['using slang', 'politely', 'with confidence', 'asking 2 questions', 'using financial vocabulary', 'like an influencer'];
+    const constraintsEs = ['usando jerga', 'cortésmente', 'con confianza', 'haciendo 2 preguntas', 'usando vocabulario financiero', 'como un influencer'];
+
+    // Fixed Intro Levels
+    if (level === 1) {
+        // Spanish User -> Show Spanish Instruction -> Ask for English
+        if (isEnglishTarget) return `Misión 1: Preséntate y menciona tu destino de viaje soñado (en Inglés).`;
+        // English User -> Show English Instruction -> Ask for Spanish
+        else return `Mission 1: Introduce yourself and name your dream travel destination (in Spanish).`;
+    }
+    if (level === 2) {
+        if (isEnglishTarget) return `Misión 2: Describe tu plato local favorito y sus ingredientes (en Inglés).`;
+        else return `Mission 2: Describe your favorite local dish and its ingredients (in Spanish).`;
+    }
+    if (level === 3) {
+        if (isEnglishTarget) return `Misión 3: Pregúntale al coach cómo ganar dinero online en 2024 (en Inglés).`;
+        else return `Mission 3: Ask the coach how to make money online in 2024 (in Spanish).`;
+    }
+
+    // Procedural Generation for infinite levels
+    const topicIndex = level % topicsEn.length;
+    const verbIndex = level % verbsEn.length;
+    const constraintIndex = level % constraintsEn.length;
+
+    if (isEnglishTarget) {
+        // User is Spanish. Instructions should be in Spanish. Task is English.
+        let text = `Misión ${level}: Intenta ${verbsEs[verbIndex]} ${topicsEs[topicIndex]}`;
+        if (level > 5) text += ` ${constraintsEs[constraintIndex]}`;
+        return text + " (en Inglés)";
+    } else {
+        // User is English. Instructions should be in English. Task is Spanish.
+        let text = `Mission ${level}: Attempt to ${verbsEn[verbIndex]} ${topicsEn[topicIndex]}`;
+        if (level > 5) text += ` ${constraintsEn[constraintIndex]}`;
+        return text + " (in Spanish)";
     }
   };
 
-  const currentChallenges = challengesData[lang][userTier] || challengesData[lang].Novice;
+  // Initialize Challenges
+  useEffect(() => {
+    const initial: Challenge[] = [];
+    for(let i=1; i<=3; i++) {
+        initial.push({ id: i, text: generateChallenge(i, lang), difficulty: i });
+    }
+    setChallenges(initial);
+    setMissionCounter(4);
+  }, [lang]);
+
+  const activeChallengeText = challenges.length > 0 ? challenges[0].text : '';
+
+  const handleCompleteChallenge = (id: number) => {
+    // 1. Update State
+    let nextMissionText = '';
+    setChallenges(prev => {
+        const filtered = prev.filter(c => c.id !== id);
+        const nextId = missionCounter;
+        nextMissionText = generateChallenge(nextId, lang);
+        const newChallenge = {
+            id: nextId,
+            text: nextMissionText,
+            difficulty: nextId
+        };
+        return [...filtered, newChallenge];
+    });
+    setMissionCounter(prev => Math.min(prev + 1, 1000));
+    setShowMobileChallenges(false); 
+
+    // 2. Notify AI if session is active
+    if (isActive && sessionPromiseRef.current) {
+        // We use a text input to simulate a "System update" or a user context injection
+        sessionPromiseRef.current.then(session => {
+             // We format this as a system prompt injected via the data channel (simulated as text)
+             // This tells the model the context has shifted.
+             const updatePrompt = `SYSTEM UPDATE: The user has successfully completed the previous mission! 
+             The NEW MISSION is: "${challenges.length > 0 ? challenges[1]?.text : nextMissionText}". 
+             Congratulate them warmly.
+             IMPORTANT: The user's mission instructions are in their NATIVE language, but they must perform it in the TARGET language.
+             Guide them to complete this new mission in the TARGET language immediately.
+             READ THE NEW MISSION OUT LOUD NOW.`;
+             
+             session.sendRealtimeInput({ text: updatePrompt });
+        });
+    }
+  };
 
   const text = {
-    title: lang === 'es' ? 'Entrenamiento' : 'Training',
+    title: lang === 'es' ? 'Entrenamiento' : 'Immersion Training',
     subtitle: lang === 'es' ? 'Feedback Real-Time' : 'Real-Time Feedback',
     you: lang === 'es' ? 'Tú' : 'You',
     start: lang === 'es' ? 'CONVERSAR' : 'START CHAT',
     stop: lang === 'es' ? 'Terminar' : 'Stop',
     micError: lang === 'es' ? 'Activa el micrófono.' : 'Please enable your microphone.',
-    quote: lang === 'es' ? '"Habla para crear tu futuro."' : '"Speak your future into existence."',
+    quote: lang === 'es' ? '"Habla para crear tu futuro."' : '"Speak to open new worlds."',
     challengesTitle: lang === 'es' ? 'Próximos Retos' : 'Upcoming Challenges',
     mission: lang === 'es' ? 'Misión' : 'Mission',
+    activeMission: lang === 'es' ? 'Misión Activa' : 'Active Mission',
     live: lang === 'es' ? 'En Vivo' : 'Live',
-    tomasRole: lang === 'es' ? 'El Profe Paisa (Español/Inglés)' : 'The Paisa Teacher (Spanish/English)',
-    carolinaRole: lang === 'es' ? '2nd Gen American (Urban/Slang)' : '2nd Gen American (Urban/Slang)'
+    tomasRole: lang === 'es' ? 'El Profe Paisa (Español/Inglés)' : 'The Immersion Coach (Spanish Native)',
+    carolinaRole: lang === 'es' ? 'American (Urban/Slang)' : 'The Heritage Guide (Spanglish)',
+    viewMissions: lang === 'es' ? 'Ver Misiones' : 'View Missions',
+    close: lang === 'es' ? 'Cerrar' : 'Close'
   };
 
-  const personasConfig = {
-    tomas: {
-      name: 'Tomas',
-      voice: 'Puck', // Deep Male
-      emoji: '🧑🏽‍🏫',
-      color: 'bg-brand-600',
-      description: text.tomasRole,
-      systemPrompt: `You are Professor Tomas Martinez, a native Colombian from Medellín (Paisa). 
-      
-      ROLE & LANGUAGE PREFERENCE:
-      - You prefer to speak primarily in **Spanish (Colombian Paisa dialect)** to explain concepts clearly.
-      - You act as a teacher correcting a student.
-      - Use Paisa slang naturally: "Parce", "Oiga", "Mijo", "Hágale", "Vamo' con toda", "Qué más pues".
-      
-      INTERACTION STYLE:
-      1. Listen to the student's English.
-      2. If their English is incorrect, explain the mistake in **Spanish** (Paisa accent).
-      3. Then, demonstrate the correct **English** pronunciation clearly and ask them to repeat it.
-      4. Be warm, fatherly, and encouraging. You want them to have a better life through English.
-      
-      Example: "Oiga mijo, no se dice 'I have 20 years'. En inglés usamos el verbo 'to be'. Diga conmigo: 'I am 20 years old'. ¡Hágale pues!"`
-    },
-    carolina: {
-      name: 'Carolina',
-      voice: 'Kore', // Female
-      emoji: '🎧',
-      color: 'bg-pink-600',
-      description: text.carolinaRole,
-      systemPrompt: `You are Carolina, a cool, urban 2nd-generation American Latina (20s) with Colombian parents. You are fully American.
+  // Dynamic Persona Configuration based on Language
+  const personasConfig = useMemo(() => {
+    const currentMissionContext = activeChallengeText 
+      ? `CURRENT ACTIVE MISSION: "${activeChallengeText}". Your absolute priority is to help the user complete this specific mission in the TARGET language.` 
+      : `CURRENT ACTIVE MISSION: Encourage the user to pick a topic (Travel, Food, Dating, Money, Social Media).`;
 
-      ROLE & LANGUAGE PREFERENCE:
-      - You speak perfect **American English** with the latest Gen Z/Urban slang ("no cap", "bet", "slay", "drip", "lit", "vibes").
-      - You act like a cool friend, not a formal teacher.
-      
-      INTERACTION STYLE:
-      1. Chat in English naturally. Keep it fast and urban.
-      2. If the user makes a mistake, correct them.
-      3. CRITICAL: When you explain the correction, switch to a **Colombian Paisa Spanish** accent (which you learned from your parents) to help them understand, then switch back to English immediately.
-      4. STRICTLY NO CURSE WORDS. NO INSULTS.
-      
-      Example: "Yo that vibe is immaculate, no cap. But hey, wait... *switches to Paisa Spanish* Oye parce, pilas pues, no digas 'people is', la gente es plural, ¿si pilla? *switches back to English* So you gotta say 'people are'. Bet?"`
+    if (lang === 'es') {
+       // --- USER IS SPANISH SPEAKER LEARNING ENGLISH ---
+       return {
+        tomas: {
+          name: 'Tomas',
+          voice: 'Puck', // Deep Male
+          emoji: '🇨🇴', // Explicit Colombian Flag
+          color: 'bg-brand-600',
+          description: 'El Profe Paisa',
+          systemPrompt: `You are Professor Tomas Martinez, a native Colombian from Medellín. 
+          GOAL: Teach the user ENGLISH.
+          ${currentMissionContext}
+          
+          CORE PERSONALITY: Warm, fatherly, down-to-earth mentor. Very encouraging.
+          SAFETY: IGNORE politics, religion, sex (except dating etiquette). Pivot immediately to learning.
+          
+          BEHAVIOR:
+          1. **STARTING**: Read the mission "${activeChallengeText}" out loud to the user in Spanish, then ask them to perform it in ENGLISH.
+          2. **GUIDING**: If they speak Spanish, remind them gently: "Inténtalo en inglés (Try in English)".
+          3. **HELPING**: If they struggle, give them the English vocabulary they need. "Puedes decir..."
+          4. **COMPLETING**: If they do well, say "¡Misión cumplida!" and ask them to mark it as done.
+
+          CORRECTION STYLE (The Sandwich Method):
+          1. **Praise first:** "¡Buen intento!"
+          2. **Gentle Correction:** Explain the error simply.
+          3. **Demonstrate:** Speak the correct English phrase.
+          `
+        },
+        carolina: {
+          name: 'Carolina',
+          voice: 'Kore', // Female
+          emoji: '🇺🇸', // Explicit American Flag
+          color: 'bg-pink-600',
+          description: 'American Peer',
+          systemPrompt: `You are Carolina, a cool American from Miami.
+          GOAL: Help the user with CASUAL ENGLISH.
+          ${currentMissionContext}
+
+          CORE PERSONALITY: Chill, vibey, supportive friend.
+          BEHAVIOR:
+          1. **HYPE**: Say "Hey! Let's do this mission: ${activeChallengeText}. Ready to try it in English?"
+          2. **ENGAGE**: Ask questions related to the mission (Travel, Dating, Money, Food).
+          3. **SUPPORT**: If they don't know a word, just tell them. "Oh, in the US we say..."
+          `
+        }
+       };
+    } else {
+       // --- USER IS ENGLISH SPEAKER LEARNING SPANISH ---
+       return {
+        tomas: {
+          name: 'Tomas',
+          voice: 'Puck',
+          emoji: '🇨🇴',
+          color: 'bg-yellow-600',
+          description: 'Immersion Coach',
+          systemPrompt: `You are Professor Tomas Martinez, a native Colombian from Medellín.
+          GOAL: Teach the user SPANISH (Colombian Dialect).
+          ${currentMissionContext}
+          
+          CORE PERSONALITY: You are the "Immersion Coach". Patient, persistent, but extremely polite.
+          BEHAVIOR:
+          1. **STARTING**: Read the mission "${activeChallengeText}" out loud in English, then tell them to do it in SPANISH.
+          2. **GUIDING**: If they speak English, say "En español, por favor."
+          3. **HELPING**: Provide the Spanish translation if they are stuck.
+          `
+        },
+        carolina: {
+          name: 'Carolina',
+          voice: 'Kore',
+          emoji: '🇺🇸',
+          color: 'bg-purple-600',
+          description: 'Heritage Friend',
+          systemPrompt: `You are Carolina, a bilingual American-Colombian.
+          GOAL: Help the user understand Colombian Culture and "Street Spanish".
+          ${currentMissionContext}
+          
+          CORE PERSONALITY: Bridge between cultures. Supportive and fun.
+          BEHAVIOR:
+          1. **BUDDY**: "Let's crush this mission: ${activeChallengeText}. Give it a shot in Spanish!"
+          2. **CONTEXT**: Explain why locals say things a certain way.
+          `
+        }
+       };
     }
-  };
+  }, [lang, activeChallengeText]);
 
   const stopSession = useCallback(() => {
     if (sessionPromiseRef.current) {
@@ -241,8 +415,90 @@ const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang, userTier = 'N
 
   const activeConfig = personasConfig[selectedPersona];
 
+  // Helper to render challenge list
+  const renderChallengeList = () => (
+    <div className="space-y-4 pr-2">
+        <AnimatePresence mode="popLayout">
+        {challenges.map((c, idx) => (
+            <motion.div 
+            key={c.id} 
+            layout
+            initial={{ opacity: 0, x: 50 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, scale: 0.8, x: -50 }}
+            onClick={() => handleCompleteChallenge(c.id)}
+            className={`p-4 rounded-2xl border transition-all cursor-pointer active:scale-95 group relative overflow-hidden ${
+              idx === 0 
+                ? 'bg-yellow-500/10 border-yellow-500/50 shadow-[0_0_15px_rgba(234,179,8,0.2)]' 
+                : 'bg-white/5 border-white/10 hover:bg-white/10'
+            }`}
+            >
+            {idx === 0 && <div className="absolute inset-0 bg-yellow-500/5 animate-pulse pointer-events-none" />}
+            <div className="flex justify-between items-start mb-1 relative z-10">
+                <p className={`text-[9px] font-black uppercase tracking-widest ${idx === 0 ? 'text-yellow-400' : (selectedPersona === 'tomas' ? 'text-brand-400' : 'text-pink-400')}`}>
+                  {idx === 0 ? '★ ' + text.activeMission : text.mission + ' #' + c.id}
+                </p>
+                <span className="text-[10px] text-slate-500">+{c.difficulty * 10} XP</span>
+            </div>
+            <p className={`font-bold text-sm leading-relaxed relative z-10 ${idx === 0 ? 'text-white' : 'text-slate-300'}`}>{c.text}</p>
+            <div className="flex justify-end mt-2">
+               <span className="text-[9px] bg-white/10 px-2 py-1 rounded text-white font-bold group-hover:bg-green-500 transition-colors">
+                 {lang === 'es' ? 'Completar' : 'Complete'} ✓
+               </span>
+            </div>
+            </motion.div>
+        ))}
+        </AnimatePresence>
+    </div>
+  );
+
   return (
     <div className="flex flex-col h-full space-y-4 md:space-y-10 pb-20">
+      <style>{`
+        @keyframes rgbPulse {
+          0% { box-shadow: 0 0 15px rgba(255, 0, 0, 0.5), inset 0 0 10px rgba(255, 0, 0, 0.2); border-color: rgba(255,0,0,0.8); }
+          25% { box-shadow: 0 0 15px rgba(0, 255, 0, 0.5), inset 0 0 10px rgba(0, 255, 0, 0.2); border-color: rgba(0,255,0,0.8); }
+          50% { box-shadow: 0 0 15px rgba(0, 0, 255, 0.5), inset 0 0 10px rgba(0, 0, 255, 0.2); border-color: rgba(0,0,255,0.8); }
+          75% { box-shadow: 0 0 15px rgba(255, 255, 0, 0.5), inset 0 0 10px rgba(255, 255, 0, 0.2); border-color: rgba(255,255,0,0.8); }
+          100% { box-shadow: 0 0 15px rgba(255, 0, 0, 0.5), inset 0 0 10px rgba(255, 0, 0, 0.2); border-color: rgba(255,0,0,0.8); }
+        }
+        .rgb-box {
+          animation: rgbPulse 4s infinite linear;
+        }
+      `}</style>
+      
+      {/* Mobile Challenges Modal */}
+      <AnimatePresence>
+        {showMobileChallenges && (
+            <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md lg:hidden"
+            >
+                <motion.div 
+                    initial={{ scale: 0.9, y: 20 }}
+                    animate={{ scale: 1, y: 0 }}
+                    exit={{ scale: 0.9, y: 20 }}
+                    className="w-full max-w-md bg-slate-900 border border-white/10 rounded-[40px] p-8 shadow-2xl flex flex-col max-h-[80vh]"
+                >
+                    <div className="flex justify-between items-center mb-6">
+                        <h3 className="text-2xl font-black text-white flex items-center gap-2">
+                             <span className="animate-pulse">🔴</span> {text.challengesTitle}
+                        </h3>
+                        <button onClick={() => setShowMobileChallenges(false)} className="p-2 bg-white/10 rounded-full text-slate-400 hover:text-white">✕</button>
+                    </div>
+                    <div className="flex-1 overflow-y-auto hide-scrollbar">
+                        {renderChallengeList()}
+                    </div>
+                    <button onClick={() => setShowMobileChallenges(false)} className="mt-6 w-full py-4 bg-slate-800 rounded-2xl font-black text-white">
+                        {text.close}
+                    </button>
+                </motion.div>
+            </motion.div>
+        )}
+      </AnimatePresence>
+
       <header className="flex items-center justify-between">
         <div>
            <h2 className="text-2xl md:text-5xl font-black text-white tracking-tighter">{text.title}</h2>
@@ -277,7 +533,7 @@ const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang, userTier = 'N
                     : 'bg-slate-900/40 border-slate-800 hover:border-slate-700'
                 }`}
               >
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-inner ${isSelected ? 'bg-white/20' : 'bg-slate-800'}`}>
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-3xl shadow-inner ${isSelected ? 'bg-white/20' : 'bg-slate-800'}`}>
                   {config.emoji}
                 </div>
                 <div className="text-left relative z-10">
@@ -291,9 +547,45 @@ const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang, userTier = 'N
         </div>
       )}
 
-      <div className="flex-1 flex flex-col lg:flex-row gap-6">
+      <div className="flex-1 flex flex-col lg:flex-row gap-6 relative">
         <div className="flex-1 flex flex-col glass-morphism rounded-[40px] md:rounded-[56px] overflow-hidden shadow-2xl relative">
-          <div className="flex-1 p-6 md:p-12 overflow-y-auto space-y-6 hide-scrollbar">
+          
+          {/* Mobile Challenges Toggle - Only visible on small screens inside container */}
+          <button 
+            onClick={() => setShowMobileChallenges(true)}
+            className="lg:hidden absolute top-4 right-4 z-20 px-4 py-2 bg-slate-800/80 backdrop-blur-md rounded-full border border-white/10 flex items-center gap-2 shadow-lg active:scale-95 transition-transform"
+          >
+            <span className="animate-pulse text-red-500">🔴</span>
+            <span className="text-[10px] font-black uppercase tracking-widest text-white">{text.viewMissions}</span>
+          </button>
+
+          {/* Sticky Active Mission Banner (Visible on all screens) */}
+          {activeChallengeText && (
+             <motion.div 
+               initial={{ y: -50, opacity: 0 }}
+               animate={{ y: 0, opacity: 1 }}
+               key={activeChallengeText}
+               className="sticky top-0 z-10 bg-gradient-to-r from-yellow-500/90 to-amber-600/90 backdrop-blur-md border-b border-white/10 p-3 shadow-lg flex flex-col items-center justify-center text-center"
+             >
+                <div className="flex items-center gap-2">
+                   <span className="text-xs font-black uppercase tracking-[0.2em] text-yellow-950 bg-white/20 px-2 py-0.5 rounded">{text.activeMission}</span>
+                   {isActive && <span className="w-2 h-2 bg-white rounded-full animate-pulse" />}
+                </div>
+                <p className="text-white text-sm md:text-base font-bold leading-tight mt-1 px-4 drop-shadow-sm line-clamp-2">
+                   {activeChallengeText}
+                </p>
+                {isActive && (
+                    <button 
+                        onClick={() => handleCompleteChallenge(challenges[0]?.id)}
+                        className="mt-2 text-[10px] font-black bg-white/20 hover:bg-white/30 px-4 py-1 rounded-full text-white transition-colors border border-white/20"
+                    >
+                        {lang === 'es' ? 'Completar' : 'Complete'} ✓
+                    </button>
+                )}
+             </motion.div>
+          )}
+
+          <div className="flex-1 p-6 md:p-12 overflow-y-auto space-y-6 hide-scrollbar relative">
             {transcriptions.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center p-12 space-y-8">
                 <motion.div 
@@ -374,16 +666,15 @@ const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang, userTier = 'N
           </div>
         </div>
 
+        {/* Desktop Challenges Sidebar - Hidden on mobile/tablet portrait */}
         <div className="hidden lg:flex flex-col w-96 space-y-6">
-           <div className="glass-morphism p-8 rounded-[40px] border border-white/5">
-              <h3 className="font-black text-white text-xl mb-6">{text.challengesTitle}</h3>
-              <div className="space-y-4">
-                 {currentChallenges.map((r, i) => (
-                   <div key={i} className={`p-4 bg-white/5 rounded-2xl border border-white/5 transition-all cursor-pointer ${selectedPersona === 'tomas' ? 'hover:border-brand-500/30' : 'hover:border-pink-500/30'}`}>
-                      <p className={`text-[9px] font-black uppercase tracking-widest mb-1 ${selectedPersona === 'tomas' ? 'text-brand-400' : 'text-pink-400'}`}>{text.mission} {i+1}</p>
-                      <p className="text-slate-100 font-bold text-sm">{r}</p>
-                   </div>
-                 ))}
+           <div className="glass-morphism p-8 rounded-[40px] border-2 border-white/10 rgb-box relative overflow-hidden h-full">
+              <div className="absolute inset-0 bg-black/40 -z-10"></div>
+              <h3 className="font-black text-white text-xl mb-6 flex items-center gap-2">
+                <span className="animate-pulse">🔴</span> {text.challengesTitle}
+              </h3>
+              <div className="overflow-y-auto pr-2 custom-scrollbar max-h-[600px]">
+                 {renderChallengeList()}
               </div>
            </div>
         </div>
