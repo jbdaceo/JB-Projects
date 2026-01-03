@@ -31,7 +31,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeSection, onNavigate, lang, onLa
       <div className="p-8 flex items-center gap-4">
         <motion.div 
           whileHover={{ rotate: 15, scale: 1.1 }}
-          className="w-12 h-12 rounded-2xl colombia-gradient flex items-center justify-center text-white font-bold text-2xl shrink-0 shadow-xl shadow-blue-500/20"
+          className="w-12 h-12 rounded-2xl colombia-gradient flex items-center justify-center text-white font-bold text-2xl shrink-0 shadow-xl shadow-brand-500/20"
         >
           C
         </motion.div>
@@ -39,7 +39,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeSection, onNavigate, lang, onLa
           <span className="font-black text-xl leading-tight tracking-tighter text-white uppercase italic">
             El Camino
           </span>
-          <span className="font-bold text-[9px] text-blue-500 uppercase tracking-[0.25em]">
+          <span className="font-bold text-[9px] text-brand-500 uppercase tracking-[0.25em]">
             with TMC teacher
           </span>
         </div>
@@ -52,14 +52,14 @@ const Sidebar: React.FC<SidebarProps> = ({ activeSection, onNavigate, lang, onLa
             onClick={() => onNavigate(item.id)}
             className={`w-full flex items-center gap-4 px-5 py-3.5 rounded-2xl transition-all duration-300 relative group overflow-hidden ${
               activeSection === item.id
-                ? 'bg-blue-600/10 text-blue-400 font-bold border border-blue-500/20 shadow-sm'
+                ? 'bg-brand-600/10 text-brand-400 font-bold border border-brand-500/20 shadow-sm'
                 : 'text-slate-500 hover:text-slate-200 hover:bg-white/5'
             }`}
           >
             {activeSection === item.id && (
               <motion.div 
                 layoutId="activeSideGlow"
-                className="absolute left-0 w-1 h-6 bg-blue-500 rounded-full"
+                className="absolute left-0 w-1 h-6 bg-brand-500 rounded-full"
               />
             )}
             <span className={`text-2xl transition-transform duration-500 ${activeSection === item.id ? 'scale-110' : 'group-hover:scale-110'}`}>{item.icon}</span>
@@ -94,22 +94,22 @@ const Sidebar: React.FC<SidebarProps> = ({ activeSection, onNavigate, lang, onLa
             {lang === 'es' ? 'Español' : 'English'}
           </span>
           <div className="flex gap-1">
-            <div className={`w-1.5 h-1.5 rounded-full ${lang === 'es' ? 'bg-blue-500' : 'bg-slate-700'}`}></div>
-            <div className={`w-1.5 h-1.5 rounded-full ${lang === 'en' ? 'bg-blue-500' : 'bg-slate-700'}`}></div>
+            <div className={`w-1.5 h-1.5 rounded-full ${lang === 'es' ? 'bg-brand-500' : 'bg-slate-700'}`}></div>
+            <div className={`w-1.5 h-1.5 rounded-full ${lang === 'en' ? 'bg-brand-500' : 'bg-slate-700'}`}></div>
           </div>
         </button>
 
         <div className="p-5 bg-white/5 rounded-[28px] border border-white/5 backdrop-blur-sm">
           <div className="flex items-center gap-4">
             <div className="relative">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-600/20 to-indigo-600/20 flex items-center justify-center border border-white/10 text-2xl">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-600/20 to-indigo-600/20 flex items-center justify-center border border-white/10 text-2xl">
                 🧑🏽‍🏫
               </div>
               <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-4 border-slate-950 shadow-sm"></div>
             </div>
             <div>
               <p className="text-sm font-black text-slate-100 tracking-tight leading-none">Tomas Martinez</p>
-              <p className="text-[10px] text-blue-400 font-bold uppercase tracking-widest mt-1">Professor Online</p>
+              <p className="text-[10px] text-brand-400 font-bold uppercase tracking-widest mt-1">Professor Online</p>
             </div>
           </div>
         </div>

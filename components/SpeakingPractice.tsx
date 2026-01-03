@@ -2,11 +2,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality, Blob } from '@google/genai';
 import { encodeAudio, decodeBase64Audio, decodeAudioData } from '../services/gemini';
-// Added Language import
 import { Language } from '../types';
 import { motion, AnimatePresence } from 'https://esm.sh/framer-motion@11.11.11?external=react,react-dom';
 
-// Added SpeakingPracticeProps
 interface SpeakingPracticeProps {
   lang: Language;
 }
@@ -62,7 +60,6 @@ const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang }) => {
   const startSession = async () => {
     try {
       setIsConnecting(true);
-      // Fixed: Strictly use process.env.API_KEY directly
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
@@ -84,7 +81,6 @@ const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang }) => {
             scriptProcessor.onaudioprocess = (e) => {
               const inputData = e.inputBuffer.getChannelData(0);
               const pcmBlob = createBlob(inputData);
-              // Ensure session is sent after promise resolves
               sessionPromise.then(session => {
                 session.sendRealtimeInput({ media: pcmBlob });
               });
@@ -98,7 +94,6 @@ const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang }) => {
             if (base64Audio && outputAudioContextRef.current) {
               const ctx = outputAudioContextRef.current;
               nextStartTimeRef.current = Math.max(nextStartTimeRef.current, ctx.currentTime);
-              // Correct decoding of raw PCM data
               const buffer = await decodeAudioData(decodeBase64Audio(base64Audio), ctx);
               const source = ctx.createBufferSource();
               source.buffer = buffer;
@@ -171,9 +166,9 @@ const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang }) => {
         {isActive && (
           <motion.div 
             layoutId="statusIsland"
-            className="px-4 py-2 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-full flex items-center gap-2"
+            className="px-4 py-2 bg-brand-500/10 text-brand-400 border border-brand-500/20 rounded-full flex items-center gap-2"
           >
-            <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(59,130,246,0.8)]"></span>
+            <span className="w-2 h-2 bg-brand-500 rounded-full animate-pulse shadow-[0_0_10px_currentColor]"></span>
             <span className="text-[10px] font-black uppercase tracking-widest">Live</span>
           </motion.div>
         )}
@@ -209,9 +204,9 @@ const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang }) => {
                   <div className={`max-w-[85%] p-5 md:p-8 rounded-[32px] ${
                     t.role === 'Tomas' 
                       ? 'bg-white/5 text-slate-100 rounded-tl-none border border-white/5' 
-                      : 'bg-blue-600 text-white rounded-tr-none'
+                      : 'bg-brand-600 text-white rounded-tr-none'
                   }`}>
-                    <p className={`text-[8px] font-black uppercase tracking-[0.2em] mb-2 ${t.role === 'Tomas' ? 'text-blue-400' : 'text-blue-100 opacity-60'}`}>
+                    <p className={`text-[8px] font-black uppercase tracking-[0.2em] mb-2 ${t.role === 'Tomas' ? 'text-brand-400' : 'text-brand-100 opacity-60'}`}>
                       {t.role}
                     </p>
                     <p className="text-sm md:text-lg leading-relaxed font-bold">{t.text || '...'}</p>
@@ -221,7 +216,6 @@ const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang }) => {
             )}
           </div>
 
-          {/* Siri-like Waveform & Control */}
           <div className="p-8 md:p-12 bg-black/20 border-t border-white/5">
             <div className="flex flex-col items-center gap-8">
               {isActive ? (
@@ -232,7 +226,7 @@ const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang }) => {
                         key={idx}
                         animate={{ height: [10, Math.random() * 40 + 10, 10] }}
                         transition={{ repeat: Infinity, duration: 0.6, delay: idx * 0.05 }}
-                        className="w-1.5 bg-blue-500/60 rounded-full shadow-[0_0_15px_rgba(59,130,246,0.3)]"
+                        className="w-1.5 bg-brand-500/60 rounded-full shadow-[0_0_15px_currentColor]"
                       />
                     ))}
                   </div>
@@ -247,7 +241,7 @@ const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang }) => {
                 <button 
                   onClick={startSession}
                   disabled={isConnecting}
-                  className="w-full md:w-auto px-16 py-6 bg-blue-600 text-white font-black rounded-[32px] shadow-2xl shadow-blue-500/20 flex items-center justify-center gap-4 text-xl active-scale"
+                  className="w-full md:w-auto px-16 py-6 bg-brand-600 text-white font-black rounded-[32px] shadow-2xl shadow-brand-500/20 flex items-center justify-center gap-4 text-xl active-scale"
                 >
                   {isConnecting ? (
                     <div className="w-6 h-6 border-4 border-white/30 border-t-white rounded-full animate-spin"></div>
@@ -263,14 +257,13 @@ const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang }) => {
           </div>
         </div>
 
-        {/* Sidebar Info - Desktop Only Hidden on Small Screens to save space */}
         <div className="hidden lg:flex flex-col w-96 space-y-6">
            <div className="glass-morphism p-8 rounded-[40px] border border-white/5">
               <h3 className="font-black text-white text-xl mb-6">Próximos Retos</h3>
               <div className="space-y-4">
                  {['Elevator Pitch', 'Job Offer Negotiation', 'Remote Tech Sync'].map((r, i) => (
-                   <div key={i} className="p-4 bg-white/5 rounded-2xl border border-white/5 hover:border-blue-500/30 transition-all cursor-pointer">
-                      <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-1">Misión {i+1}</p>
+                   <div key={i} className="p-4 bg-white/5 rounded-2xl border border-white/5 hover:border-brand-500/30 transition-all cursor-pointer">
+                      <p className="text-[9px] font-black text-brand-400 uppercase tracking-widest mb-1">Misión {i+1}</p>
                       <p className="text-slate-100 font-bold text-sm">{r}</p>
                    </div>
                  ))}

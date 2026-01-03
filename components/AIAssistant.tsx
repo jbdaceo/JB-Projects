@@ -2,13 +2,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'https://esm.sh/framer-motion@11.11.11?external=react,react-dom';
 import { assistantChat } from '../services/gemini';
-import { AssistantMessage, ChatSession } from '../types';
+import { AssistantMessage, ChatSession, AppSection } from '../types';
 
 interface AIAssistantProps {
   isOpen: boolean;
   onClose: () => void;
   lang: string;
   currentSection: string;
+  onNavigate: (section: AppSection) => void;
 }
 
 const BUBBLE_COLORS = [
@@ -21,7 +22,7 @@ const BUBBLE_COLORS = [
   'bg-indigo-600'
 ];
 
-const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, lang, currentSection }) => {
+const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, lang, currentSection, onNavigate }) => {
   const [chats, setChats] = useState<ChatSession[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [input, setInput] = useState('');
@@ -69,7 +70,9 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, lang, curren
     const initialMsg: AssistantMessage = {
       id: Date.now().toString(),
       role: 'assistant',
-      text: lang === 'es' ? '¡Hola! Soy tu asistente de El Camino. ¿Cómo puedo ayudarte hoy?' : 'Hi! I am your El Camino assistant. How can I help you today?',
+      text: lang === 'es' 
+        ? '¡Hola! Soy tu asistente de El Camino. ¿Cómo puedo ayudarte hoy?' 
+        : 'Hi! I am your El Camino assistant. How can I help you today?',
       timestamp: Date.now()
     };
 
@@ -93,31 +96,40 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, lang, curren
     setInput('');
     setLoading(true);
 
-    setChats(prevChats => {
-      return prevChats.map(chat => {
-        if (chat.id === activeChatId) {
-          const userMsg: AssistantMessage = { id: Date.now().toString(), role: 'user', text: currentInput, timestamp: Date.now() };
-          // Update title if it's the first user message (currently has 1 message which is the greeting)
-          const newTitle = chat.messages.length <= 1 ? (currentInput.slice(0, 15) + (currentInput.length > 15 ? '...' : '')) : chat.title;
-          
-          return {
-            ...chat,
-            title: newTitle,
-            messages: [...chat.messages, userMsg],
-            lastUpdated: Date.now()
-          };
-        }
-        return chat;
-      });
+    // Optimistically add user message
+    let updatedChats = chats.map(chat => {
+      if (chat.id === activeChatId) {
+        const userMsg: AssistantMessage = { id: Date.now().toString(), role: 'user', text: currentInput, timestamp: Date.now() };
+        // Update title if it's the first user message
+        const newTitle = chat.messages.length <= 1 ? (currentInput.slice(0, 15) + (currentInput.length > 15 ? '...' : '')) : chat.title;
+        return {
+          ...chat,
+          title: newTitle,
+          messages: [...chat.messages, userMsg],
+          lastUpdated: Date.now()
+        };
+      }
+      return chat;
     });
+    setChats(updatedChats);
 
     try {
-      const response = await assistantChat(currentInput, currentSection);
+      // Get the active chat's full history for context
+      const activeChat = updatedChats.find(c => c.id === activeChatId);
+      const history = activeChat ? activeChat.messages : [];
+
+      const { text, suggestion } = await assistantChat(history, currentSection, lang);
       
       setChats(prevChats => {
         return prevChats.map(chat => {
           if (chat.id === activeChatId) {
-            const aiMsg: AssistantMessage = { id: (Date.now() + 1).toString(), role: 'assistant', text: response, timestamp: Date.now() };
+            const aiMsg: AssistantMessage = { 
+              id: (Date.now() + 1).toString(), 
+              role: 'assistant', 
+              text: text, 
+              timestamp: Date.now(),
+              suggestion: suggestion
+            };
             return {
               ...chat,
               messages: [...chat.messages, aiMsg],
@@ -132,6 +144,11 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, lang, curren
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSuggestionClick = (suggestion: { section: AppSection, label: string }) => {
+    onNavigate(suggestion.section);
+    onClose();
   };
 
   const activeChat = chats.find(c => c.id === activeChatId);
@@ -195,10 +212,21 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, lang, curren
             <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 hide-scrollbar bg-slate-900/50">
               {activeChat ? (
                 activeChat.messages.map((m) => (
-                  <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div key={m.id} className={`flex flex-col gap-2 ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
                     <div className={`max-w-[85%] p-4 rounded-2xl shadow-sm ${m.role === 'user' ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-white/5 text-slate-200 rounded-tl-none border border-white/5'}`}>
                       <p className="text-sm leading-relaxed whitespace-pre-wrap">{m.text}</p>
                     </div>
+                    {/* Render Suggestion Chip if exists */}
+                    {m.suggestion && (
+                      <motion.button
+                        initial={{ opacity: 0, y: 5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        onClick={() => handleSuggestionClick(m.suggestion!)}
+                        className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl text-white text-xs font-black uppercase tracking-widest shadow-lg hover:shadow-blue-500/30 transition-all active:scale-95 border border-white/10 self-start"
+                      >
+                        <span>🚀</span> {m.suggestion.label}
+                      </motion.button>
+                    )}
                   </div>
                 ))
               ) : (

@@ -1,6 +1,6 @@
 
-import { GoogleGenAI, Type, GenerateContentResponse, Modality } from "@google/genai";
-import { Lesson } from "../types";
+import { GoogleGenAI, Type, GenerateContentResponse, Modality, FunctionDeclaration } from "@google/genai";
+import { Lesson, AppSection, AssistantMessage } from "../types";
 
 // Always use process.env.API_KEY directly in the named parameter object.
 const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -55,7 +55,6 @@ export const generateLesson = async (topic: string, level: string): Promise<Less
     }
   });
 
-  // response.text is a getter, not a method.
   return JSON.parse(response.text || '{}');
 };
 
@@ -68,20 +67,101 @@ export const translateUI = async (text: string, targetLang: string): Promise<str
   return response.text || text;
 };
 
-export const assistantChat = async (message: string, currentSection: string): Promise<string> => {
+// Tool definition for navigation
+const navTool: FunctionDeclaration = {
+  name: 'navigate_to_section',
+  description: 'Suggest navigating to a specific internal section of the app. Use this when the user asks for a feature available in another section.',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      section: {
+        type: Type.STRING,
+        enum: [
+          'home', 
+          'lessons', 
+          'speaking', 
+          'vocab', 
+          'coaching', 
+          'community', 
+          'kids'
+        ],
+        description: 'The internal ID of the section to navigate to.'
+      },
+      label: {
+        type: Type.STRING,
+        description: 'A short, action-oriented label for the button (e.g., "Ir a Lecciones", "Start Speaking").'
+      }
+    },
+    required: ['section', 'label']
+  }
+};
+
+export const assistantChat = async (
+  history: AssistantMessage[], 
+  currentSection: string, 
+  lang: string
+): Promise<{ text: string, suggestion?: { section: AppSection, label: string } }> => {
   const ai = getAI();
+  
+  // Convert history to Gemini format
+  const contents = history.map(msg => ({
+    role: msg.role === 'user' ? 'user' : 'model',
+    parts: [{ text: msg.text }]
+  }));
+
+  const systemPrompt = `You are the TMC AI Assistant, a helpful guide for "El Camino", an English learning app for Colombians.
+  Your goal is to help users find information and navigate the app.
+  
+  CURRENT CONTEXT:
+  - User Language: ${lang}
+  - Current Section: ${currentSection}
+
+  SITE STRUCTURE (INTERNAL ROUTES ONLY):
+  - home: Landing page, welcome, philosophy.
+  - lessons: AI Lesson Generator (create custom lessons).
+  - speaking: Real-time voice practice with AI.
+  - vocab: Vocabulary cards and pronunciation tools.
+  - coaching: Book 1-on-1 sessions with Tomas.
+  - community: Chat with other students and leave comments.
+  - kids: "Zona de Niños" for younger learners.
+
+  RULES:
+  1. If a user asks for a feature (e.g., "I want to practice speaking"), call the 'navigate_to_section' tool with the correct section ID.
+  2. NEVER provide external URLs (http://...). Always guide them to internal sections using the tool.
+  3. Keep responses concise, encouraging, and use Colombian flair ("¡Vamo' con toda!", "De una").
+  4. If the user is already on the requested section, tell them they are in the right place and explain how to use it.
+  `;
+
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: message,
+    contents: contents,
     config: {
-      systemInstruction: `You are the TMC AI Assistant. Help the student navigate "El Camino". 
-      Current section: ${currentSection}. 
-      If they ask for lessons, guide them to 'Lecciones'. 
-      If they want to speak, guide them to 'Entrenamiento'. 
-      Keep answers short, helpful, and Colombian-inspired ("¡Vamo' con toda!").`
+      systemInstruction: systemPrompt,
+      tools: [{ functionDeclarations: [navTool] }]
     }
   });
-  return response.text || "I'm here to help!";
+
+  let textResponse = response.text || (lang === 'es' ? "¡Estoy aquí para ayudarte!" : "I'm here to help!");
+  let suggestion = undefined;
+
+  // Check for tool calls
+  const functionCall = response.candidates?.[0]?.content?.parts?.find(p => p.functionCall)?.functionCall;
+  
+  if (functionCall && functionCall.name === 'navigate_to_section') {
+    const args = functionCall.args as any;
+    suggestion = {
+      section: args.section as AppSection,
+      label: args.label
+    };
+    // If the model didn't generate text along with the tool call, provide a default
+    if (!response.text) {
+      textResponse = lang === 'es' 
+        ? `¡Claro! Te recomiendo ir a la sección de ${args.label}.` 
+        : `Sure! I recommend checking out ${args.label}.`;
+    }
+  }
+
+  return { text: textResponse, suggestion };
 };
 
 export const getPronunciation = async (text: string): Promise<string> => {

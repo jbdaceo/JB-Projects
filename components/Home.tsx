@@ -32,21 +32,20 @@ const Home: React.FC<HomeProps> = ({ onStart, lang }) => {
   return (
     <div className="flex flex-col h-full space-y-6 md:space-y-12 pb-12">
       {/* Ticker for Freshness */}
-      <div className="w-full overflow-hidden bg-blue-600/10 py-2 border-y border-blue-500/10 rounded-full">
+      <div className="w-full overflow-hidden bg-brand-600/10 py-2 border-y border-brand-500/10 rounded-full">
         <motion.div 
           animate={{ x: ["100%", "-100%"] }}
           transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
           className="whitespace-nowrap flex gap-12"
         >
           {mindsets.map((m, i) => (
-            <span key={i} className="text-[10px] font-black text-blue-400 uppercase tracking-widest flex items-center gap-2">
-              <span className="w-1.5 h-1.5 bg-blue-400 rounded-full"></span> {m}
+            <span key={i} className="text-[10px] font-black text-brand-400 uppercase tracking-widest flex items-center gap-2">
+              <span className="w-1.5 h-1.5 bg-brand-400 rounded-full"></span> {m}
             </span>
           ))}
-          {/* Duplicate for seamless scroll */}
           {mindsets.map((m, i) => (
-            <span key={i + 'dup'} className="text-[10px] font-black text-blue-400 uppercase tracking-widest flex items-center gap-2">
-              <span className="w-1.5 h-1.5 bg-blue-400 rounded-full"></span> {m}
+            <span key={i + 'dup'} className="text-[10px] font-black text-brand-400 uppercase tracking-widest flex items-center gap-2">
+              <span className="w-1.5 h-1.5 bg-brand-400 rounded-full"></span> {m}
             </span>
           ))}
         </motion.div>
@@ -64,7 +63,6 @@ const Home: React.FC<HomeProps> = ({ onStart, lang }) => {
           className="absolute inset-0 w-full h-full object-cover brightness-[0.4] transition-transform duration-1000 group-hover:scale-105"
         />
         
-        {/* CTA Button Positioned Inside Hero - Responsive placement */}
         <motion.button 
           initial={{ opacity: 0, scale: 0.8, y: -20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -72,7 +70,7 @@ const Home: React.FC<HomeProps> = ({ onStart, lang }) => {
           onClick={onStart}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          className="absolute top-6 right-6 md:top-8 md:right-8 lg:top-10 lg:right-10 z-20 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-full font-black text-[10px] md:text-sm uppercase tracking-widest shadow-2xl shadow-blue-500/40 border border-white/10 backdrop-blur-md"
+          className="absolute top-6 right-6 md:top-8 md:right-8 lg:top-10 lg:right-10 z-20 px-6 py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-full font-black text-[10px] md:text-sm uppercase tracking-widest shadow-2xl shadow-brand-500/40 border border-white/10 backdrop-blur-md"
         >
           {lang === 'es' ? '¡Comienza Ya! 🚀' : 'Start Now! 🚀'}
         </motion.button>
@@ -83,19 +81,17 @@ const Home: React.FC<HomeProps> = ({ onStart, lang }) => {
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.4 }}
           >
-            {/* Responsive Typography: 4xl (mobile) -> 6xl (tablet) -> 8xl (desktop) */}
             <h1 className="text-4xl md:text-6xl lg:text-8xl font-black text-white mb-4 tracking-tighter leading-[1] drop-shadow-2xl">
               El Camino <br className="hidden md:block"/>
-              a la <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-400">Libertad.</span>
+              a la <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-400 to-cyan-400">Libertad.</span>
             </h1>
             <p className="text-slate-300 text-sm md:text-xl lg:text-2xl max-w-2xl leading-relaxed font-medium">
-              Tomas Martinez te entrena para ganar. <span className="text-white font-black underline decoration-blue-500">Inglés real</span> para sueldos globales.
+              Tomas Martinez te entrena para ganar. <span className="text-white font-black underline decoration-brand-500">Inglés real</span> para sueldos globales.
             </p>
           </motion.div>
         </div>
       </motion.div>
 
-      {/* Social / Contact Grid - Visible only on mobile/tablet portrait */}
       <div className="grid grid-cols-2 gap-4 lg:hidden">
         <a 
           href="https://wa.link/fhe3xu"

@@ -26,6 +26,10 @@ export interface AssistantMessage {
   role: 'assistant' | 'user';
   text: string;
   timestamp: number;
+  suggestion?: {
+    section: AppSection;
+    label: string;
+  };
 }
 
 export interface ChatSession {

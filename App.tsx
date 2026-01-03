@@ -13,22 +13,44 @@ import KidsZone from './components/KidsZone';
 import AIAssistant from './components/AIAssistant';
 import { motion, AnimatePresence } from 'https://esm.sh/framer-motion@11.11.11?external=react,react-dom';
 
+// Base Hue Mapping for Themes
+const THEME_CONFIG: Record<AppSection, { hue: number, sat: number }> = {
+  [AppSection.Home]: { hue: 220, sat: 90 }, // Blue
+  [AppSection.Lessons]: { hue: 260, sat: 85 }, // Violet/Indigo
+  [AppSection.Speaking]: { hue: 190, sat: 95 }, // Cyan
+  [AppSection.Vocab]: { hue: 160, sat: 80 }, // Emerald
+  [AppSection.Coaching]: { hue: 25, sat: 95 }, // Amber/Orange
+  [AppSection.Community]: { hue: 290, sat: 85 }, // Fuchsia
+  [AppSection.Kids]: { hue: 330, sat: 90 }, // Rose/Pink
+};
+
 const App: React.FC = () => {
   const [activeSection, setActiveSection] = useState<AppSection>(AppSection.Home);
   const [lang, setLang] = useState<Language>('es');
   const [isAssistantOpen, setAssistantOpen] = useState(false);
 
-  // Design Refresh Logic: Shift accent colors every hour or on refresh
-  const themeHue = useMemo(() => {
-    const hours = new Date().getHours();
-    return (hours * 15) % 360; 
-  }, []);
+  // Theme Randomizer Logic
+  useEffect(() => {
+    const base = THEME_CONFIG[activeSection];
+    // Generate a variation: +/- 15 degrees hue, +/- 5% saturation
+    const randomHueShift = Math.floor(Math.random() * 30) - 15;
+    const randomSatShift = Math.floor(Math.random() * 10) - 5;
+    
+    const finalHue = base.hue + randomHueShift;
+    const finalSat = Math.max(50, Math.min(100, base.sat + randomSatShift));
 
-  // Self-Cleaning UI logic: Automatically resets certain UI states after inactivity
+    // Update CSS Variables for Tailwind "brand" color
+    document.documentElement.style.setProperty('--brand-hue', finalHue.toString());
+    document.documentElement.style.setProperty('--brand-sat', `${finalSat}%`);
+    
+    console.log(`Theme updated: ${activeSection} (Hue: ${finalHue})`);
+  }, [activeSection]);
+
+  // Self-Cleaning UI logic
   useEffect(() => {
     const timer = setTimeout(() => {
       console.log("UI Optimized: Stale assets cleared.");
-    }, 300000); // 5 mins
+    }, 300000); 
     return () => clearTimeout(timer);
   }, [activeSection]);
 
@@ -54,14 +76,25 @@ const App: React.FC = () => {
   };
 
   return (
-    <div 
-      className="flex flex-col lg:flex-row min-h-screen bg-slate-950 text-slate-100 overflow-hidden font-sans selection:bg-blue-500/30"
-      style={{ '--accent-hue': themeHue } as React.CSSProperties}
-    >
+    <div className="flex flex-col lg:flex-row min-h-screen bg-slate-950 text-slate-100 overflow-hidden font-sans selection:bg-brand-500/30">
       {/* Dynamic Header / Island - Visible on Mobile & Tablet Portrait */}
-      <div className="fixed top-0 left-0 right-0 z-40 p-4 lg:hidden pointer-events-none">
-        <div className="mx-auto max-w-[200px] h-8 glass-morphism rounded-full flex items-center justify-center px-4 pointer-events-auto border-white/5 shadow-lg">
-          <span className="text-[10px] font-black uppercase tracking-widest text-blue-400">
+      <div className="fixed top-0 left-0 right-0 z-40 p-4 lg:hidden pointer-events-none flex justify-center items-center relative">
+        {/* Language Toggle - Absolute Left */}
+        <button 
+          onClick={() => setLang(l => l === 'es' ? 'en' : 'es')}
+          className="absolute left-4 top-4 h-8 px-3 glass-morphism rounded-full flex items-center gap-2 pointer-events-auto border-white/5 shadow-lg active-scale backdrop-blur-md transition-colors hover:bg-white/10"
+        >
+           <div className="flex gap-1">
+            <div className={`w-1.5 h-1.5 rounded-full ${lang === 'es' ? 'bg-brand-500' : 'bg-slate-600'}`}></div>
+            <div className={`w-1.5 h-1.5 rounded-full ${lang === 'en' ? 'bg-brand-500' : 'bg-slate-600'}`}></div>
+          </div>
+          <span className="text-[10px] font-black uppercase text-slate-300 tracking-wider">
+            {lang.toUpperCase()}
+          </span>
+        </button>
+
+        <div className="h-8 glass-morphism rounded-full flex items-center justify-center px-4 pointer-events-auto border-white/5 shadow-lg backdrop-blur-md">
+          <span className="text-[10px] font-black uppercase tracking-widest text-brand-400">
             TMC Level: Pro ⚡
           </span>
         </div>
@@ -91,20 +124,25 @@ const App: React.FC = () => {
       </main>
 
       {/* AI Agent Floating Toggle */}
-      {/* Positioned higher (bottom-28) on mobile/tablet to clear nav, lower (bottom-8) on desktop */}
       <div className="fixed right-6 bottom-28 lg:bottom-8 z-50">
         <motion.button
           whileHover={{ scale: 1.1, rotate: 10 }}
           whileTap={{ scale: 0.9 }}
           onClick={() => setAssistantOpen(true)}
-          className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center text-2xl shadow-2xl shadow-blue-500/40 border border-white/20 active-scale"
+          className="w-14 h-14 bg-brand-600 rounded-2xl flex items-center justify-center text-2xl shadow-2xl shadow-brand-500/40 border border-white/20 active-scale text-white"
         >
           🤖
         </motion.button>
       </div>
 
       {/* AI Agent Drawer */}
-      <AIAssistant isOpen={isAssistantOpen} onClose={() => setAssistantOpen(false)} lang={lang === 'es' ? 'es' : 'en'} currentSection={activeSection} />
+      <AIAssistant 
+        isOpen={isAssistantOpen} 
+        onClose={() => setAssistantOpen(false)} 
+        lang={lang === 'es' ? 'es' : 'en'} 
+        currentSection={activeSection}
+        onNavigate={setActiveSection} 
+      />
 
       {/* Mobile/Tablet Portrait Bottom Navigation - Hidden on LG+ */}
       <div className="lg:hidden">

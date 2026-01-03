@@ -9,12 +9,40 @@
     <meta name="theme-color" content="#020617" />
     <title>El Camino | TMC Teacher</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              brand: {
+                50: 'hsl(var(--brand-hue) var(--brand-sat) 95%)',
+                100: 'hsl(var(--brand-hue) var(--brand-sat) 90%)',
+                200: 'hsl(var(--brand-hue) var(--brand-sat) 80%)',
+                300: 'hsl(var(--brand-hue) var(--brand-sat) 70%)',
+                400: 'hsl(var(--brand-hue) var(--brand-sat) 60%)',
+                500: 'hsl(var(--brand-hue) var(--brand-sat) 50%)',
+                600: 'hsl(var(--brand-hue) var(--brand-sat) 45%)', // Primary
+                700: 'hsl(var(--brand-hue) var(--brand-sat) 35%)',
+                800: 'hsl(var(--brand-hue) var(--brand-sat) 20%)',
+                900: 'hsl(var(--brand-hue) var(--brand-sat) 10%)',
+              }
+            },
+            fontFamily: {
+              sans: ['Plus Jakarta Sans', 'sans-serif'],
+              display: ['Bricolage Grotesque', 'sans-serif'],
+            }
+          }
+        }
+      }
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Bricolage+Grotesque:wght@600;700;800&display=swap" rel="stylesheet">
     <style>
       :root {
         --safe-area-inset-bottom: env(safe-area-inset-bottom);
+        --brand-hue: 220;
+        --brand-sat: 90%;
       }
       body {
         font-family: 'Plus Jakarta Sans', sans-serif;
@@ -38,11 +66,13 @@
         border: 1px solid rgba(255, 255, 255, 0.08);
       }
       .mesh-bg {
+        background-color: #020617;
         background-image: 
-          radial-gradient(at 0% 0%, hsla(220,100%,10%,1) 0, transparent 50%), 
-          radial-gradient(at 50% 0%, hsla(200,100%,15%,1) 0, transparent 50%), 
-          radial-gradient(at 100% 0%, hsla(240,100%,10%,1) 0, transparent 50%);
+          radial-gradient(at 0% 0%, hsl(var(--brand-hue), 60%, 10%) 0, transparent 50%), 
+          radial-gradient(at 50% 0%, hsl(var(--brand-hue), 60%, 15%) 0, transparent 50%), 
+          radial-gradient(at 100% 0%, hsl(calc(var(--brand-hue) + 40), 60%, 10%) 0, transparent 50%);
         background-attachment: fixed;
+        transition: background-image 1s ease;
       }
       .hide-scrollbar::-webkit-scrollbar {
         display: none;

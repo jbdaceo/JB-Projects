@@ -31,20 +31,20 @@ const MobileNav: React.FC<MobileNavProps> = ({ activeSection, onNavigate }) => {
             {activeSection === item.id && (
               <motion.div
                 layoutId="navGlow"
-                className="absolute inset-0 bg-blue-500/10 rounded-2xl border border-blue-500/20"
+                className="absolute inset-0 bg-brand-500/10 rounded-2xl border border-brand-500/20"
                 transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
               />
             )}
             <span className={`text-2xl transition-all duration-300 ${activeSection === item.id ? 'scale-110 mb-0.5' : 'opacity-40 scale-90'}`}>
               {item.icon}
             </span>
-            <span className={`text-[8px] font-black uppercase tracking-tighter transition-all duration-300 ${activeSection === item.id ? 'text-blue-400 opacity-100' : 'opacity-0 h-0'}`}>
+            <span className={`text-[8px] font-black uppercase tracking-tighter transition-all duration-300 ${activeSection === item.id ? 'text-brand-400 opacity-100' : 'opacity-0 h-0'}`}>
               {item.label}
             </span>
             {activeSection === item.id && (
               <motion.div
                 layoutId="activeDot"
-                className="absolute -bottom-1 w-1 h-1 bg-blue-400 rounded-full"
+                className="absolute -bottom-1 w-1 h-1 bg-brand-400 rounded-full"
               />
             )}
           </button>
