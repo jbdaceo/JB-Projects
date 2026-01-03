@@ -27,3 +27,11 @@ export interface AssistantMessage {
   text: string;
   timestamp: number;
 }
+
+export interface ChatSession {
+  id: string;
+  title: string;
+  messages: AssistantMessage[];
+  color: string; // Tailwind class for background
+  lastUpdated: number;
+}

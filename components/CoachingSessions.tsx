@@ -1,12 +1,10 @@
 
 import React, { useState } from 'react';
-// Added Language import
 import { Language } from '../types';
 import { motion, AnimatePresence } from 'https://esm.sh/framer-motion@11.11.11?external=react,react-dom';
 
 type SessionType = 'virtual' | 'in-person' | null;
 
-// Added CoachingSessionsProps
 interface CoachingSessionsProps {
   lang: Language;
 }
@@ -131,7 +129,7 @@ const CoachingSessions: React.FC<CoachingSessionsProps> = ({ lang }) => {
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
                 <div className="space-y-4">
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block px-2">Selecciona la Fecha</label>
                   <input 
@@ -156,7 +154,7 @@ const CoachingSessions: React.FC<CoachingSessionsProps> = ({ lang }) => {
                 </div>
                 
                 {sessionType === 'in-person' && (
-                  <div className="md:col-span-2 space-y-4">
+                  <div className="lg:col-span-2 space-y-4">
                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block px-2">¿Dónde nos vemos?</label>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {locations.map(loc => (
@@ -174,7 +172,7 @@ const CoachingSessions: React.FC<CoachingSessionsProps> = ({ lang }) => {
                   </div>
                 )}
 
-                <div className="md:col-span-2 space-y-4">
+                <div className="lg:col-span-2 space-y-4">
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block px-2">¿Cuál es tu objetivo principal?</label>
                   <textarea 
                     placeholder="Describe lo que quieres lograr en estos 60 minutos..."

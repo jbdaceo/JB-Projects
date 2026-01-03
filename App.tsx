@@ -27,7 +27,6 @@ const App: React.FC = () => {
   // Self-Cleaning UI logic: Automatically resets certain UI states after inactivity
   useEffect(() => {
     const timer = setTimeout(() => {
-      // Logic for background cache cleanup or minor UI refreshes
       console.log("UI Optimized: Stale assets cleared.");
     }, 300000); // 5 mins
     return () => clearTimeout(timer);
@@ -56,11 +55,11 @@ const App: React.FC = () => {
 
   return (
     <div 
-      className="flex flex-col md:flex-row min-h-screen bg-slate-950 text-slate-100 overflow-hidden font-sans selection:bg-blue-500/30"
+      className="flex flex-col lg:flex-row min-h-screen bg-slate-950 text-slate-100 overflow-hidden font-sans selection:bg-blue-500/30"
       style={{ '--accent-hue': themeHue } as React.CSSProperties}
     >
-      {/* Dynamic Header / Island */}
-      <div className="fixed top-0 left-0 right-0 z-40 p-4 md:hidden pointer-events-none">
+      {/* Dynamic Header / Island - Visible on Mobile & Tablet Portrait */}
+      <div className="fixed top-0 left-0 right-0 z-40 p-4 lg:hidden pointer-events-none">
         <div className="mx-auto max-w-[200px] h-8 glass-morphism rounded-full flex items-center justify-center px-4 pointer-events-auto border-white/5 shadow-lg">
           <span className="text-[10px] font-black uppercase tracking-widest text-blue-400">
             TMC Level: Pro ⚡
@@ -68,12 +67,13 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      {/* Desktop Sidebar */}
-      <div className="hidden md:block">
+      {/* Desktop/Tablet Landscape Sidebar - Visible only on LG+ */}
+      <div className="hidden lg:block">
         <Sidebar activeSection={activeSection} onNavigate={setActiveSection} lang={lang} onLangToggle={() => setLang(l => l === 'es' ? 'en' : 'es')} />
       </div>
 
-      <main className="flex-1 overflow-y-auto relative p-4 md:p-12 pb-32 md:pb-12 pt-16 md:pt-12 scroll-smooth">
+      {/* Main Content Area */}
+      <main className="flex-1 overflow-y-auto relative p-4 md:p-8 lg:p-12 pb-32 lg:pb-12 pt-16 lg:pt-12 scroll-smooth">
         <div className="max-w-7xl mx-auto h-full">
           <AnimatePresence mode="wait">
             <motion.div
@@ -91,7 +91,8 @@ const App: React.FC = () => {
       </main>
 
       {/* AI Agent Floating Toggle */}
-      <div className="fixed right-6 bottom-24 md:bottom-8 z-50">
+      {/* Positioned higher (bottom-28) on mobile/tablet to clear nav, lower (bottom-8) on desktop */}
+      <div className="fixed right-6 bottom-28 lg:bottom-8 z-50">
         <motion.button
           whileHover={{ scale: 1.1, rotate: 10 }}
           whileTap={{ scale: 0.9 }}
@@ -105,8 +106,8 @@ const App: React.FC = () => {
       {/* AI Agent Drawer */}
       <AIAssistant isOpen={isAssistantOpen} onClose={() => setAssistantOpen(false)} lang={lang === 'es' ? 'es' : 'en'} currentSection={activeSection} />
 
-      {/* Mobile Bottom Navigation */}
-      <div className="md:hidden">
+      {/* Mobile/Tablet Portrait Bottom Navigation - Hidden on LG+ */}
+      <div className="lg:hidden">
         <MobileNav activeSection={activeSection} onNavigate={setActiveSection} />
       </div>
     </div>

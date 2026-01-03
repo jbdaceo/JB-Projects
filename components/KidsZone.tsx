@@ -57,7 +57,7 @@ const KidsZone: React.FC<KidsZoneProps> = ({ lang }) => {
         </p>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 px-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 px-4">
         {content.sections.map((section, idx) => (
           <motion.button
             key={section.id}
@@ -66,7 +66,7 @@ const KidsZone: React.FC<KidsZoneProps> = ({ lang }) => {
             initial={{ y: 50, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: idx * 0.1 }}
-            className={`${section.color} ${section.text} p-8 md:p-12 rounded-[48px] shadow-2xl flex flex-col items-center justify-center gap-6 group relative overflow-hidden`}
+            className={`${section.color} ${section.text} p-8 md:p-12 rounded-[48px] shadow-2xl flex flex-col items-center justify-center gap-6 group relative overflow-hidden ${idx === 2 ? 'md:col-span-2 lg:col-span-1' : ''}`}
           >
             <div className="text-7xl md:text-8xl filter drop-shadow-md group-hover:scale-110 transition-transform duration-300">
               {section.icon}

@@ -1,11 +1,9 @@
 
 import React, { useState } from 'react';
 import { generateLesson } from '../services/gemini';
-// Added Language import
 import { Lesson, Language } from '../types';
 import { motion, AnimatePresence } from 'https://esm.sh/framer-motion@11.11.11?external=react,react-dom';
 
-// Added LessonGeneratorProps
 interface LessonGeneratorProps {
   lang: Language;
 }
@@ -80,7 +78,7 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang }) => {
 
       <motion.div 
         layout
-        className="bg-slate-900/40 p-8 md:p-10 rounded-[40px] border border-slate-800 shadow-2xl flex flex-col md:flex-row gap-8 items-end backdrop-blur-md"
+        className="bg-slate-900/40 p-8 md:p-10 rounded-[40px] border border-slate-800 shadow-2xl flex flex-col xl:flex-row gap-8 items-end backdrop-blur-md"
       >
         <div className="flex-1 space-y-3 w-full">
           <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] px-2">¿Qué quieres dominar hoy?</label>
@@ -92,7 +90,7 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang }) => {
             onChange={(e) => setTopic(e.target.value)}
           />
         </div>
-        <div className="w-full md:w-56 space-y-3">
+        <div className="w-full xl:w-56 space-y-3">
           <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] px-2">Tu Nivel Actual</label>
           <div className="relative">
             <select 
@@ -112,7 +110,7 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang }) => {
           disabled={loading}
           whileHover={{ scale: 1.02, backgroundColor: '#3b82f6' }}
           whileTap={{ scale: 0.98 }}
-          className="w-full md:w-auto px-12 py-5 bg-blue-600 text-white font-black rounded-2xl shadow-xl shadow-blue-500/20 disabled:opacity-50 transition-all text-lg active:scale-95"
+          className="w-full xl:w-auto px-12 py-5 bg-blue-600 text-white font-black rounded-2xl shadow-xl shadow-blue-500/20 disabled:opacity-50 transition-all text-lg active:scale-95"
         >
           {loading ? 'Preparando...' : 'Generar Clase'}
         </motion.button>
@@ -142,10 +140,11 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang }) => {
         <motion.div 
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
-          className="grid grid-cols-1 lg:grid-cols-3 gap-10"
+          className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 md:gap-10"
         >
-          <div className="lg:col-span-2 space-y-10">
-            <div className="bg-slate-900/40 p-10 md:p-14 rounded-[40px] border border-slate-800 shadow-2xl backdrop-blur-sm overflow-hidden">
+          {/* Main Content: Spans 1 col on Tablet, 2 cols on Desktop */}
+          <div className="md:col-span-2 space-y-10">
+            <div className="bg-slate-900/40 p-8 md:p-14 rounded-[40px] border border-slate-800 shadow-2xl backdrop-blur-sm overflow-hidden">
               <div className="flex items-center gap-3 mb-8">
                  <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${viewMode === 'quick' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'bg-blue-500/10 text-blue-500 border border-blue-500/20'}`}>
                   {viewMode === 'quick' ? '⚡ Misión Rápida' : '📖 Lectura Profunda'}
@@ -189,7 +188,7 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang }) => {
               </AnimatePresence>
             </div>
 
-            <div className="bg-slate-900/40 p-10 md:p-14 rounded-[40px] border border-slate-800 shadow-2xl backdrop-blur-sm">
+            <div className="bg-slate-900/40 p-8 md:p-14 rounded-[40px] border border-slate-800 shadow-2xl backdrop-blur-sm">
               <h3 className="text-2xl font-black mb-10 flex items-center gap-4 text-white">
                 <span className="p-3 bg-blue-600/20 rounded-2xl text-blue-400 shadow-inner">📝</span> Desafío de Comprensión
               </h3>
@@ -217,12 +216,12 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang }) => {
                   </div>
                 ))}
               </div>
-              <div className="mt-16 flex flex-col md:flex-row items-center justify-between pt-10 border-t border-slate-800 gap-8">
+              <div className="mt-16 flex flex-col xl:flex-row items-center justify-between pt-10 border-t border-slate-800 gap-8">
                 {quizScore !== null ? (
                   <motion.div 
                     initial={{ scale: 0.9, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
-                    className="flex items-center gap-5 bg-slate-800/60 px-8 py-4 rounded-2xl border border-slate-700 shadow-xl"
+                    className="flex items-center gap-5 bg-slate-800/60 px-8 py-4 rounded-2xl border border-slate-700 shadow-xl w-full xl:w-auto"
                   >
                     <p className="text-xl font-black text-white tracking-tight">Puntaje: {quizScore}/{lesson.quiz.length}</p>
                     <span className="text-4xl">{quizScore === lesson.quiz.length ? '👑' : '💪'}</span>
@@ -231,7 +230,7 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang }) => {
                 <motion.button 
                   onClick={checkQuiz}
                   whileHover={{ scale: 1.05 }}
-                  className="w-full md:w-auto px-16 py-5 bg-white text-slate-950 font-black rounded-2xl hover:bg-slate-100 transition-all shadow-2xl active:scale-95 text-lg"
+                  className="w-full xl:w-auto px-16 py-5 bg-white text-slate-950 font-black rounded-2xl hover:bg-slate-100 transition-all shadow-2xl active:scale-95 text-lg"
                 >
                   Finalizar Lección
                 </motion.button>
@@ -239,18 +238,19 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang }) => {
             </div>
           </div>
 
-          <div className="space-y-10">
+          {/* Sidebar Content (Vocabulary): On Tablet, this moves below the main content in a 2-col layout, or stays to the side if using grid-flow */}
+          <div className="md:col-span-2 xl:col-span-1 space-y-10">
             <motion.div 
               initial={{ x: 30, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
               transition={{ delay: 0.2 }}
-              className="bg-gradient-to-br from-blue-700 to-indigo-700 p-10 rounded-[40px] shadow-2xl relative overflow-hidden group border border-white/10"
+              className="bg-gradient-to-br from-blue-700 to-indigo-700 p-8 md:p-10 rounded-[40px] shadow-2xl relative overflow-hidden group border border-white/10"
             >
               <div className="absolute top-0 right-0 p-8 opacity-10 text-[180px] -mr-16 -mt-16 rotate-12 transition-transform group-hover:rotate-0 pointer-events-none">🔖</div>
               <h3 className="text-2xl font-black mb-8 flex items-center gap-4 text-white relative">
                 Palabras de Poder
               </h3>
-              <div className="space-y-5 relative">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-1 gap-5 relative">
                 {lesson.vocabulary.map((v, idx) => (
                   <motion.div 
                     key={idx} 

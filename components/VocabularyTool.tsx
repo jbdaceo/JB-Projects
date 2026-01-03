@@ -1,11 +1,9 @@
 
 import React, { useState } from 'react';
 import { getPronunciation, decodeBase64Audio, decodeAudioData } from '../services/gemini';
-// Added Language import
 import { Language } from '../types';
 import { motion } from 'https://esm.sh/framer-motion@11.11.11?external=react,react-dom';
 
-// Added VocabularyToolProps
 interface VocabularyToolProps {
   lang: Language;
 }
@@ -64,7 +62,7 @@ const VocabularyTool: React.FC<VocabularyToolProps> = ({ lang }) => {
         variants={container}
         initial="hidden"
         animate="show"
-        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-10"
+        className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 md:gap-10"
       >
         {words.map((itemObj, idx) => (
           <motion.div 
@@ -106,7 +104,7 @@ const VocabularyTool: React.FC<VocabularyToolProps> = ({ lang }) => {
 
         <motion.div 
           variants={item}
-          className="bg-slate-950/50 p-10 rounded-[40px] border-2 border-dashed border-slate-800 flex flex-col justify-center items-center text-center space-y-8 backdrop-blur-sm"
+          className="bg-slate-950/50 p-10 rounded-[40px] border-2 border-dashed border-slate-800 flex flex-col justify-center items-center text-center space-y-8 backdrop-blur-sm md:col-span-2 xl:col-span-1"
         >
           <div className="w-24 h-24 bg-slate-900 rounded-[36px] flex items-center justify-center text-5xl shadow-inner border border-slate-800 animate-pulse">✨</div>
           <div className="space-y-3">
