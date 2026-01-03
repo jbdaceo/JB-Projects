@@ -24,6 +24,21 @@ const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang }) => {
   const currentInputTransRef = useRef('');
   const currentOutputTransRef = useRef('');
 
+  const text = {
+    title: lang === 'es' ? 'Entrenamiento' : 'Training',
+    subtitle: lang === 'es' ? 'Feedback Real-Time con Tomas' : 'Real-Time Feedback with Tomas',
+    you: lang === 'es' ? 'Tú' : 'You',
+    start: lang === 'es' ? 'HABLAR CON TOMAS' : 'SPEAK WITH TOMAS',
+    stop: lang === 'es' ? 'Terminar' : 'Stop',
+    micError: lang === 'es' ? 'Activa el micrófono.' : 'Please enable your microphone.',
+    quote: lang === 'es' ? '"Habla para crear tu futuro. Tomas te escucha."' : '"Speak your future into existence. Tomas is listening."',
+    challengesTitle: lang === 'es' ? 'Próximos Retos' : 'Upcoming Challenges',
+    mission: lang === 'es' ? 'Misión' : 'Mission',
+    systemPrompt: lang === 'es' 
+      ? 'Eres el Profesor Tomas Martinez, mentor e inspirador. Usas "El Camino" como metáfora del éxito. Eres cálido, corriges de forma sutil, usas "Vamo\' con toda". Tu voz es masculina y profunda.'
+      : 'You are Professor Tomas Martinez, a mentor and inspirer. You use "El Camino" as a metaphor for success. You are warm, provide subtle corrections, and use phrases like "Vamo\' con toda". Your voice is male and deep.'
+  };
+
   const stopSession = useCallback(() => {
     if (sessionPromiseRef.current) {
       sessionPromiseRef.current.then(s => s.close());
@@ -117,7 +132,7 @@ const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang }) => {
               if (userInput || modelOutput) {
                 setTranscriptions(prev => [
                   ...prev, 
-                  { role: 'Tú', text: userInput },
+                  { role: text.you, text: userInput },
                   { role: 'Tomas', text: modelOutput }
                 ]);
               }
@@ -136,18 +151,18 @@ const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang }) => {
         },
         config: {
           responseModalities: [Modality.AUDIO],
-          systemInstruction: 'Eres el Profesor Tomas Martinez, mentor e inspirador. Usas "El Camino" como metáfora del éxito. Eres cálido, corriges de forma sutil, usas "Vamo\' con toda". Tu objetivo es que el estudiante consiga un trabajo mejor.',
+          systemInstruction: text.systemPrompt,
           inputAudioTranscription: {},
           outputAudioTranscription: {},
           speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } }
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } } // Changed to Puck for Male Voice
           }
         }
       });
       sessionPromiseRef.current = sessionPromise;
     } catch (error) {
       console.error('Failed to start session:', error);
-      alert('Activa el micrófono.');
+      alert(text.micError);
       setIsConnecting(false);
     }
   };
@@ -160,8 +175,8 @@ const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang }) => {
     <div className="flex flex-col h-full space-y-4 md:space-y-10 pb-20">
       <header className="flex items-center justify-between">
         <div>
-           <h2 className="text-2xl md:text-5xl font-black text-white tracking-tighter">Entrenamiento</h2>
-           <p className="text-slate-500 text-[10px] md:text-lg font-bold uppercase tracking-widest">Feedback Real-Time</p>
+           <h2 className="text-2xl md:text-5xl font-black text-white tracking-tighter">{text.title}</h2>
+           <p className="text-slate-500 text-[10px] md:text-lg font-bold uppercase tracking-widest">{text.subtitle}</p>
         </div>
         {isActive && (
           <motion.div 
@@ -190,7 +205,7 @@ const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang }) => {
                   🎙️
                 </motion.div>
                 <p className="text-slate-400 text-sm md:text-xl font-medium max-w-xs leading-relaxed italic">
-                  "Speak your future into existence. Tomas is listening."
+                  {text.quote}
                 </p>
               </div>
             ) : (
@@ -234,7 +249,7 @@ const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang }) => {
                     onClick={stopSession}
                     className="px-12 py-4 bg-red-500/20 text-red-500 border border-red-500/30 font-black rounded-3xl text-sm active-scale uppercase tracking-widest"
                   >
-                    Terminar
+                    {text.stop}
                   </button>
                 </div>
               ) : (
@@ -248,7 +263,7 @@ const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang }) => {
                   ) : (
                     <>
                       <span className="text-2xl">⚡</span>
-                      HABLAR CON TOMAS
+                      {text.start}
                     </>
                   )}
                 </button>
@@ -259,11 +274,11 @@ const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang }) => {
 
         <div className="hidden lg:flex flex-col w-96 space-y-6">
            <div className="glass-morphism p-8 rounded-[40px] border border-white/5">
-              <h3 className="font-black text-white text-xl mb-6">Próximos Retos</h3>
+              <h3 className="font-black text-white text-xl mb-6">{text.challengesTitle}</h3>
               <div className="space-y-4">
                  {['Elevator Pitch', 'Job Offer Negotiation', 'Remote Tech Sync'].map((r, i) => (
                    <div key={i} className="p-4 bg-white/5 rounded-2xl border border-white/5 hover:border-brand-500/30 transition-all cursor-pointer">
-                      <p className="text-[9px] font-black text-brand-400 uppercase tracking-widest mb-1">Misión {i+1}</p>
+                      <p className="text-[9px] font-black text-brand-400 uppercase tracking-widest mb-1">{text.mission} {i+1}</p>
                       <p className="text-slate-100 font-bold text-sm">{r}</p>
                    </div>
                  ))}

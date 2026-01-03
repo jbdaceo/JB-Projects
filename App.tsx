@@ -11,6 +11,8 @@ import CoachingSessions from './components/CoachingSessions';
 import Community from './components/Community';
 import KidsZone from './components/KidsZone';
 import AIAssistant from './components/AIAssistant';
+import Mascot from './components/Mascot';
+import AuthModal from './components/AuthModal';
 import { motion, AnimatePresence } from 'https://esm.sh/framer-motion@11.11.11?external=react,react-dom';
 
 // Base Hue Mapping for Themes
@@ -28,6 +30,8 @@ const App: React.FC = () => {
   const [activeSection, setActiveSection] = useState<AppSection>(AppSection.Home);
   const [lang, setLang] = useState<Language>('es');
   const [isAssistantOpen, setAssistantOpen] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(true);
 
   // Theme Randomizer Logic
   useEffect(() => {
@@ -42,17 +46,17 @@ const App: React.FC = () => {
     // Update CSS Variables for Tailwind "brand" color
     document.documentElement.style.setProperty('--brand-hue', finalHue.toString());
     document.documentElement.style.setProperty('--brand-sat', `${finalSat}%`);
-    
-    console.log(`Theme updated: ${activeSection} (Hue: ${finalHue})`);
   }, [activeSection]);
 
-  // Self-Cleaning UI logic
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      console.log("UI Optimized: Stale assets cleared.");
-    }, 300000); 
-    return () => clearTimeout(timer);
-  }, [activeSection]);
+  const handleLogin = () => {
+    setIsLoggedIn(true);
+    setShowAuthModal(false);
+  };
+
+  const handleGuest = () => {
+    setIsLoggedIn(false);
+    setShowAuthModal(false);
+  };
 
   const renderContent = () => {
     switch (activeSection) {
@@ -77,6 +81,9 @@ const App: React.FC = () => {
 
   return (
     <div className="flex flex-col lg:flex-row min-h-screen bg-slate-950 text-slate-100 overflow-hidden font-sans selection:bg-brand-500/30">
+      
+      <AuthModal isOpen={showAuthModal} onLogin={handleLogin} onGuest={handleGuest} />
+
       {/* Dynamic Header / Island - Visible on Mobile & Tablet Portrait */}
       <div className="fixed top-0 left-0 right-0 z-40 p-4 lg:hidden pointer-events-none flex justify-center items-center relative">
         {/* Language Toggle - Absolute Left */}
@@ -95,7 +102,7 @@ const App: React.FC = () => {
 
         <div className="h-8 glass-morphism rounded-full flex items-center justify-center px-4 pointer-events-auto border-white/5 shadow-lg backdrop-blur-md">
           <span className="text-[10px] font-black uppercase tracking-widest text-brand-400">
-            TMC Level: Pro ⚡
+            TMC Level: {isLoggedIn ? 'Pro ⚡' : 'Guest'}
           </span>
         </div>
       </div>
@@ -123,6 +130,9 @@ const App: React.FC = () => {
         </div>
       </main>
 
+      {/* Mascot Companion - "Poco" */}
+      <Mascot activeSection={activeSection} lang={lang} />
+
       {/* AI Agent Floating Toggle */}
       <div className="fixed right-6 bottom-28 lg:bottom-8 z-50">
         <motion.button
@@ -146,7 +156,7 @@ const App: React.FC = () => {
 
       {/* Mobile/Tablet Portrait Bottom Navigation - Hidden on LG+ */}
       <div className="lg:hidden">
-        <MobileNav activeSection={activeSection} onNavigate={setActiveSection} />
+        <MobileNav activeSection={activeSection} onNavigate={setActiveSection} lang={lang} />
       </div>
     </div>
   );

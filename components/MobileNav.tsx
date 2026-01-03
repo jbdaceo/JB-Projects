@@ -1,22 +1,22 @@
-
 import React from 'react';
-import { AppSection } from '../types';
+import { AppSection, Language } from '../types';
 import { motion } from 'https://esm.sh/framer-motion@11.11.11?external=react,react-dom';
 
 interface MobileNavProps {
   activeSection: AppSection;
   onNavigate: (section: AppSection) => void;
+  lang: Language;
 }
 
-const MobileNav: React.FC<MobileNavProps> = ({ activeSection, onNavigate }) => {
+const MobileNav: React.FC<MobileNavProps> = ({ activeSection, onNavigate, lang }) => {
   const items = [
-    { id: AppSection.Home, label: 'Inicio', icon: '🏠' },
-    { id: AppSection.Lessons, label: 'Clases', icon: '📚' },
-    { id: AppSection.Speaking, label: 'Hablar', icon: '🎙️' },
-    { id: AppSection.Vocab, label: 'Léxico', icon: '🔖' },
-    { id: AppSection.Coaching, label: 'Tutor', icon: '🤝' },
-    { id: AppSection.Community, label: 'Mundo', icon: '🌎' },
-    { id: AppSection.Kids, label: 'Niños', icon: '🎈' },
+    { id: AppSection.Home, label: lang === 'es' ? 'Inicio' : 'Home', icon: '🏠' },
+    { id: AppSection.Lessons, label: lang === 'es' ? 'Clases' : 'Classes', icon: '📚' },
+    { id: AppSection.Speaking, label: lang === 'es' ? 'Hablar' : 'Speak', icon: '🎙️' },
+    { id: AppSection.Vocab, label: lang === 'es' ? 'Léxico' : 'Vocab', icon: '🔖' },
+    { id: AppSection.Coaching, label: lang === 'es' ? 'Tutor' : 'Tutor', icon: '🤝' },
+    { id: AppSection.Community, label: lang === 'es' ? 'Mundo' : 'World', icon: '🌎' },
+    { id: AppSection.Kids, label: lang === 'es' ? 'Niños' : 'Kids', icon: '🎈' },
   ];
 
   return (
