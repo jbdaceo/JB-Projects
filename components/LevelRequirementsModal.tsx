@@ -1,6 +1,7 @@
 
+// DO cast score to number to avoid "unknown" type comparison errors
 import React, { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'https://esm.sh/framer-motion@11.11.11?external=react,react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Language } from '../types';
 
 interface LevelRequirementsModalProps {
@@ -101,17 +102,21 @@ const LevelRequirementsModal: React.FC<LevelRequirementsModalProps> = ({ isOpen,
             </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {Object.entries(scores).map(([gameId, score]) => (
-                <div key={gameId} className="bg-slate-800/50 p-3 rounded-xl border border-white/5 flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-300">{GAME_NAMES[gameId]}</span>
-                  <div className="flex items-center gap-2">
-                    <div className="w-20 h-2 bg-slate-700 rounded-full overflow-hidden">
-                      <div className={`h-full ${score >= 100 ? 'bg-emerald-500' : 'bg-cyan-500'}`} style={{ width: `${Math.min(100, score)}%` }} />
+              {Object.entries(scores).map(([gameId, score]) => {
+                // Fix: Cast score as number to avoid comparison errors with "unknown" type from Object.entries
+                const s = score as number;
+                return (
+                  <div key={gameId} className="bg-slate-800/50 p-3 rounded-xl border border-white/5 flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-300">{GAME_NAMES[gameId]}</span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-20 h-2 bg-slate-700 rounded-full overflow-hidden">
+                        <div className={`h-full ${s >= 100 ? 'bg-emerald-500' : 'bg-cyan-500'}`} style={{ width: `${Math.min(100, s)}%` }} />
+                      </div>
+                      <span className={`text-xs font-black ${s >= 100 ? 'text-emerald-400' : 'text-slate-500'}`}>{s}/100</span>
                     </div>
-                    <span className={`text-xs font-black ${score >= 100 ? 'text-emerald-400' : 'text-slate-500'}`}>{score}/100</span>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 

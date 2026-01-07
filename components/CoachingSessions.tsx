@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Language } from '../types';
-import { motion, AnimatePresence } from 'https://esm.sh/framer-motion@11.11.11?external=react,react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 
 type SessionType = 'virtual' | 'in-person' | null;
 

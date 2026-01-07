@@ -1,66 +1,59 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { getPronunciation, decodeBase64Audio, decodeAudioData } from '../services/gemini';
+import { getPronunciation, decodeBase64Audio, decodeAudioData, generateNewsVocabulary, NewsWord } from '../services/gemini';
 import { Language } from '../types';
-import { motion } from 'https://esm.sh/framer-motion@11.11.11?external=react,react-dom';
+import { motion, AnimatePresence, Variants } from 'framer-motion';
 
 interface VocabularyToolProps {
   lang: Language;
 }
 
-interface WordItem {
-  word: string;
-  translation: string;
-  defEn: string;
-  defEs: string;
-}
-
-const ALL_WORDS: WordItem[] = [
-  { word: 'Scholarship', translation: 'Becas', defEn: 'A grant or payment made to support a student\'s education.', defEs: 'Una subvención o pago realizado para apoyar la educación de un estudiante.' },
-  { word: 'Remote Work', translation: 'Trabajo Remoto', defEn: 'The practice of working from a location other than an office.', defEs: 'La práctica de trabajar desde un lugar distinto a una oficina.' },
-  { word: 'Breakthrough', translation: 'Gran Avance', defEn: 'A sudden, dramatic, and important discovery or development.', defEs: 'Un descubrimiento o desarrollo repentino, dramático e importante.' },
-  { word: 'Resilience', translation: 'Resiliencia', defEn: 'The capacity to recover quickly from difficulties.', defEs: 'La capacidad de recuperarse rápidamente de las dificultades.' },
-  { word: 'Negotiation', translation: 'Negociación', defEn: 'Discussion aimed at reaching an agreement.', defEs: 'Discusión destinada a llegar a un acuerdo.' },
-  { word: 'Accountability', translation: 'Responsabilidad', defEn: 'The fact or condition of being accountable; responsibility.', defEs: 'El hecho o condición de rendir cuentas; responsabilidad.' },
-  { word: 'Networking', translation: 'Red de Contactos', defEn: 'The action or process of interacting with others to exchange information and develop professional contacts.', defEs: 'El proceso de interactuar con otros para intercambiar información y desarrollar contactos profesionales.' },
-  { word: 'Freelance', translation: 'Independiente', defEn: 'Working for different companies at different times rather than being permanently employed by one company.', defEs: 'Trabajar para diferentes empresas en diferentes momentos en lugar de ser empleado permanente de una sola.' },
-  { word: 'Entrepreneur', translation: 'Emprendedor', defEn: 'A person who organizes and operates a business or businesses.', defEs: 'Una persona que organiza y opera un negocio o negocios.' },
-  { word: 'Innovation', translation: 'Innovación', defEn: 'A new method, idea, product, etc.', defEs: 'Un nuevo método, idea, producto, etc.' },
-  { word: 'Deadline', translation: 'Fecha Límite', defEn: 'The latest time or date by which something should be completed.', defEs: 'La hora o fecha límite en la que algo debe completarse.' },
-  { word: 'Skillset', translation: 'Conjunto de Habilidades', defEn: 'A person\'s range of skills or abilities.', defEs: 'El rango de habilidades o capacidades de una persona.' },
-  { word: 'Feedback', translation: 'Retroalimentación', defEn: 'Information about reactions to a product, a person\'s performance of a task, etc.', defEs: 'Información sobre reacciones a un producto, desempeño de una persona, etc.' },
-  { word: 'Equity', translation: 'Patrimonio/Equidad', defEn: 'The value of the shares issued by a company.', defEs: 'El valor de las acciones emitidas por una empresa.' },
-  { word: 'Pitch', translation: 'Discurso de Venta', defEn: 'A form of words used when trying to persuade someone to buy or accept something.', defEs: 'Una forma de palabras usada al intentar persuadir a alguien para comprar o aceptar algo.' },
-];
-
 const VocabularyTool: React.FC<VocabularyToolProps> = ({ lang }) => {
-  const [loadingWord, setLoadingWord] = useState<string | null>(null);
-  const [displayWords, setDisplayWords] = useState<WordItem[]>([]);
-  
+  const [loadingAudio, setLoadingAudio] = useState<string | null>(null);
+  const [newsWords, setNewsWords] = useState<NewsWord[]>([]);
+  const [loadingData, setLoadingData] = useState(true);
+  const [flippedCards, setFlippedCards] = useState<Set<number>>(new Set());
+  const [refreshCount, setRefreshCount] = useState(0);
+
   const text = {
-    title: lang === 'es' ? 'Léxico del Éxito' : 'Success Lexicon',
-    subtitle: lang === 'es' ? 'Conceptos clave para dominar el mercado global.' : 'Key concepts to master the global market.',
-    professional: lang === 'es' ? 'Profesional' : 'Professional',
-    growingWithYou: lang === 'es' ? 'Creciendo Contigo' : 'Growing With You',
-    growingDesc: lang === 'es' ? 'Agregamos nuevos conceptos cada semana enfocados en Tech, Startups y Finanzas.' : 'We add new concepts every week focused on Tech, Startups, and Finance.'
+    title: lang === 'es' ? 'Léxico Real' : 'Real-Time Lexicon',
+    subtitle: lang === 'es' ? 'Vocabulario avanzado de las noticias de HOY.' : 'Advanced vocabulary from TODAY\'S news headlines.',
+    clickToFlip: lang === 'es' ? 'Click para girar' : 'Click to flip',
+    nextSet: lang === 'es' ? 'Siguiente Set' : 'Next Daily Set',
+    refreshing: lang === 'es' ? 'Buscando noticias...' : 'Scanning news...',
+    pronounce: lang === 'es' ? 'Pronunciar' : 'Pronounce'
   };
 
-  const randomizeWords = useCallback(() => {
-    const shuffled = [...ALL_WORDS].sort(() => 0.5 - Math.random());
-    setDisplayWords(shuffled.slice(0, 6));
-  }, []);
+  const fetchNewsWords = useCallback(async () => {
+    setLoadingData(true);
+    setFlippedCards(new Set()); // Reset flips
+    try {
+        const words = await generateNewsVocabulary(lang);
+        setNewsWords(words);
+    } catch (e) {
+        console.error(e);
+    } finally {
+        setLoadingData(false);
+    }
+  }, [lang, refreshCount]);
 
   useEffect(() => {
-    randomizeWords();
-    const intervalId = setInterval(() => {
-      randomizeWords();
-    }, 300000);
-    return () => clearInterval(intervalId);
-  }, [lang, randomizeWords]);
+    fetchNewsWords();
+  }, [fetchNewsWords]);
 
-  const handlePlay = async (textToSpeak: string) => {
+  const handleFlip = (index: number) => {
+      setFlippedCards(prev => {
+          const newSet = new Set(prev);
+          if (newSet.has(index)) newSet.delete(index);
+          else newSet.add(index);
+          return newSet;
+      });
+  };
+
+  const handlePlay = async (textToSpeak: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent flip when clicking audio
     try {
-      setLoadingWord(textToSpeak);
+      setLoadingAudio(textToSpeak);
       const base64 = await getPronunciation(textToSpeak);
       if (base64) {
         const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
@@ -73,95 +66,144 @@ const VocabularyTool: React.FC<VocabularyToolProps> = ({ lang }) => {
     } catch (error) {
       console.error(error);
     } finally {
-      setLoadingWord(null);
+      setLoadingAudio(null);
     }
   };
 
-  const container = {
+  const container: Variants = {
     hidden: { opacity: 0 },
-    show: { opacity: 1, transition: { staggerChildren: 0.12 } }
+    show: { opacity: 1, transition: { staggerChildren: 0.1 } }
   };
 
-  const item = {
-    hidden: { opacity: 0, scale: 0.95, y: 30 },
-    show: { opacity: 1, scale: 1, y: 0 }
+  const itemAnim: Variants = {
+    hidden: { opacity: 0, y: 50 },
+    show: { opacity: 1, y: 0, transition: { type: "spring", bounce: 0.3 } }
   };
 
   return (
-    <div className="space-y-12 md:space-y-16 pb-24">
-      <header>
-        <h2 className="text-4xl md:text-5xl font-black text-white tracking-tighter">{text.title}</h2>
-        <p className="text-slate-400 mt-3 text-lg font-medium">{text.subtitle}</p>
+    <div className="space-y-10 pb-24 px-2">
+      <header className="flex flex-col md:flex-row justify-between items-end gap-6">
+        <div>
+          <h2 className="text-4xl md:text-6xl font-black text-white tracking-tighter">
+             <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300">{text.title}</span>
+          </h2>
+          <p className="text-slate-400 mt-2 text-lg font-medium max-w-xl leading-relaxed">{text.subtitle}</p>
+        </div>
+        
+        <button 
+            onClick={() => setRefreshCount(c => c + 1)}
+            disabled={loadingData}
+            className="group flex items-center gap-3 px-6 py-3 bg-slate-800 hover:bg-slate-700 rounded-full border border-white/10 transition-all active:scale-95 disabled:opacity-50"
+        >
+            <span className={`text-xl ${loadingData ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'}`}>↻</span>
+            <span className="font-bold text-white uppercase tracking-widest text-xs">
+                {loadingData ? text.refreshing : text.nextSet}
+            </span>
+        </button>
       </header>
 
-      <motion.div 
-        variants={container}
-        initial="hidden"
-        animate="show"
-        className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 md:gap-10"
-      >
-        {displayWords.map((itemObj, idx) => {
-            // Logic Flip:
-            // If lang='es' (User is Spanish): Main word is English (word), Sub is Spanish (translation)
-            // If lang='en' (User is English): Main word is Spanish (translation), Sub is English (word)
-            const isSpanishUser = lang === 'es';
-            const mainWord = isSpanishUser ? itemObj.word : itemObj.translation;
-            const subWord = isSpanishUser ? itemObj.translation : itemObj.word;
-            const definition = isSpanishUser ? itemObj.defEs : itemObj.defEn;
-            const key = `${mainWord}-${idx}`;
-
-            return (
-              <motion.div 
-                key={key} 
-                variants={item}
-                whileHover={{ y: -12, backgroundColor: 'rgba(30, 41, 59, 0.6)' }}
-                className="bg-slate-900/40 p-10 rounded-[40px] border border-slate-800 shadow-2xl hover:shadow-blue-500/10 transition-all group relative overflow-hidden backdrop-blur-sm"
-              >
-                <div className="absolute -top-12 -right-12 w-40 h-40 bg-blue-500/5 rounded-full group-hover:scale-150 transition-transform duration-700 pointer-events-none"></div>
-                
-                <div className="flex justify-between items-start mb-8 relative">
-                  <span className="px-5 py-2 bg-blue-600/10 text-blue-400 rounded-2xl text-[10px] font-black uppercase tracking-[0.25em] border border-blue-500/20 shadow-inner">
-                    {text.professional}
-                  </span>
-                  <motion.button 
-                    onClick={() => handlePlay(`${mainWord}. ${definition}`)}
-                    whileHover={{ scale: 1.15, rotate: 5 }}
-                    whileTap={{ scale: 0.9 }}
-                    className={`w-14 h-14 rounded-2xl flex items-center justify-center text-2xl transition-all shadow-2xl ${
-                      loadingWord === `${mainWord}. ${definition}`
-                        ? 'bg-blue-600 shadow-blue-500/50' 
-                        : 'bg-slate-800 text-slate-300 hover:bg-blue-600 hover:text-white'
-                    }`}
-                  >
-                    {loadingWord === `${mainWord}. ${definition}` ? (
-                      <div className="w-6 h-6 border-4 border-white/30 border-t-white rounded-full animate-spin"></div>
-                    ) : '🔊'}
-                  </motion.button>
-                </div>
-                
-                <h3 className="text-3xl font-black text-white mb-3 group-hover:text-blue-400 transition-colors tracking-tight">{mainWord}</h3>
-                <p className="text-blue-300/60 font-black mb-8 text-base italic leading-tight">"{subWord}"</p>
-                
-                <p className="text-slate-400 text-base leading-relaxed border-l-4 border-blue-500/30 pl-5 py-2 font-medium">
-                  {definition}
-                </p>
-              </motion.div>
-          );
-        })}
-
-        <motion.div 
-          variants={item}
-          className="bg-slate-950/50 p-10 rounded-[40px] border-2 border-dashed border-slate-800 flex flex-col justify-center items-center text-center space-y-8 backdrop-blur-sm md:col-span-2 xl:col-span-1"
-        >
-          <div className="w-24 h-24 bg-slate-900 rounded-[36px] flex items-center justify-center text-5xl shadow-inner border border-slate-800 animate-pulse">✨</div>
-          <div className="space-y-3">
-            <h3 className="text-2xl font-black text-white tracking-tight">{text.growingWithYou}</h3>
-            <p className="text-slate-500 text-sm md:text-base leading-relaxed px-4 font-medium">
-              {text.growingDesc}
-            </p>
+      {loadingData ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 h-96">
+              {[1,2,3,4,5,6].map(i => (
+                  <div key={i} className="bg-slate-900/30 rounded-[32px] border border-white/5 animate-pulse h-64 w-full"></div>
+              ))}
           </div>
-        </motion.div>
-      </motion.div>
+      ) : (
+          <motion.div 
+            variants={container}
+            initial="hidden"
+            animate="show"
+            className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 perspective-1000"
+          >
+            {newsWords.map((item, idx) => {
+                const isFlipped = flippedCards.has(idx);
+                
+                return (
+                  <motion.div 
+                    key={idx} 
+                    variants={itemAnim}
+                    className="relative h-80 w-full cursor-pointer group perspective-1000"
+                    onClick={() => handleFlip(idx)}
+                  >
+                    <motion.div 
+                        className="w-full h-full relative preserve-3d transition-transform duration-700"
+                        animate={{ rotateY: isFlipped ? 180 : 0 }}
+                        style={{ transformStyle: 'preserve-3d' }}
+                    >
+                        {/* FRONT OF CARD */}
+                        <div 
+                            className="absolute inset-0 w-full h-full backface-hidden" 
+                            style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}
+                        >
+                            <div className="w-full h-full bg-gradient-to-br from-slate-900 to-slate-950 border border-white/10 rounded-[32px] p-6 flex flex-col shadow-2xl relative overflow-hidden group-hover:border-blue-500/30 transition-colors">
+                                <div className="absolute top-0 right-0 p-6 opacity-10 text-9xl font-serif pointer-events-none select-none">Aa</div>
+                                
+                                <div className="flex justify-between items-start z-10 w-full mb-2">
+                                    <span className="px-3 py-1 bg-blue-500/20 text-blue-300 rounded-lg text-[10px] font-black uppercase tracking-widest border border-blue-500/20">
+                                        {item.category || "News"}
+                                    </span>
+                                    <button 
+                                        onClick={(e) => handlePlay(item.word, e)}
+                                        className="w-10 h-10 rounded-full bg-slate-800 hover:bg-blue-600 text-white flex items-center justify-center transition-colors shadow-lg active:scale-90 border border-white/10"
+                                        title={text.pronounce}
+                                    >
+                                        {loadingAudio === item.word ? (
+                                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                        ) : '🔊'}
+                                    </button>
+                                </div>
+
+                                <div className="flex-1 flex flex-col items-center justify-center text-center z-10 px-2">
+                                    <h3 className="text-3xl md:text-4xl font-black text-white mb-2 tracking-tight leading-tight break-words w-full">
+                                        {item.word}
+                                    </h3>
+                                    <p className="text-slate-500 font-medium text-sm animate-pulse mt-2">{text.clickToFlip}</p>
+                                </div>
+
+                                <div className="w-full h-1 bg-slate-800 rounded-full overflow-hidden mt-4">
+                                    <div className="h-full bg-blue-500 w-1/3 group-hover:w-full transition-all duration-700"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* BACK OF CARD */}
+                        <div 
+                            className="absolute inset-0 w-full h-full backface-hidden" 
+                            style={{ 
+                                transform: 'rotateY(180deg)', 
+                                backfaceVisibility: 'hidden', 
+                                WebkitBackfaceVisibility: 'hidden' 
+                            }}
+                        >
+                            <div className="w-full h-full bg-blue-900/20 backdrop-blur-xl border border-blue-500/30 rounded-[32px] p-8 flex flex-col justify-between shadow-[0_0_30px_rgba(59,130,246,0.15)] relative overflow-hidden">
+                                <div className="absolute inset-0 bg-gradient-to-br from-blue-900/40 to-slate-900/90 pointer-events-none"></div>
+                                
+                                <div className="relative z-10 h-full flex flex-col">
+                                    <div className="flex-1 overflow-y-auto hide-scrollbar">
+                                        <div className="flex flex-col gap-1 mb-4">
+                                            <h3 className="text-2xl font-black text-white">{item.word}</h3>
+                                            <span className="text-blue-300 font-serif italic text-lg">"{item.translation}"</span>
+                                        </div>
+                                        <p className="text-slate-300 text-sm leading-relaxed mb-4 font-medium">
+                                            {item.definition}
+                                        </p>
+                                    </div>
+
+                                    <div className="bg-black/30 p-4 rounded-xl border-l-4 border-blue-500 mt-auto">
+                                        <p className="text-[10px] text-blue-400 font-black uppercase tracking-widest mb-1">IN THE NEWS</p>
+                                        <p className="text-white text-xs italic leading-relaxed line-clamp-3">
+                                            "{item.newsContext}"
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </motion.div>
+                  </motion.div>
+                );
+            })}
+          </motion.div>
+      )}
     </div>
   );
 };

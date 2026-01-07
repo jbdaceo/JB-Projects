@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'https://esm.sh/framer-motion@11.11.11?external=react,react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { assistantChat } from '../services/gemini';
 import { AssistantMessage, ChatSession, AppSection } from '../types';
 

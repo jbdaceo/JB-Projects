@@ -1,7 +1,8 @@
 
 import React from 'react';
-import { motion, AnimatePresence } from 'https://esm.sh/framer-motion@11.11.11?external=react,react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Language } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -11,14 +12,19 @@ interface AuthModalProps {
 }
 
 const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onLogin, onGuest, lang }) => {
+  const { signInWithProvider, loading } = useAuth();
+
   if (!isOpen) return null;
 
+  const handleSocialLogin = async (provider: 'google' | 'facebook' | 'apple') => {
+    await signInWithProvider(provider);
+    onLogin();
+  };
+
   const socialButtons = [
-    { name: 'Google', icon: 'G', color: 'bg-white text-slate-900 border-white hover:bg-slate-100' },
-    { name: 'Facebook', icon: 'f', color: 'bg-[#1877F2] text-white border-[#1877F2] hover:bg-[#166fe5]' },
-    { name: 'Apple', icon: '', color: 'bg-black text-white border-black hover:bg-slate-900' },
-    { name: 'LinkedIn', icon: 'in', color: 'bg-[#0A66C2] text-white border-[#0A66C2] hover:bg-[#0958a8]' },
-    { name: 'Email / Phone', icon: '✉️', color: 'bg-slate-800 text-white border-slate-700 hover:bg-slate-700' },
+    { name: 'Google', id: 'google', icon: 'G', color: 'bg-white text-slate-900 border-white hover:bg-slate-100' },
+    { name: 'Facebook', id: 'facebook', icon: 'f', color: 'bg-[#1877F2] text-white border-[#1877F2] hover:bg-[#166fe5]' },
+    { name: 'Apple', id: 'apple', icon: '', color: 'bg-black text-white border-black hover:bg-slate-900' },
   ];
 
   return (
@@ -46,11 +52,16 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onLogin, onGuest, lang })
           {socialButtons.map((btn) => (
             <button
               key={btn.name}
-              onClick={onLogin}
-              className={`w-full py-4 px-6 rounded-2xl flex items-center justify-center gap-4 font-bold text-sm transition-all active:scale-95 border ${btn.color} shadow-lg`}
+              onClick={() => handleSocialLogin(btn.id as any)}
+              disabled={loading}
+              className={`w-full py-4 px-6 rounded-2xl flex items-center justify-center gap-4 font-bold text-sm transition-all active:scale-95 border ${btn.color} shadow-lg disabled:opacity-50`}
             >
-              <span className="text-lg font-serif">{btn.icon}</span>
-              <span>Continue with {btn.name}</span>
+              {loading ? '...' : (
+                  <>
+                    <span className="text-lg font-serif">{btn.icon}</span>
+                    <span>Continue with {btn.name}</span>
+                  </>
+              )}
             </button>
           ))}
         </div>

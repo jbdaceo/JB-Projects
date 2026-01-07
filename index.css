@@ -1,0 +1,262 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ==================== PERFORMANCE OPTIMIZATIONS ==================== */
+
+.motion-safe {
+  @apply will-change-transform;
+}
+
+@keyframes shimmer {
+  0% { background-position: -1000px 0; }
+  100% { background-position: 1000px 0; }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.05) 0%,
+    rgba(255, 255, 255, 0.15) 50%,
+    rgba(255, 255, 255, 0.05) 100%
+  );
+  background-size: 1000px 100%;
+  animation: shimmer 2s infinite;
+}
+
+@keyframes pulse-optimized {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.animate-pulse-optimized {
+  animation: pulse-optimized 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* ==================== SMOOTH SCROLLING ==================== */
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 4rem;
+}
+
+/* ==================== CUSTOM SCROLLBAR ==================== */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.5);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 10px;
+  transition: background 0.3s ease;
+  will-change: background;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.6);
+}
+
+* {
+  scrollbar-color: rgba(148, 163, 184, 0.3) rgba(15, 23, 42, 0.5);
+  scrollbar-width: thin;
+}
+
+/* ==================== FOCUS & ACCESSIBILITY ==================== */
+
+:focus-visible {
+  outline: 2px solid hsl(var(--brand-hue) var(--brand-sat) 50%);
+  outline-offset: 2px;
+  border-radius: 0.25rem;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ==================== SELECTION STYLING ==================== */
+
+::selection {
+  background-color: hsl(var(--brand-hue) var(--brand-sat) 50% / 0.3);
+  color: inherit;
+}
+
+::-moz-selection {
+  background-color: hsl(var(--brand-hue) var(--brand-sat) 50% / 0.3);
+  color: inherit;
+}
+
+/* ==================== SMOOTH TRANSITIONS ==================== */
+
+body {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ==================== BUTTON ANIMATIONS ==================== */
+
+button {
+  @apply transition-all duration-200;
+  will-change: transform, box-shadow;
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+button:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ==================== INPUT OPTIMIZATIONS ==================== */
+
+input, textarea, select {
+  @apply transition-all duration-200;
+  will-change: border-color, box-shadow;
+}
+
+input:focus, textarea:focus, select:focus {
+  border-color: hsl(var(--brand-hue) var(--brand-sat) 50%);
+  box-shadow: 0 0 0 3px hsl(var(--brand-hue) var(--brand-sat) 50% / 0.1);
+}
+
+/* ==================== GLASS MORPHISM ==================== */
+
+.glass-morphism {
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  will-change: backdrop-filter;
+}
+
+.native-glass {
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  will-change: backdrop-filter;
+}
+
+/* ==================== MESH BACKGROUND ==================== */
+
+.mesh-bg {
+  background-color: #020617;
+  background-image: 
+    radial-gradient(at 0% 0%, hsl(var(--brand-hue), 60%, 10%) 0, transparent 50%), 
+    radial-gradient(at 50% 0%, hsl(var(--brand-hue), 60%, 15%) 0, transparent 50%), 
+    radial-gradient(at 100% 0%, hsl(calc(var(--brand-hue) + 40), 60%, 10%) 0, transparent 50%);
+  background-attachment: fixed;
+  transition: background-image 1s ease;
+  will-change: background-image;
+}
+
+/* ==================== ANIMATIONS ==================== */
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes success-bounce {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+.animate-success {
+  animation: success-bounce 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* ==================== UTILITIES ==================== */
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.active-scale {
+  @apply transition-transform duration-100;
+  will-change: transform;
+}
+
+.active-scale:active {
+  transform: scale(0.96);
+}
+
+.gpu-accelerated {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  background-color: #020617;
+  color: #f1f5f9;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+p, h1, h2, h3, h4, h5, h6, input, textarea {
+  user-select: text;
+}
+
+h1, h2, h3 {
+  font-family: 'Bricolage Grotesque', sans-serif;
+}
+
+/* ==================== COUNTRY GRADIENTS ==================== */
+
+.colombia-gradient {
+  background: linear-gradient(135deg, #FCD116 0%, #003893 50%, #CE1126 100%);
+}
+
+.usa-gradient {
+  background: linear-gradient(135deg, #B22234 0%, #FFFFFF 50%, #3C3B6E 100%);
+}
+
+.aspect-square {
+  aspect-ratio: 1;
+}
+
+.aspect-video {
+  aspect-ratio: 16 / 9;
+}

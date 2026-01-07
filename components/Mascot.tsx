@@ -1,7 +1,10 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { motion, AnimatePresence } from 'https://esm.sh/framer-motion@11.11.11?external=react,react-dom';
-import { AppSection, Language } from '../types';
+import { motion, AnimatePresence, Variants } from 'framer-motion';
+import { AppSection, Language, AssistantMessage } from '../types';
+import { tutorChat } from '../services/gemini';
+import { MessageCircle, X, Send, BookOpen, AlertCircle, Sparkles } from 'lucide-react';
+import OptimizedImage from '../utils/performance';
 
 interface MascotProps {
   activeSection: AppSection;
@@ -11,16 +14,29 @@ interface MascotProps {
 type MascotState = 'idle' | 'walking' | 'sleeping' | 'sitting' | 'pet' | 'eating' | 'drinking' | 'playing' | 'roaming' | 'happy';
 type PetType = 'dog' | 'cat' | 'lion' | 'dragon' | 'shark' | 'frog' | 'man' | 'woman' | 'baby';
 
-const PETS: { id: PetType; label: string; icon: string }[] = [
-  { id: 'dog', label: 'Poco', icon: '🐶' },
-  { id: 'cat', label: 'Mish', icon: '🐱' },
-  { id: 'lion', label: 'Leon', icon: '🦁' },
-  { id: 'dragon', label: 'Drako', icon: '🦎' },
-  { id: 'shark', label: 'Fin', icon: '🦈' },
-  { id: 'frog', label: 'Pepe', icon: '🐸' },
-  { id: 'baby', label: 'Baby', icon: '👶' },
-  { id: 'man', label: 'Pro', icon: '👨‍💼' },
-  { id: 'woman', label: 'Exec', icon: '👩‍💼' },
+// High-quality 3D Rendered Assets (Fluent Emojis)
+const PET_ASSETS: Record<PetType, string> = {
+  dog: 'https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Animals/Dog%20Face.png',
+  cat: 'https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Animals/Cat%20Face.png',
+  lion: 'https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Animals/Lion.png',
+  dragon: 'https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Animals/Dragon.png',
+  shark: 'https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Animals/Shark.png',
+  frog: 'https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Animals/Frog.png',
+  baby: 'https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/People/Baby.png',
+  man: 'https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/People/Man%20Office%20Worker.png',
+  woman: 'https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/People/Woman%20Office%20Worker.png'
+};
+
+const PETS: { id: PetType; label: string; icon: string; persona: string }[] = [
+  { id: 'dog', label: 'Poco', icon: '🐶', persona: "A friendly, energetic Golden Retriever named Poco. You use simple analogies and are very encouraging." },
+  { id: 'cat', label: 'Mish', icon: '🐱', persona: "A sophisticated cat named Mish. You focus on grammar precision and nuances, but you are helpful." },
+  { id: 'lion', label: 'Leon', icon: '🦁', persona: "A confident Lion named Leon. You focus on leadership, public speaking confidence, and strength." },
+  { id: 'dragon', label: 'Drako', icon: '🦎', persona: "A wise, ancient Dragon named Drako. You know the history of words (etymology) and share deep wisdom." },
+  { id: 'shark', label: 'Fin', icon: '🦈', persona: "An efficient Shark named Fin. You prefer direct, business-like communication and results." },
+  { id: 'frog', label: 'Pepe', icon: '🐸', persona: "A curious Frog named Pepe. You ask many questions to help the student discover the answer themselves." },
+  { id: 'baby', label: 'Baby', icon: '👶', persona: "A curious toddler. You learn alongside the user, asking 'Why?' often to provoke deep thought." },
+  { id: 'man', label: 'Pro', icon: '👨‍💼', persona: "A professional mentor. Formal, structured, and focused on career advancement." },
+  { id: 'woman', label: 'Exec', icon: '👩‍💼', persona: "An executive coach. Strategic, articulate, and focused on networking skills." },
 ];
 
 const Mascot: React.FC<MascotProps> = ({ activeSection, lang }) => {
@@ -28,11 +44,17 @@ const Mascot: React.FC<MascotProps> = ({ activeSection, lang }) => {
   const [state, setState] = useState<MascotState>('idle');
   const [direction, setDirection] = useState<'left' | 'right'>('right');
   const [isVisible, setIsVisible] = useState(true);
-  const [showControls, setShowControls] = useState(false);
   const [showPetSelector, setShowPetSelector] = useState(false);
   const [hearts, setHearts] = useState<{id: number, x: number, y: number}[]>([]);
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
+  // Chat State
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatHistory, setChatHistory] = useState<AssistantMessage[]>([]);
+  const [input, setInput] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
   // Mobile detection
   const [isMobile, setIsMobile] = useState(false);
 
@@ -45,7 +67,6 @@ const Mascot: React.FC<MascotProps> = ({ activeSection, lang }) => {
 
   const defaultDirection = isMobile ? 'right' : 'left';
 
-  // Listen for happy event from KidsZone
   useEffect(() => {
     const handleHappy = () => {
       setState('happy');
@@ -55,13 +76,30 @@ const Mascot: React.FC<MascotProps> = ({ activeSection, lang }) => {
     return () => window.removeEventListener('tmc-mascot-happy', handleHappy);
   }, []);
 
-  // Load persistence
   useEffect(() => {
     const saved = localStorage.getItem('tmc_mascot_type');
     if (saved && PETS.some(p => p.id === saved)) {
       setPetType(saved as PetType);
     }
+    
+    // Initial Greeting if history empty
+    if (chatHistory.length === 0) {
+        setChatHistory([{
+            id: 'init',
+            role: 'assistant',
+            text: lang === 'es' 
+              ? `¡Hola! Soy tu tutor personal. ¿En qué te puedo ayudar hoy?` 
+              : `Hi! I'm your personal tutor. How can I help you today?`,
+            timestamp: Date.now()
+        }]);
+    }
   }, []);
+
+  useEffect(() => {
+      if (isChatOpen && chatEndRef.current) {
+          chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      }
+  }, [chatHistory, isChatOpen, isTyping]);
 
   const handlePetChange = (type: PetType) => {
     setPetType(type);
@@ -71,9 +109,53 @@ const Mascot: React.FC<MascotProps> = ({ activeSection, lang }) => {
     setTimeout(() => setState('idle'), 1000);
   };
 
-  // Behavior Loop
+  const handlePetClick = (e: React.MouseEvent | React.TouchEvent) => {
+    e.stopPropagation();
+    if (isChatOpen) return; // Do nothing if chat is open, use close button
+    
+    setIsChatOpen(true);
+    setState('happy');
+  };
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!input.trim() || isTyping) return;
+
+      const userMsg: AssistantMessage = {
+          id: Date.now().toString(),
+          role: 'user',
+          text: input,
+          timestamp: Date.now()
+      };
+
+      setChatHistory(prev => [...prev, userMsg]);
+      setInput('');
+      setIsTyping(true);
+
+      try {
+          // SAFEGUARD: Ensure we always have a valid pet, default to first if missing
+          const currentPet = PETS.find(p => p.id === petType) || PETS[0];
+          const response = await tutorChat(chatHistory.concat(userMsg), currentPet.persona, lang);
+          
+          const aiMsg: AssistantMessage = {
+              id: (Date.now() + 1).toString(),
+              role: 'assistant',
+              text: response.text,
+              type: response.type, // Custom property for card styling
+              timestamp: Date.now()
+          };
+          
+          setChatHistory(prev => [...prev, aiMsg]);
+      } catch (err) {
+          console.error(err);
+      } finally {
+          setIsTyping(false);
+      }
+  };
+
+  // Behavior Loop (Only when chat is closed)
   useEffect(() => {
-    if (!isVisible) return;
+    if (!isVisible || isChatOpen) return;
     
     const behaviorLoop = setInterval(() => {
       if (Math.random() > 0.6) return; 
@@ -93,7 +175,7 @@ const Mascot: React.FC<MascotProps> = ({ activeSection, lang }) => {
     }, 8000);
 
     return () => clearInterval(behaviorLoop);
-  }, [isVisible, isMobile, state, petType, defaultDirection]);
+  }, [isVisible, isMobile, state, petType, defaultDirection, isChatOpen]);
 
   const triggerAction = (action: MascotState) => {
     setState(action);
@@ -110,58 +192,7 @@ const Mascot: React.FC<MascotProps> = ({ activeSection, lang }) => {
     }
   };
 
-  const handlePet = (e: React.MouseEvent | React.TouchEvent) => {
-    e.stopPropagation();
-    if (!isVisible) return;
-
-    if (activeSection === AppSection.Kids) {
-      // Dispatch help request in Kids Mode
-      window.dispatchEvent(new CustomEvent('tmc-help-request', { detail: { source: 'pet' } }));
-      // Small animation to acknowledge click
-      setState('pet');
-      setTimeout(() => setState('idle'), 1000);
-    } else {
-      // Normal Petting
-      setState('pet');
-      const newHeart = { id: Date.now(), x: Math.random() * 40 - 20, y: Math.random() * -40 - 20 };
-      setHearts(prev => [...prev, newHeart]);
-      setTimeout(() => setHearts(prev => prev.filter(h => h.id !== newHeart.id)), 1000);
-      setTimeout(() => setState('idle'), 800);
-    }
-  };
-
-  const handleMouseEnter = () => {
-    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-    setShowControls(true);
-  };
-
-  const handleMouseLeave = () => {
-    hoverTimerRef.current = setTimeout(() => {
-      setShowControls(false);
-      setShowPetSelector(false);
-    }, 400); 
-  };
-
-  const uiText = {
-    swap: lang === 'es' ? '🔄 Cambiar' : '🔄 Swap',
-    hide: lang === 'es' ? 'Ocultar' : 'Hide',
-    call: lang === 'es' ? 'Llamar Mascota' : 'Call Mascot',
-  };
-
-  if (!isVisible) {
-    return (
-      <button 
-        onClick={() => setIsVisible(true)}
-        className="fixed bottom-28 left-4 lg:left-auto lg:bottom-6 lg:right-6 z-30 w-10 h-10 bg-white/10 rounded-full flex items-center justify-center text-xl shadow-lg backdrop-blur-md hover:bg-white/20 transition-all opacity-50 hover:opacity-100"
-        title={uiText.call}
-      >
-        🐾
-      </button>
-    );
-  }
-
-  // Animation Variants
-  const getRoamVariants = () => {
+  const getRoamVariants = (): Variants => {
     const roamDistance = isMobile ? (typeof window !== 'undefined' ? window.innerWidth - 100 : 200) : -(typeof window !== 'undefined' ? window.innerWidth - 500 : 500);
     
     return {
@@ -173,115 +204,218 @@ const Mascot: React.FC<MascotProps> = ({ activeSection, lang }) => {
       idle: { 
         x: 0, 
         scaleX: defaultDirection === 'left' ? 1 : -1,
-        scaleY: [1, 1.03, 1],
-        transition: { repeat: Infinity, duration: 2, ease: "easeInOut" }
+        y: [0, -5, 0], // Subtle breathing
+        transition: { repeat: Infinity, duration: 3, ease: "easeInOut" as const }
       },
       happy: {
         y: [0, -20, 0],
         scaleX: defaultDirection === 'left' ? 1 : -1,
+        rotate: [0, -10, 10, 0],
         transition: { repeat: Infinity, duration: 0.5 }
       },
-      walking: { x: 0 },
+      walking: { x: 0, y: [0, -10, 0], rotate: [0, 5, -5, 0], transition: { duration: 0.4, repeat: Infinity } },
       sitting: { x: 0 },
-      eating: { x: 0 },
-      drinking: { x: 0 },
-      playing: { x: 0 },
-      sleeping: { x: 0, scaleY: 0.9 },
-      pet: { x: 0, scale: 1.1 }
+      eating: { x: 0, rotate: [0, 10, -10, 0], transition: { duration: 0.5, repeat: Infinity } },
+      drinking: { x: 0, y: [0, 5, 0] },
+      playing: { x: 0, rotate: [0, 360], transition: { duration: 1 } },
+      sleeping: { x: 0, rotate: 5, y: 5 },
+      pet: { x: 0, scale: 1.2 }
     };
   };
 
-  return (
-    <div 
-      className="fixed z-30 bottom-28 left-4 lg:left-auto lg:bottom-8 lg:right-24 pointer-events-none w-24 h-24 lg:w-32 lg:h-32"
-    >
+  // Safe accessor for current pet label
+  const currentPetLabel = PETS.find(p => p.id === petType)?.label || 'Tutor';
+
+  // --- RENDER CHAT UI ---
+  const renderChat = () => (
       <motion.div
-        className="relative w-full h-full cursor-pointer pointer-events-auto"
-        onClick={handlePet}
-        animate={state}
-        variants={getRoamVariants()}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
+        initial={{ opacity: 0, y: 50, scale: 0.9 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 50, scale: 0.9 }}
+        className="fixed bottom-24 right-4 md:right-8 w-[95vw] md:w-[400px] h-[60vh] md:h-[600px] bg-slate-50 rounded-[32px] shadow-2xl flex flex-col overflow-hidden z-50 border border-slate-200 font-sans"
       >
-        {/* Controls Overlay */}
-        <AnimatePresence>
-          {showControls && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 10 }}
-              className="absolute bottom-full left-0 mb-4 flex flex-col gap-2 items-start min-w-[120px]"
-            >
-              <div className="flex gap-2">
-                <button
-                  onClick={(e) => { e.stopPropagation(); setShowPetSelector(!showPetSelector); }}
-                  className="bg-slate-900/90 text-white text-[10px] px-3 py-1.5 rounded-xl border border-white/10 hover:bg-brand-600/50 backdrop-blur-md font-bold shadow-lg whitespace-nowrap"
-                >
-                  {uiText.swap}
-                </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); setIsVisible(false); }}
-                  className="bg-slate-900/90 text-slate-400 text-[10px] px-3 py-1.5 rounded-xl border border-white/10 hover:text-white hover:bg-red-500/20 backdrop-blur-md font-bold shadow-lg whitespace-nowrap"
-                >
-                  {uiText.hide}
-                </button>
+          {/* Header */}
+          <div className="bg-white p-4 border-b border-slate-100 flex items-center justify-between shadow-sm z-10">
+              <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-xl shadow-inner relative overflow-hidden">
+                      <OptimizedImage src={PET_ASSETS[petType] || PET_ASSETS['dog']} alt="Avatar" className="w-full h-full object-cover" />
+                  </div>
+                  <div>
+                      <h3 className="font-black text-slate-800 text-sm">{currentPetLabel} Tutor</h3>
+                      <div className="flex items-center gap-1.5">
+                          <span className={`w-2 h-2 rounded-full ${isTyping ? 'bg-yellow-400 animate-pulse' : 'bg-green-500'}`}></span>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{isTyping ? 'Thinking...' : 'Online'}</span>
+                      </div>
+                  </div>
               </div>
-              
-              {showPetSelector && (
+              <div className="flex gap-2">
+                  <button 
+                    onClick={() => setShowPetSelector(!showPetSelector)}
+                    className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"
+                  >
+                      {showPetSelector ? '▲' : '▼'}
+                  </button>
+                  <button 
+                    onClick={() => setIsChatOpen(false)}
+                    className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"
+                  >
+                      <X size={20} />
+                  </button>
+              </div>
+          </div>
+
+          {/* Pet Selector Overlay */}
+          <AnimatePresence>
+            {showPetSelector && (
                 <motion.div 
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  className="bg-slate-900/95 border border-white/10 rounded-xl p-2 grid grid-cols-3 gap-1 shadow-xl backdrop-blur-md w-40 mt-2"
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="bg-slate-100 border-b border-slate-200 grid grid-cols-5 gap-2 p-2 overflow-hidden z-20"
                 >
-                  {PETS.map(p => (
-                    <button
-                      key={p.id}
-                      onClick={(e) => { e.stopPropagation(); handlePetChange(p.id); }}
-                      className={`p-2 rounded-lg text-lg flex flex-col items-center justify-center hover:bg-white/10 transition-colors ${petType === p.id ? 'bg-brand-500/20 ring-1 ring-brand-500' : ''}`}
-                      title={p.label}
-                    >
-                      <span>{p.icon}</span>
-                    </button>
-                  ))}
+                    {PETS.map(p => (
+                        <button key={p.id} onClick={() => handlePetChange(p.id)} className={`p-2 rounded-xl text-xl flex justify-center hover:bg-white transition-colors ${petType === p.id ? 'bg-white shadow-sm ring-2 ring-blue-500' : ''}`}>{p.icon}</button>
+                    ))}
                 </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Messages */}
+          <div className="flex-1 bg-slate-50 p-4 overflow-y-auto space-y-4">
+              {chatHistory.map((msg, idx) => {
+                  const isUser = msg.role === 'user';
+                  const isCorrection = msg.type === 'correction';
+                  const isEncouragement = msg.type === 'encouragement';
+                  
+                  return (
+                      <motion.div 
+                        key={idx}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} max-w-full`}
+                      >
+                          {!isUser && (
+                              <div className="flex items-center gap-2 mb-1 pl-1">
+                                  {isCorrection && <AlertCircle size={12} className="text-amber-500" />}
+                                  {isEncouragement && <Sparkles size={12} className="text-pink-500" />}
+                                  <span className={`text-[10px] font-black uppercase tracking-wider ${isCorrection ? 'text-amber-600' : isEncouragement ? 'text-pink-600' : 'text-slate-400'}`}>
+                                      {isCorrection ? 'Correction' : isEncouragement ? 'Great Job!' : 'Tutor'}
+                                  </span>
+                              </div>
+                          )}
+                          
+                          <div className={`
+                              p-4 rounded-2xl text-sm leading-relaxed shadow-sm max-w-[85%]
+                              ${isUser 
+                                  ? 'bg-blue-600 text-white rounded-tr-none shadow-blue-200' 
+                                  : isCorrection 
+                                      ? 'bg-amber-50 border border-amber-200 text-slate-800 rounded-tl-none'
+                                      : isEncouragement
+                                          ? 'bg-pink-50 border border-pink-200 text-slate-800 rounded-tl-none'
+                                          : 'bg-white border border-slate-200 text-slate-800 rounded-tl-none'
+                              }
+                          `}>
+                              <div className="whitespace-pre-wrap font-medium">
+                                  {/* Render simple markdown bolding */}
+                                  {msg.text.split('**').map((part, i) => 
+                                      i % 2 === 1 ? <span key={i} className={`font-black ${isUser ? 'text-white' : 'text-blue-600'}`}>{part}</span> : part
+                                  )}
+                              </div>
+                          </div>
+                      </motion.div>
+                  );
+              })}
+              
+              {isTyping && (
+                  <div className="flex items-start gap-2">
+                      <div className="bg-white border border-slate-200 p-3 rounded-2xl rounded-tl-none flex gap-1 shadow-sm">
+                          <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 0.6 }} className="w-1.5 h-1.5 bg-slate-400 rounded-full" />
+                          <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 0.6, delay: 0.2 }} className="w-1.5 h-1.5 bg-slate-400 rounded-full" />
+                          <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 0.6, delay: 0.4 }} className="w-1.5 h-1.5 bg-slate-400 rounded-full" />
+                      </div>
+                  </div>
               )}
-            </motion.div>
-          )}
+              <div ref={chatEndRef} />
+          </div>
+
+          {/* Input */}
+          <form onSubmit={handleSendMessage} className="p-4 bg-white border-t border-slate-100 flex gap-2 items-center">
+              <input 
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder={lang === 'es' ? "Pregúntame algo..." : "Ask me anything..."}
+                  className="flex-1 bg-slate-100 hover:bg-slate-50 focus:bg-white border-transparent focus:border-blue-500 border rounded-xl px-4 py-3 text-sm outline-none transition-all text-slate-800 font-medium"
+              />
+              <button 
+                  disabled={!input.trim() || isTyping}
+                  className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl shadow-lg shadow-blue-500/20 disabled:opacity-50 disabled:shadow-none transition-all active:scale-95"
+              >
+                  <Send size={18} />
+              </button>
+          </form>
+      </motion.div>
+  );
+
+  if (!isVisible) {
+    return (
+      <button 
+        onClick={() => setIsVisible(true)}
+        className="fixed bottom-28 left-4 lg:left-auto lg:bottom-6 lg:right-6 z-30 w-10 h-10 bg-white/10 rounded-full flex items-center justify-center text-xl shadow-lg backdrop-blur-md hover:bg-white/20 transition-all opacity-50 hover:opacity-100"
+        title="Call Pet"
+      >
+        🐾
+      </button>
+    );
+  }
+
+  return (
+    <>
+        <AnimatePresence>
+            {isChatOpen && renderChat()}
         </AnimatePresence>
 
-        <PropsLayer state={state} />
-
-        {hearts.map(h => (
+        <div 
+          className="fixed z-30 bottom-28 left-4 lg:left-auto lg:bottom-8 lg:right-24 pointer-events-none w-32 h-32 lg:w-28 lg:h-28"
+        >
           <motion.div
-            key={h.id}
-            initial={{ opacity: 1, y: 0, scale: 0.5 }}
-            animate={{ opacity: 0, y: -60, scale: 1.5 }}
-            className="absolute left-1/2 top-0 text-red-500 text-2xl font-black pointer-events-none z-50"
-            style={{ x: h.x, y: h.y }}
+            className="relative w-full h-full cursor-pointer pointer-events-auto"
+            onClick={handlePetClick}
+            animate={isChatOpen ? { opacity: 0, scale: 0 } : state}
+            variants={getRoamVariants()}
+            onMouseEnter={() => !isMobile && setShowPetSelector(true)}
+            onMouseLeave={() => !isMobile && (hoverTimerRef.current = setTimeout(() => setShowPetSelector(false), 2000))}
           >
-            ♥
+            {/* Simple tooltip for non-chat state */}
+            {!isChatOpen && (
+                <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-white text-slate-800 text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full shadow-lg whitespace-nowrap pointer-events-none"
+                >
+                    {lang === 'es' ? '¡Click para ayuda!' : 'Click for help!'}
+                </motion.div>
+            )}
+
+            <PropsLayer state={state} />
+
+            {hearts.map(h => (
+              <motion.div
+                key={h.id}
+                initial={{ opacity: 1, y: 0, scale: 0.5 }}
+                animate={{ opacity: 0, y: -60, scale: 1.5 }}
+                className="absolute left-1/2 top-0 text-red-500 text-2xl font-black pointer-events-none z-50"
+                style={{ x: h.x, y: h.y }}
+              >
+                ♥
+              </motion.div>
+            ))}
+
+            <PetRenderer type={petType} defaultDirection={defaultDirection} />
+
           </motion.div>
-        ))}
-
-        {state === 'sleeping' && (
-           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute -top-6 right-0 z-20">
-             {[0, 1].map(i => (
-               <motion.span
-                key={i}
-                animate={{ x: [0, 10, 20], y: [0, -20, -40], opacity: [0, 1, 0] }}
-                transition={{ repeat: Infinity, duration: 2.5, delay: i * 1.2, ease: "easeOut" }}
-                className="absolute text-slate-400 font-black text-xs block"
-               >
-                 Zzz
-               </motion.span>
-             ))}
-           </motion.div>
-        )}
-
-        <PetRenderer type={petType} state={state} defaultDirection={defaultDirection} />
-
-      </motion.div>
-    </div>
+        </div>
+    </>
   );
 };
 
@@ -292,11 +426,17 @@ const PropsLayer = ({ state }: { state: MascotState }) => (
         initial={{ opacity: 0, scale: 0 }} 
         animate={{ opacity: 1, scale: 1 }} 
         exit={{ opacity: 0, scale: 0 }}
-        className="absolute bottom-0 -left-6 w-10 h-6 z-10"
+        className="absolute bottom-0 -left-6 w-12 h-8 z-10"
       >
         <svg viewBox="0 0 40 20" className="drop-shadow-lg">
-          <path d="M0 0 Q 20 20 40 0 Z" fill={state === 'eating' ? "#78350f" : "#1e3a8a"} /> 
-          <ellipse cx="20" cy="5" rx="15" ry="3" fill={state === 'eating' ? "#92400e" : "#3b82f6"} />
+          <defs>
+             <linearGradient id="bowlGrad" x1="0" y1="0" x2="0" y2="1">
+               <stop offset="0%" stopColor="#1e3a8a" />
+               <stop offset="100%" stopColor="#172554" />
+             </linearGradient>
+          </defs>
+          <path d="M0 5 Q 20 30 40 5 L 35 18 Q 20 22 5 18 Z" fill="url(#bowlGrad)" /> 
+          <ellipse cx="20" cy="5" rx="18" ry="4" fill={state === 'eating' ? "#92400e" : "#60a5fa"} opacity="0.9" />
         </svg>
       </motion.div>
     )}
@@ -306,10 +446,11 @@ const PropsLayer = ({ state }: { state: MascotState }) => (
         animate={{ x: [0, -40, -10, -50], y: [0, -30, 0, -10], opacity: 1 }} 
         exit={{ opacity: 0 }}
         transition={{ duration: 2, repeat: Infinity, repeatType: "mirror" }}
-        className="absolute bottom-2 left-0 w-6 h-6 z-20"
+        className="absolute bottom-2 left-0 w-8 h-8 z-20"
       >
         <svg viewBox="0 0 20 20" className="drop-shadow-md">
           <circle cx="10" cy="10" r="10" fill="#ef4444" />
+          <circle cx="7" cy="7" r="2" fill="white" opacity="0.5" />
           <path d="M10 0 L10 20 M0 10 L20 10" stroke="#b91c1c" strokeWidth="2" />
         </svg>
       </motion.div>
@@ -317,339 +458,21 @@ const PropsLayer = ({ state }: { state: MascotState }) => (
   </AnimatePresence>
 );
 
-const PetRenderer = ({ type, state, defaultDirection }: { type: PetType, state: MascotState, defaultDirection: string }) => {
-  const isWalking = ['walking', 'roaming', 'happy'].includes(state);
-  const isShark = type === 'shark';
-  const isFrog = type === 'frog';
-  const isBaby = type === 'baby';
-
-  const bodyAnim = isShark 
-    ? { y: [0, -5, 0], rotate: [0, 2, 0] }
-    : isBaby && isWalking
-    ? { rotate: [-10, 0, 10, 0], y: [10, 10, 10] } // Crawling low
-    : isFrog && isWalking
-    ? { y: [0, -15, 0], scaleY: [0.8, 1.1, 0.8] }
-    : isWalking
-    ? { y: [0, -3, 0], rotate: [0, 1, -1, 0] }
-    : state === 'playing'
-    ? { y: [0, -15, 0], rotate: [0, -5, 5, 0] }
-    : state === 'eating' || state === 'drinking'
-    ? { y: 15, rotate: -15 }
-    : { }; // Idle handled in parent variant
-
-  const animDuration = isShark ? 1.5 : (isFrog && isWalking) ? 0.5 : (isBaby && isWalking) ? 0.6 : isWalking ? 0.3 : 2;
-
-  const renderInner = () => {
-    switch(type) {
-      case 'cat': return <CatSVG state={state} />;
-      case 'lion': return <LionSVG state={state} />;
-      case 'dragon': return <DragonSVG state={state} />;
-      case 'shark': return <SharkSVG state={state} />;
-      case 'frog': return <FrogSVG state={state} />;
-      case 'baby': return <BabySVG state={state} />;
-      case 'man': return <ManSVG state={state} />;
-      case 'woman': return <WomanSVG state={state} />;
-      default: return <DogSVG state={state} />;
-    }
-  };
-
+const PetRenderer = ({ type, defaultDirection }: { type: PetType, defaultDirection: string }) => {
+  // Defensive check: ensure type exists in map, else fallback to dog
+  const assetSrc = PET_ASSETS[type] || PET_ASSETS['dog'];
+  
   return (
-    <svg 
-      viewBox="0 0 100 100" 
-      className="w-full h-full drop-shadow-2xl" 
+    <div 
+      className="w-full h-full drop-shadow-2xl filter" 
       style={{ transform: defaultDirection === 'right' ? 'scaleX(-1)' : 'none' }}
     >
-      <motion.g animate={bodyAnim} transition={{ repeat: Infinity, duration: animDuration, ease: "easeInOut" }}>
-        {renderInner()}
-      </motion.g>
-    </svg>
-  );
-};
-
-// --- Individual Pet SVGs ---
-
-const Bandana = ({ type = "neck" }: { type?: "neck" | "fin" | "bowtie" }) => {
-  const dynamicColor = "hsl(var(--brand-hue) var(--brand-sat) 50%)";
-  if (type === "fin") {
-    return <path d="M45 55 L55 55 L50 70 Z" className="transition-colors duration-1000" fill={dynamicColor} stroke="none" />;
-  }
-  if (type === "bowtie") {
-    return (
-      <g className="transition-colors duration-1000" fill={dynamicColor}>
-        <path d="M40 70 L25 65 L25 75 Z" />
-        <path d="M40 70 L55 65 L55 75 Z" />
-        <circle cx="40" cy="70" r="3" />
-      </g>
-    );
-  }
-  return <path d="M35 60 L50 75 L65 60" className="transition-colors duration-1000" fill={dynamicColor} stroke="none" />;
-};
-
-const DogSVG = ({ state }: { state: MascotState }) => (
-  <>
-    {/* Tail - Behind body, anchored deep at 50,60 */}
-    <motion.path 
-      d="M50 60 Q 30 50 25 35" 
-      stroke="white" 
-      strokeWidth="6" 
-      strokeLinecap="round" 
-      fill="none" 
-      animate={['walking', 'roaming', 'playing', 'happy'].includes(state) ? { rotate: [-10, 10, -10], d: "M50 60 Q 25 50 20 30" } : { rotate: [-2, 2, -2] }} 
-      transition={{ repeat: Infinity, duration: 0.5 }} 
-      style={{ originX: 0.5, originY: 0.6 }} // Relative to bounding box, approximates 50,60
-    />
-    {/* Legs */}
-    <motion.path d="M65 85 L65 95" stroke="white" strokeWidth="8" strokeLinecap="round" animate={['walking', 'roaming'].includes(state) ? { y: [-2, 2, -2] } : {}} transition={{ repeat: Infinity, duration: 0.3 }}/>
-    <motion.path d="M40 85 L40 95" stroke="white" strokeWidth="8" strokeLinecap="round" animate={['walking', 'roaming'].includes(state) ? { y: [2, -2, 2] } : {}} transition={{ repeat: Infinity, duration: 0.3 }}/>
-    {/* Body */}
-    <ellipse cx="50" cy="70" rx="30" ry="20" fill="#f8fafc" />
-    <motion.path d="M60 85 L60 95" stroke="white" strokeWidth="8" strokeLinecap="round" animate={['walking', 'roaming'].includes(state) ? { y: [2, -2, 2] } : {}} transition={{ repeat: Infinity, duration: 0.3 }}/>
-    <motion.path d="M35 85 L35 95" stroke="white" strokeWidth="8" strokeLinecap="round" animate={['walking', 'roaming'].includes(state) ? { y: [-2, 2, -2] } : {}} transition={{ repeat: Infinity, duration: 0.3 }}/>
-    <Bandana />
-    {/* Head */}
-    <g transform="translate(25, 35)">
-      <motion.g animate={['eating', 'drinking'].includes(state) ? { rotate: 10 } : {}}>
-        <ellipse cx="10" cy="10" rx="6" ry="12" fill="#e2e8f0" transform="rotate(-20 10 10)" />
-        <ellipse cx="40" cy="10" rx="6" ry="12" fill="#e2e8f0" transform="rotate(20 40 10)" />
-        <rect x="5" y="5" width="40" height="35" rx="15" fill="#f8fafc" />
-        <Eyes state={state} cx1={18} cx2={32} cy={20} />
-        <ellipse cx="25" cy="28" rx="8" ry="6" fill="#cbd5e1" opacity="0.5" />
-        <circle cx="25" cy="26" r="3" fill="#0f172a" />
-        {['eating', 'drinking', 'pet'].includes(state) && <path d="M22 32 Q 25 38 28 32" fill="#fda4af" stroke="#be123c" strokeWidth="1" />}
-      </motion.g>
-    </g>
-  </>
-);
-
-const CatSVG = ({ state }: { state: MascotState }) => (
-  <>
-    {/* Tail - Behind body */}
-    <motion.path d="M50 65 C 30 65, 30 25, 50 20" stroke="white" strokeWidth="4" strokeLinecap="round" fill="none" animate={{ rotate: [0, 5, 0], d: ["M50 65 C 30 65, 30 25, 50 20", "M50 65 C 25 65, 35 20, 55 15", "M50 65 C 30 65, 30 25, 50 20"] }} transition={{ repeat: Infinity, duration: 2 }} style={{ originX: 0.5, originY: 0.65 }} />
-    <motion.path d="M65 85 L65 95" stroke="white" strokeWidth="6" strokeLinecap="round" animate={['walking', 'roaming'].includes(state) ? { y: [-2, 2, -2] } : {}} transition={{ repeat: Infinity, duration: 0.3 }}/>
-    <motion.path d="M40 85 L40 95" stroke="white" strokeWidth="6" strokeLinecap="round" animate={['walking', 'roaming'].includes(state) ? { y: [2, -2, 2] } : {}} transition={{ repeat: Infinity, duration: 0.3 }}/>
-    <ellipse cx="50" cy="70" rx="28" ry="18" fill="#f8fafc" />
-    <motion.path d="M60 85 L60 95" stroke="white" strokeWidth="6" strokeLinecap="round" animate={['walking', 'roaming'].includes(state) ? { y: [2, -2, 2] } : {}} transition={{ repeat: Infinity, duration: 0.3 }}/>
-    <motion.path d="M35 85 L35 95" stroke="white" strokeWidth="6" strokeLinecap="round" animate={['walking', 'roaming'].includes(state) ? { y: [-2, 2, -2] } : {}} transition={{ repeat: Infinity, duration: 0.3 }}/>
-    <Bandana />
-    <g transform="translate(25, 40)">
-      <motion.g animate={['eating', 'drinking'].includes(state) ? { rotate: 10 } : {}}>
-        <path d="M5 10 L15 0 L25 10" fill="#f8fafc" />
-        <path d="M25 10 L35 0 L45 10" fill="#f8fafc" />
-        <rect x="5" y="10" width="40" height="30" rx="15" fill="#f8fafc" />
-        <Eyes state={state} cx1={15} cx2={35} cy={20} />
-        <path d="M25 25 L20 28 L25 28 L30 28 Z" fill="#pink-300" />
-        <path d="M10 25 L5 22 M10 28 L2 28 M30 25 L45 22 M30 28 L48 28" stroke="#cbd5e1" strokeWidth="1" />
-        {['eating', 'drinking', 'pet'].includes(state) && <path d="M22 32 Q 25 38 28 32" fill="#fda4af" stroke="#be123c" strokeWidth="1" />}
-      </motion.g>
-    </g>
-  </>
-);
-
-const LionSVG = ({ state }: { state: MascotState }) => (
-  <>
-    <motion.g animate={{ rotate: [0, 5, 0] }} transition={{ repeat: Infinity, duration: 2 }} style={{ originX: 0.5, originY: 0.65 }}>
-      <path d="M50 65 Q 30 55 25 40" stroke="white" strokeWidth="6" strokeLinecap="round" fill="none" />
-      <circle cx="25" cy="40" r="4" fill="white" />
-    </motion.g>
-    <motion.path d="M65 85 L65 95" stroke="white" strokeWidth="9" strokeLinecap="round" animate={['walking', 'roaming'].includes(state) ? { y: [-2, 2, -2] } : {}} transition={{ repeat: Infinity, duration: 0.3 }}/>
-    <motion.path d="M40 85 L40 95" stroke="white" strokeWidth="9" strokeLinecap="round" animate={['walking', 'roaming'].includes(state) ? { y: [2, -2, 2] } : {}} transition={{ repeat: Infinity, duration: 0.3 }}/>
-    <ellipse cx="50" cy="70" rx="32" ry="22" fill="#f8fafc" />
-    <motion.path d="M60 85 L60 95" stroke="white" strokeWidth="9" strokeLinecap="round" animate={['walking', 'roaming'].includes(state) ? { y: [2, -2, 2] } : {}} transition={{ repeat: Infinity, duration: 0.3 }}/>
-    <motion.path d="M35 85 L35 95" stroke="white" strokeWidth="9" strokeLinecap="round" animate={['walking', 'roaming'].includes(state) ? { y: [-2, 2, -2] } : {}} transition={{ repeat: Infinity, duration: 0.3 }}/>
-    <Bandana />
-    <g transform="translate(15, 25)">
-      <motion.g animate={['eating', 'drinking'].includes(state) ? { rotate: 10 } : {}}>
-        <circle cx="30" cy="25" r="28" fill="#e2e8f0" /> 
-        <circle cx="30" cy="25" r="22" fill="#f8fafc" />
-        <circle cx="15" cy="10" r="5" fill="#e2e8f0" />
-        <circle cx="45" cy="10" r="5" fill="#e2e8f0" />
-        <Eyes state={state} cx1={20} cx2={40} cy={22} />
-        <path d="M25 30 Q 30 35 35 30" fill="none" stroke="#0f172a" strokeWidth="2" />
-        <circle cx="30" cy="28" r="3" fill="#0f172a" />
-        {['eating', 'drinking', 'pet'].includes(state) && <path d="M25 35 Q 30 40 35 35" fill="#fda4af" stroke="#be123c" strokeWidth="1" />}
-      </motion.g>
-    </g>
-  </>
-);
-
-const DragonSVG = ({ state }: { state: MascotState }) => (
-  <>
-    <motion.path d="M50 70 Q 25 65 20 45" stroke="white" strokeWidth="10" strokeLinecap="round" fill="none" animate={{ rotate: [0, 3, 0] }} transition={{ repeat: Infinity, duration: 3 }} style={{ originX: 0.5, originY: 0.7 }} />
-    <motion.path d="M65 80 L70 90" stroke="white" strokeWidth="8" strokeLinecap="round" animate={['walking', 'roaming'].includes(state) ? { x: [-2, 2, -2] } : {}} transition={{ repeat: Infinity, duration: 0.3 }}/>
-    <motion.path d="M40 80 L35 90" stroke="white" strokeWidth="8" strokeLinecap="round" animate={['walking', 'roaming'].includes(state) ? { x: [2, -2, 2] } : {}} transition={{ repeat: Infinity, duration: 0.3 }}/>
-    <ellipse cx="55" cy="75" rx="35" ry="15" fill="#f8fafc" />
-    <motion.path d="M60 80 L65 90" stroke="white" strokeWidth="8" strokeLinecap="round" animate={['walking', 'roaming'].includes(state) ? { x: [2, -2, 2] } : {}} transition={{ repeat: Infinity, duration: 0.3 }}/>
-    <motion.path d="M30 80 L25 90" stroke="white" strokeWidth="8" strokeLinecap="round" animate={['walking', 'roaming'].includes(state) ? { x: [-2, 2, -2] } : {}} transition={{ repeat: Infinity, duration: 0.3 }}/>
-    <Bandana />
-    <g transform="translate(5, 50)">
-      <motion.g animate={['eating', 'drinking'].includes(state) ? { rotate: 10 } : {}}>
-        <ellipse cx="20" cy="15" rx="20" ry="12" fill="#f8fafc" />
-        <Eyes state={state} cx1={15} cx2={25} cy={10} />
-        {['eating', 'drinking', 'pet', 'idle'].includes(state) && (
-           <motion.path d="M2 18 L-5 15 L-5 21 Z" fill="#ef4444" animate={{ x: [0, -3, 0] }} transition={{ repeat: Infinity, duration: 0.5 }} /> 
-        )}
-      </motion.g>
-    </g>
-  </>
-);
-
-const SharkSVG = ({ state }: { state: MascotState }) => (
-  <>
-    <motion.g transform="translate(80, 50)" animate={{ rotate: [0, 15, 0] }} transition={{ repeat: Infinity, duration: 0.8 }}>
-       <path d="M0 0 L15 -15 L15 15 Z" fill="#e2e8f0" />
-    </motion.g>
-    <path d="M45 40 L55 15 L65 40 Z" fill="#e2e8f0" />
-    <ellipse cx="50" cy="50" rx="40" ry="20" fill="#f8fafc" />
-    <path d="M40 60 L35 75 L55 65 Z" fill="#e2e8f0" />
-    <Bandana type="fin" />
-    <g transform="translate(15, 45)">
-       <Eyes state={state} cx1={5} cx2={5} cy={0} />
-       <circle cx="5" cy="0" r="3" fill="#1e293b" />
-       <path d="M15 -5 L15 5 M20 -5 L20 5" stroke="#cbd5e1" strokeWidth="2" />
-    </g>
-  </>
-);
-
-const FrogSVG = ({ state }: { state: MascotState }) => (
-  <>
-    <path d="M65 75 Q 80 65 80 85 L 70 85" stroke="white" strokeWidth="6" strokeLinecap="round" fill="none" />
-    <ellipse cx="50" cy="70" rx="25" ry="20" fill="#f8fafc" />
-    <path d="M35 80 L30 90" stroke="white" strokeWidth="4" strokeLinecap="round" />
-    <path d="M65 80 L70 90" stroke="white" strokeWidth="4" strokeLinecap="round" />
-    <Bandana type="bowtie" />
-    <g transform="translate(25, 40)">
-      <circle cx="10" cy="10" r="8" fill="#f8fafc" />
-      <circle cx="40" cy="10" r="8" fill="#f8fafc" />
-      <Eyes state={state} cx1={10} cx2={40} cy={10} />
-      <path d="M15 25 Q 25 30 35 25" fill="none" stroke="#0f172a" strokeWidth="2" />
-      {['eating', 'drinking', 'pet'].includes(state) && <path d="M25 25 Q 30 35 25 35" fill="#fda4af" stroke="#be123c" strokeWidth="1" />}
-    </g>
-  </>
-);
-
-const BabySVG = ({ state }: { state: MascotState }) => {
-  const isCrawling = ['walking', 'roaming'].includes(state);
-  return (
-    <>
-      <g transform="translate(20, 30)">
-        {/* Head */}
-        <circle cx="30" cy="20" r="18" fill="#f1d5b5" />
-        {/* Hair Sprig */}
-        <path d="M30 2 Q 25 -5 32 -8" fill="none" stroke="#6b21a8" strokeWidth="2" strokeLinecap="round" />
-        
-        {/* Face */}
-        <Eyes state={state} cx1={24} cx2={36} cy={22} />
-        <path d="M28 30 Q 30 32 32 30" fill="none" stroke="#0f172a" strokeWidth="1" />
-        {['eating', 'drinking', 'pet'].includes(state) && (
-             <circle cx="20" cy="25" r="3" fill="#fda4af" opacity="0.6" />
-        )}
-        {['eating', 'drinking', 'pet'].includes(state) && (
-             <circle cx="40" cy="25" r="3" fill="#fda4af" opacity="0.6" />
-        )}
-
-        {/* Body - Diaper */}
-        {/* Crawling posture logic via parent variants, here we draw the body shape */}
-        <ellipse cx="30" cy="50" rx="14" ry="12" fill="#f1d5b5" />
-        <path d="M20 50 Q 30 65 40 50 L 40 45 L 20 45 Z" fill="#fff" stroke="#e2e8f0" strokeWidth="1" /> {/* Diaper */}
-        
-        {/* Arms/Legs - Simple rounded limbs */}
-        <motion.rect x="12" y="45" width="8" height="15" rx="4" fill="#f1d5b5" animate={isCrawling ? { rotate: [20, -20, 20] } : { rotate: 20 }} style={{originY: 0}} />
-        <motion.rect x="40" y="45" width="8" height="15" rx="4" fill="#f1d5b5" animate={isCrawling ? { rotate: [-20, 20, -20] } : { rotate: -20 }} style={{originY: 0}} />
-        
-        {/* Legs when crawling are knees */}
-        <motion.circle cx="20" cy="60" r="5" fill="#f1d5b5" animate={isCrawling ? { x: [2, -2, 2] } : {}} />
-        <motion.circle cx="40" cy="60" r="5" fill="#f1d5b5" animate={isCrawling ? { x: [-2, 2, -2] } : {}} />
-      </g>
-    </>
-  );
-};
-
-const ManSVG = ({ state }: { state: MascotState }) => (
-  <>
-    {/* Legs - Dark Trousers */}
-    <motion.path d="M42 90 L42 100" stroke="#0f172a" strokeWidth="7" strokeLinecap="round" animate={['walking', 'roaming'].includes(state) ? { y: [-2, 2, -2] } : {}} transition={{ repeat: Infinity, duration: 0.3 }}/>
-    <motion.path d="M58 90 L58 100" stroke="#0f172a" strokeWidth="7" strokeLinecap="round" animate={['walking', 'roaming'].includes(state) ? { y: [2, -2, 2] } : {}} transition={{ repeat: Infinity, duration: 0.3 }}/>
-    
-    {/* Body - Navy Suit Jacket */}
-    <path d="M35 45 L65 45 L62 90 L38 90 Z" fill="#1e3a8a" /> 
-    <path d="M35 45 L38 90 L62 90 L65 45" stroke="#1e40af" strokeWidth="1" fill="none"/>
-    
-    {/* White Shirt Collar area */}
-    <path d="M50 45 L42 55 L58 55 Z" fill="#fff" />
-    
-    {/* Tie */}
-    <path d="M50 45 L46 55 L50 68 L54 55 Z" fill="#dc2626" />
-    
-    {/* Head */}
-    <g transform="translate(35, 15)">
-      <rect x="5" y="5" width="20" height="24" rx="8" fill="#e5c29f" /> 
-      {/* Short Hair - Dark Brown */}
-      <path d="M5 12 L5 8 Q 15 0 25 8 L25 12 L22 10 L18 10 L15 8 L10 10 Z" fill="#3f2c22" />
-      <Eyes state={state} cx1={10} cx2={20} cy={16} />
-      <path d="M12 24 Q 15 26 18 24" fill="none" stroke="#000" strokeWidth="1" />
-    </g>
-    
-    {/* Suit Arms */}
-    <motion.rect x="26" y="46" width="8" height="28" rx="4" fill="#1e3a8a" animate={['walking', 'roaming'].includes(state) ? { rotate: [15, -15, 15] } : {}} style={{originY:0}} />
-    <motion.rect x="66" y="46" width="8" height="28" rx="4" fill="#1e3a8a" animate={['walking', 'roaming'].includes(state) ? { rotate: [-15, 15, -15] } : {}} style={{originY:0}} />
-  </>
-);
-
-const WomanSVG = ({ state }: { state: MascotState }) => (
-  <>
-    {/* Legs - Skirt/Legs */}
-    <motion.rect x="40" y="85" width="6" height="15" fill="#e5c29f" animate={['walking', 'roaming'].includes(state) ? { y: [-1, 1, -1] } : {}} />
-    <motion.rect x="54" y="85" width="6" height="15" fill="#e5c29f" animate={['walking', 'roaming'].includes(state) ? { y: [1, -1, 1] } : {}} />
-    
-    {/* Body - Red Blazer/Dress */}
-    <path d="M35 45 Q 32 65 30 90 L 70 90 Q 68 65 65 45 Z" fill="#be123c" />
-    
-    {/* Scarf / Blouse */}
-    <path d="M50 45 L42 58 L58 58 Z" fill="#fce7f3" />
-    
-    {/* Head */}
-    <g transform="translate(35, 15)">
-      <rect x="5" y="5" width="20" height="22" rx="6" fill="#e5c29f" />
-      {/* Long Hair - Black */}
-      <path d="M0 15 Q -5 5 5 0 Q 15 -5 25 0 Q 35 5 30 15 L 30 35 L 25 35 L 25 10 L 5 10 L 5 35 L 0 35 Z" fill="#0f172a" />
-      <Eyes state={state} cx1={10} cx2={20} cy={16} />
-      {/* Red Lips */}
-      <path d="M12 23 Q 15 25 18 23" fill="none" stroke="#be123c" strokeWidth="1.5" />
-    </g>
-    
-    {/* Arms */}
-    <motion.rect x="28" y="48" width="7" height="26" rx="3.5" fill="#be123c" animate={['walking', 'roaming'].includes(state) ? { rotate: [10, -10, 10] } : {}} style={{originY:0}} />
-    <motion.rect x="65" y="48" width="7" height="26" rx="3.5" fill="#be123c" animate={['walking', 'roaming'].includes(state) ? { rotate: [-10, 10, -10] } : {}} style={{originY:0}} />
-  </>
-);
-
-// Added random blinking logic to Eyes
-const Eyes = ({ state, cx1, cx2, cy }: { state: MascotState, cx1: number, cx2: number, cy: number }) => {
-  const [blink, setBlink] = useState(false);
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setBlink(true);
-      setTimeout(() => setBlink(false), 200);
-    }, Math.random() * 4000 + 2000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const eyeScale = state === 'sleeping' ? 0.1 : blink ? 0.1 : 1;
-  const eyeVariants = {
-    normal: { scaleY: eyeScale },
-    pet: { scaleX: 1.1, scaleY: 1.2 }
-  };
-
-  return (
-    <motion.g 
-      animate={state === 'pet' ? 'pet' : 'normal'}
-      variants={eyeVariants}
-      transition={{ duration: 0.1 }}
-    >
-      <circle cx={cx1} cy={cy} r="3" fill="#1e293b" />
-      <circle cx={cx2} cy={cy} r="3" fill="#1e293b" />
-    </motion.g>
+      <OptimizedImage 
+        src={assetSrc} 
+        alt={type} 
+        className="w-full h-full object-contain"
+      />
+    </div>
   );
 };
 

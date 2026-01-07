@@ -1,0 +1,37 @@
+
+{
+  "name": "El Camino: TMC Teacher",
+  "short_name": "El Camino",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "orientation": "portrait-primary",
+  "description": "Bilingual English-Spanish learning platform for the future.",
+  "icons": [
+    {
+      "src": "https://api.dicebear.com/7.x/shapes/png?seed=TMC&backgroundColor=020617&shape1Color=facc15",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://api.dicebear.com/7.x/shapes/png?seed=TMC&backgroundColor=020617&shape1Color=facc15",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?q=80&w=800&auto=format&fit=crop",
+      "sizes": "800x600",
+      "type": "image/jpeg",
+      "form_factor": "wide"
+    },
+    {
+      "src": "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?q=80&w=400&auto=format&fit=crop",
+      "sizes": "400x800",
+      "type": "image/jpeg",
+      "form_factor": "narrow"
+    }
+  ]
+}

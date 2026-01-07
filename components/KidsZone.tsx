@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'https://esm.sh/framer-motion@11.11.11?external=react,react-dom';
-import confetti from 'https://esm.sh/canvas-confetti@1.9.2';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { motion, AnimatePresence, Variants } from 'framer-motion';
+import confetti from 'canvas-confetti';
 import { Language } from '../types';
 import { getPronunciation, decodeBase64Audio, decodeAudioData } from '../services/gemini';
 
@@ -191,8 +191,8 @@ const triggerScreenShake = (type: 'success' | 'error') => {
 
 // --- Components ---
 
-const CuteDragon = ({ state }: { state: 'idle' | 'talking' | 'happy' | 'listening' | 'supporting' }) => {
-  const bodyVariants = {
+const CuteDragon = React.memo(({ state }: { state: 'idle' | 'talking' | 'happy' | 'listening' | 'supporting' }) => {
+  const bodyVariants: Variants = {
     idle: { y: [0, -3, 0], rotate: [0, 1, 0], transition: { repeat: Infinity, duration: 2, ease: "easeInOut" } },
     happy: { y: [0, -20, 0], rotate: [0, -5, 5, 0], scale: [1, 1.1, 1], transition: { repeat: Infinity, duration: 0.6 } },
     supporting: { rotate: [0, 5, -5, 0], y: [0, 2, 0], transition: { duration: 2, repeat: Infinity } }, 
@@ -200,7 +200,7 @@ const CuteDragon = ({ state }: { state: 'idle' | 'talking' | 'happy' | 'listenin
     listening: { rotate: 5, x: 5, transition: { duration: 0.5 } }
   };
 
-  const armVariants = {
+  const armVariants: Variants = {
     idle: { rotate: 0 },
     happy: { rotate: -140, y: -10 }, 
     supporting: { rotate: -45, x: 5, y: -5 },
@@ -258,7 +258,7 @@ const CuteDragon = ({ state }: { state: 'idle' | 'talking' | 'happy' | 'listenin
       </motion.g>
     </motion.svg>
   );
-};
+});
 
 const KidsZone: React.FC<KidsZoneProps> = ({ lang }) => {
   const [view, setView] = useState<'menu' | 'learn' | 'gameshow'>('menu');
@@ -285,10 +285,51 @@ const KidsZone: React.FC<KidsZoneProps> = ({ lang }) => {
   const [robotMessage, setRobotMessage] = useState<string | null>(null);
   const [petMessage, setPetMessage] = useState<string | null>(null);
 
+  // Memoize Game Shows
+  const gameShows = useMemo(() => GAME_SHOWS, []);
+
   useEffect(() => {
     const saved = localStorage.getItem('tmc_kids_level');
     if (saved) setUserLevel(parseInt(saved));
   }, []);
+
+  const handleHelp = useCallback((source: 'draco' | 'robot' | 'pet') => {
+    let hint = "";
+    let fact = "";
+    
+    if (view === 'learn') {
+       const item = LEARN_POOL[learnIndex % LEARN_POOL.length];
+       hint = lang === 'es' ? item.hintEs : item.hintEn;
+       fact = lang === 'es' ? item.factEs : item.factEn;
+    } else if (gameQuestion?.rawItem) {
+       const item = gameQuestion.rawItem as WordItem;
+       hint = lang === 'es' ? item.hintEs : item.hintEn;
+       fact = lang === 'es' ? item.factEs : item.factEn;
+    } else {
+       hint = t("Pick the response that fits best!", "¡Elige la respuesta que mejor encaje!", lang);
+       fact = t("Conversations are about listening!", "¡Conversar es escuchar!", lang);
+    }
+
+    if (source === 'draco') {
+      setDragonState('happy');
+      setDragonMessage(`💡 ${hint}`);
+    } else if (source === 'robot') {
+      setRobotMessage(`🤖 ${fact}`);
+      setTimeout(() => setRobotMessage(null), 5000);
+    } else if (source === 'pet') {
+      if (view === 'gameshow' && gameQuestion?.answer) {
+          setHighlightedAnswer(gameQuestion.answer);
+          setPetMessage(t("Over here!", "¡Por aquí!", lang));
+          setTimeout(() => { 
+              setHighlightedAnswer(null);
+              setPetMessage(null);
+          }, 3000);
+      } else {
+          setPetMessage(t("You can do it!", "¡Tú puedes!", lang));
+          setTimeout(() => setPetMessage(null), 3000);
+      }
+    }
+  }, [view, learnIndex, gameQuestion, lang]);
 
   useEffect(() => {
     const handleHelpRequest = (e: CustomEvent) => {
@@ -301,7 +342,7 @@ const KidsZone: React.FC<KidsZoneProps> = ({ lang }) => {
     
     window.addEventListener('tmc-help-request', handleHelpRequest as EventListener);
     return () => window.removeEventListener('tmc-help-request', handleHelpRequest as EventListener);
-  }, [view, selectedShow, gameQuestion, learnIndex]);
+  }, [view, selectedShow, handleHelp]);
 
   // Audio helper for listening game
   useEffect(() => {
@@ -479,6 +520,7 @@ const KidsZone: React.FC<KidsZoneProps> = ({ lang }) => {
       
       if (selectedShow) {
           localStorage.setItem(`tmc_game_score_${selectedShow.id}`, newScore.toString());
+          window.dispatchEvent(new Event('tmc-level-update')); // UPDATE LEVEL BAR
           checkMiddleLevelStatus();
       }
 
@@ -494,7 +536,9 @@ const KidsZone: React.FC<KidsZoneProps> = ({ lang }) => {
       setTimeout(() => {
         setSelectedAnswer(null);
         setAnswerStatus(null);
-        generateGameQuestion(selectedShow!);
+        if (selectedShow) {
+            generateGameQuestion(selectedShow);
+        }
       }, 2500);
     } else {
       setAnswerStatus('wrong');
@@ -516,44 +560,6 @@ const KidsZone: React.FC<KidsZoneProps> = ({ lang }) => {
       if (allPassed) {
           window.dispatchEvent(new Event('tmc-level-update'));
       }
-  };
-
-  const handleHelp = (source: 'draco' | 'robot' | 'pet') => {
-    let hint = "";
-    let fact = "";
-    
-    if (view === 'learn') {
-       const item = LEARN_POOL[learnIndex % LEARN_POOL.length];
-       hint = lang === 'es' ? item.hintEs : item.hintEn;
-       fact = lang === 'es' ? item.factEs : item.factEn;
-    } else if (gameQuestion?.rawItem) {
-       const item = gameQuestion.rawItem as WordItem;
-       hint = lang === 'es' ? item.hintEs : item.hintEn;
-       fact = lang === 'es' ? item.factEs : item.factEn;
-    } else {
-       hint = t("Pick the response that fits best!", "¡Elige la respuesta que mejor encaje!", lang);
-       fact = t("Conversations are about listening!", "¡Conversar es escuchar!", lang);
-    }
-
-    if (source === 'draco') {
-      setDragonState('happy');
-      setDragonMessage(`💡 ${hint}`);
-    } else if (source === 'robot') {
-      setRobotMessage(`🤖 ${fact}`);
-      setTimeout(() => setRobotMessage(null), 5000);
-    } else if (source === 'pet') {
-      if (view === 'gameshow' && gameQuestion?.answer) {
-          setHighlightedAnswer(gameQuestion.answer);
-          setPetMessage(t("Over here!", "¡Por aquí!", lang));
-          setTimeout(() => { 
-              setHighlightedAnswer(null);
-              setPetMessage(null);
-          }, 3000);
-      } else {
-          setPetMessage(t("You can do it!", "¡Tú puedes!", lang));
-          setTimeout(() => setPetMessage(null), 3000);
-      }
-    }
   };
 
   const nextLearnCard = () => {
@@ -645,14 +651,7 @@ const KidsZone: React.FC<KidsZoneProps> = ({ lang }) => {
     
     // Logic Flip: If lang='en', we learn Spanish. So displayWord = Spanish, targetWord = English
     const isEnglishUser = lang === 'en';
-    const displayWord = isEnglishUser ? currentWord.translation : currentWord.word;
-    const targetWord = isEnglishUser ? currentWord.word : currentWord.translation;
-    const displaySubtitle = isEnglishUser ? "En Español" : "In English";
     
-    // NOTE: For 'Learn' mode, we often show the TARGET language first so they learn it. 
-    // If English User -> Show Spanish Word -> Reveal English Meaning.
-    // If Spanish User -> Show English Word -> Reveal Spanish Meaning.
-
     return (
       <div className="max-w-2xl mx-auto py-6 px-4 flex flex-col h-full">
         <button onClick={() => setView('menu')} className="self-start text-slate-400 hover:text-white font-bold mb-4">
@@ -723,187 +722,120 @@ const KidsZone: React.FC<KidsZoneProps> = ({ lang }) => {
                ← {t("Back", "Volver", lang)}
             </button>
             <div className="flex gap-4">
-              <span className="bg-white/10 px-4 py-2 rounded-full font-black text-white text-xs">{t("Lvl", "Nivel", lang)} {gameLevel}</span>
-              <span className="bg-yellow-500 text-black px-4 py-2 rounded-full font-black text-xs">{t("Pts", "Pts", lang)} {gameScore}</span>
+               <div className="bg-slate-800 px-4 py-1 rounded-full text-xs font-bold text-slate-400 border border-white/10">{t("Score:", "Puntos:", lang)} <span className="text-white">{gameScore}</span></div>
+               <div className="bg-slate-800 px-4 py-1 rounded-full text-xs font-bold text-slate-400 border border-white/10">{t("Level:", "Nivel:", lang)} <span className="text-white">{gameLevel}</span></div>
             </div>
           </div>
 
-          <div className={`flex-1 rounded-[48px] bg-gradient-to-br ${selectedShow.gradient} p-8 relative overflow-hidden shadow-2xl flex flex-col items-center justify-center border-4 border-white/20`}>
-             <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none"></div>
-             
+          <div className="flex-1 flex flex-col items-center justify-center relative">
              {renderDragon()}
 
-             <div className="relative z-10 w-full max-w-md bg-white/90 rounded-[32px] p-8 text-center shadow-2xl text-slate-900 mt-4">
-                
-                {/* Conversation Game Layout */}
-                {selectedShow.type === 'conversation' ? (
-                   <div className="flex flex-col gap-6">
-                      <div className="flex items-start gap-4">
-                         <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center text-2xl shrink-0">🦎</div>
-                         <div className="bg-purple-100 p-4 rounded-2xl rounded-tl-none relative">
-                            <p className="font-bold text-lg text-purple-900">{gameQuestion?.text}</p>
-                         </div>
-                      </div>
-                      <div className="grid grid-cols-1 gap-3 mt-4">
-                         {gameQuestion?.options?.map((opt: string) => {
-                            const isSelected = selectedAnswer === opt;
-                            const isCorrect = answerStatus === 'correct';
-                            const isWrong = answerStatus === 'wrong';
-                            let btnClass = "bg-slate-100 text-slate-700 hover:bg-slate-200 border-2 border-slate-200";
-                            
-                            if (isSelected) {
-                                if (isCorrect) btnClass = "bg-green-500 text-white border-green-600";
-                                else if (isWrong) btnClass = "bg-red-500 text-white border-red-600";
-                            } 
+             <AnimatePresence mode="wait">
+                <motion.div 
+                   key={gameQuestion ? JSON.stringify(gameQuestion) : 'loading'}
+                   initial={{ scale: 0.9, opacity: 0 }}
+                   animate={{ scale: 1, opacity: 1 }}
+                   exit={{ scale: 0.9, opacity: 0 }}
+                   className="w-full max-w-2xl"
+                >
+                   {gameQuestion && (
+                       <div className="bg-slate-900/80 border-4 border-indigo-500/30 p-8 rounded-[40px] shadow-2xl relative backdrop-blur-md">
+                           {/* Question */}
+                           <div className="text-center mb-8">
+                               <h3 className="text-3xl font-black text-white mb-4 leading-tight">{gameQuestion.text}</h3>
+                               {gameQuestion.hint && <p className="text-indigo-300 text-lg font-bold">{gameQuestion.hint}</p>}
+                           </div>
 
-                            return (
-                              <button 
-                                key={opt}
-                                onClick={() => handleGameAnswer(opt)}
-                                className={`p-4 rounded-xl font-bold text-left transition-all active:scale-95 ${btnClass}`}
-                                disabled={!!selectedAnswer}
-                              >
-                                {opt}
-                              </button>
-                            );
-                         })}
-                      </div>
-                   </div>
-                ) : (
-                   /* Default Quiz Layout */
-                   <>
-                    <h3 className="text-2xl font-black mb-6 uppercase tracking-tight text-slate-800">{gameQuestion?.text}</h3>
-                    
-                    {selectedShow.type === 'listen' && gameQuestion?.rawItem && (
-                      <button 
-                        onClick={() => playAudio(lang === 'en' ? gameQuestion.rawItem.translation : gameQuestion.rawItem.word)}
-                        className="mb-6 w-16 h-16 bg-blue-600 rounded-full text-white text-2xl shadow-lg hover:scale-110 transition-transform active:scale-95 flex items-center justify-center mx-auto"
-                      >
-                        🔊
-                      </button>
-                    )}
+                           {/* Options Grid */}
+                           {gameQuestion.type === 'options' || gameQuestion.type === 'conversation' ? (
+                               <div className="grid grid-cols-1 gap-4">
+                                   {gameQuestion.options.map((opt: string, i: number) => {
+                                       const isSelected = selectedAnswer === opt;
+                                       const isCorrect = answerStatus === 'correct' && isSelected;
+                                       const isWrong = answerStatus === 'wrong' && isSelected;
+                                       const isHighlighted = highlightedAnswer === opt;
 
-                    <div className="grid grid-cols-1 gap-3">
-                       {gameQuestion?.options ? (
-                          gameQuestion.options.map((opt: string) => {
-                            const isSelected = selectedAnswer === opt;
-                            const isCorrect = answerStatus === 'correct';
-                            const isWrong = answerStatus === 'wrong';
-                            
-                            let btnClass = "bg-blue-600 text-white border-transparent";
-                            
-                            if (isSelected) {
-                                if (isCorrect) btnClass = "bg-green-500 text-white border-green-400 scale-105 shadow-green-500/50";
-                                else if (isWrong) btnClass = "bg-red-500 text-white border-red-400 shake";
-                                else btnClass = "bg-yellow-400 text-yellow-900 border-yellow-500 scale-105";
-                            } else if (highlightedAnswer === opt) {
-                                btnClass = "bg-yellow-400 text-yellow-900 border-yellow-500 scale-110 animate-bounce";
-                            }
-
-                            return (
-                              <button 
-                                key={opt}
-                                onClick={() => handleGameAnswer(opt)}
-                                className={`font-bold py-4 rounded-xl shadow-lg transition-all border-4 hover:scale-105 active:scale-95 ${btnClass}`}
-                                disabled={!!selectedAnswer}
-                              >
-                                {opt}
-                              </button>
-                            );
-                          })
-                       ) : (
-                          <div className="flex gap-2">
-                            <input 
-                              type="text" 
-                              placeholder={t("Type answer...", "Escribe...", lang)}
-                              className="flex-1 bg-slate-200 p-4 rounded-xl text-center text-2xl font-bold uppercase outline-none focus:ring-4 ring-blue-500/30"
-                              onKeyDown={(e) => {
-                                 if (e.key === 'Enter') {
-                                   const val = (e.target as HTMLInputElement).value;
-                                   handleGameAnswer(val);
-                                   (e.target as HTMLInputElement).value = '';
-                                 }
-                              }}
-                            />
-                            <button className="bg-blue-600 text-white p-4 rounded-xl font-bold">↵</button>
-                          </div>
-                       )}
-                    </div>
-                   </>
-                )}
-             </div>
-             
-            <AnimatePresence>
-                {robotMessage && (
-                    <motion.div initial={{opacity:0, y:20}} animate={{opacity:1, y:0}} exit={{opacity:0}} className="fixed bottom-32 right-8 bg-blue-600 text-white p-4 rounded-2xl max-w-xs shadow-xl z-50 border border-white/20">
-                        {robotMessage}
-                        <div className="absolute -bottom-2 right-6 w-4 h-4 bg-blue-600 rotate-45"></div>
-                    </motion.div>
-                )}
-                {petMessage && (
-                    <motion.div initial={{opacity:0, y:20}} animate={{opacity:1, y:0}} exit={{opacity:0}} className="fixed bottom-32 left-8 lg:left-auto lg:right-32 bg-yellow-500 text-black font-bold p-4 rounded-2xl max-w-xs shadow-xl z-50 border border-white/20">
-                        {petMessage}
-                        <div className="absolute -bottom-2 right-6 lg:right-auto lg:left-6 w-4 h-4 bg-yellow-500 rotate-45"></div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+                                       return (
+                                           <motion.button
+                                               key={i}
+                                               whileHover={{ scale: 1.02 }}
+                                               whileTap={{ scale: 0.98 }}
+                                               onClick={() => handleGameAnswer(opt)}
+                                               className={`p-6 rounded-2xl text-xl font-bold text-left transition-all border-4 relative overflow-hidden ${
+                                                   isCorrect ? 'bg-green-500 border-green-400 text-white' :
+                                                   isWrong ? 'bg-red-500 border-red-400 text-white' :
+                                                   isHighlighted ? 'bg-yellow-500 border-yellow-300 text-black animate-pulse' :
+                                                   'bg-white/10 border-white/10 text-white hover:bg-white/20'
+                                               }`}
+                                           >
+                                               {opt}
+                                               {isHighlighted && <span className="absolute right-4 top-1/2 -translate-y-1/2 text-2xl">👈</span>}
+                                           </motion.button>
+                                       )
+                                   })}
+                               </div>
+                           ) : (
+                               /* Input Type */
+                               <div className="flex gap-4">
+                                   <input 
+                                       type="text" 
+                                       placeholder={t("Type answer...", "Escribe respuesta...", lang)}
+                                       className="flex-1 bg-white/10 border-4 border-white/20 rounded-2xl px-6 py-4 text-2xl text-white font-bold outline-none focus:border-indigo-500 transition-colors placeholder:text-white/30"
+                                       onKeyDown={(e) => {
+                                           if (e.key === 'Enter') handleGameAnswer((e.target as HTMLInputElement).value);
+                                       }}
+                                   />
+                                   <button 
+                                       className="bg-indigo-600 px-8 rounded-2xl text-3xl shadow-lg border-4 border-indigo-400"
+                                       onClick={(e) => {
+                                           const input = (e.currentTarget.previousElementSibling as HTMLInputElement).value;
+                                           handleGameAnswer(input);
+                                       }}
+                                   >
+                                       ➤
+                                   </button>
+                               </div>
+                           )}
+                       </div>
+                   )}
+                </motion.div>
+             </AnimatePresence>
           </div>
         </div>
       );
     }
 
     return (
-      <div className="max-w-7xl mx-auto py-8 px-4">
-        <div className="flex items-center gap-4 mb-8">
-           <button onClick={() => setView('menu')} className="w-12 h-12 rounded-full bg-slate-800 text-white font-bold">←</button>
-           <h2 className="text-4xl font-black text-white">{t("Magic TV Channels", "Canales Mágicos", lang)}</h2>
+        <div className="max-w-6xl mx-auto py-12 px-4">
+            <button onClick={() => setView('menu')} className="text-slate-400 hover:text-white font-bold mb-8">← {t("Back to Menu", "Volver al Menú", lang)}</button>
+            <h2 className="text-4xl font-black text-white text-center mb-12 drop-shadow-lg">{t("Choose Your Show!", "¡Elige tu Concurso!", lang)}</h2>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {gameShows.map((show) => (
+                    <motion.button
+                        key={show.id}
+                        whileHover={{ scale: 1.05, translateY: -5 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => startGameShow(show)}
+                        className={`bg-gradient-to-br ${show.gradient} p-1 rounded-[32px] shadow-xl group`}
+                    >
+                        <div className="bg-slate-900/90 backdrop-blur-sm rounded-[30px] p-8 h-full flex flex-col items-center text-center transition-colors group-hover:bg-slate-900/80">
+                            <div className="text-6xl mb-6 filter drop-shadow-md group-hover:scale-110 transition-transform">{show.icon}</div>
+                            <h3 className="text-2xl font-black text-white mb-2 uppercase tracking-wide">{t(show.titleEn, show.titleEs, lang)}</h3>
+                            <p className="text-white/70 font-medium text-sm">{t(show.descriptionEn, show.descriptionEs, lang)}</p>
+                        </div>
+                    </motion.button>
+                ))}
+            </div>
         </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {GAME_SHOWS.map((show) => {
-            const score = typeof window !== 'undefined' ? parseInt(localStorage.getItem(`tmc_game_score_${show.id}`) || '0') : 0;
-            const completed = score >= 100;
-            return (
-              <motion.button
-                key={show.id}
-                onClick={() => startGameShow(show)}
-                whileHover={{ scale: 1.05, y: -5 }}
-                whileTap={{ scale: 0.95 }}
-                className={`aspect-[4/3] rounded-[32px] bg-gradient-to-br ${show.gradient} p-6 relative overflow-hidden shadow-xl border-4 border-white/10 group`}
-              >
-                <div className="absolute inset-0 flex items-center justify-center opacity-30 text-9xl grayscale group-hover:grayscale-0 transition-all duration-500 scale-125">{show.icon}</div>
-                {completed && <div className="absolute top-4 right-4 bg-yellow-400 text-yellow-900 font-black px-3 py-1 rounded-full text-xs shadow-lg">⭐ {score}</div>}
-                <div className="relative z-10 flex flex-col h-full justify-end text-left">
-                  <h3 className="text-2xl font-black text-white leading-none mb-1 drop-shadow-md">
-                    {lang === 'es' ? show.titleEs : show.titleEn}
-                  </h3>
-                  <p className="text-white/80 text-sm font-bold leading-tight">
-                    {lang === 'es' ? show.descriptionEs : show.descriptionEn}
-                  </p>
-                </div>
-              </motion.button>
-            );
-          })}
-        </div>
-      </div>
     );
   };
 
   return (
-    <div className="h-full">
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={view}
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 1.05 }}
-          className="min-h-full"
-        >
-          {view === 'menu' && renderMenu()}
-          {view === 'learn' && renderLearn()}
-          {view === 'gameshow' && renderGameShows()}
-        </motion.div>
-      </AnimatePresence>
+    <div className="h-full overflow-y-auto hide-scrollbar bg-slate-950 font-retro">
+      {view === 'menu' && renderMenu()}
+      {view === 'learn' && renderLearn()}
+      {view === 'gameshow' && (selectedShow ? renderGameShows() : renderGameShows())} 
     </div>
   );
 };

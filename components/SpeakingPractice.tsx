@@ -2,282 +2,290 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality, Blob } from '@google/genai';
 import { encodeAudio, decodeBase64Audio, decodeAudioData } from '../services/gemini';
-import { Language } from '../types';
-import { motion, AnimatePresence } from 'https://esm.sh/framer-motion@11.11.11?external=react,react-dom';
+import { Language, ProfessorPersona } from '../types';
+import { motion, AnimatePresence } from 'framer-motion';
+import confetti from 'canvas-confetti';
+import OptimizedImage from '../utils/performance';
 
 interface SpeakingPracticeProps {
   lang: Language;
   userTier?: 'Novice' | 'Semi Pro' | 'Pro';
 }
 
-type Persona = 'tomas' | 'carolina';
+type MainPersona = 'tomas' | 'carolina';
 
-interface Challenge {
-  id: number;
-  text: string;
-  difficulty: number;
+// --- Sound Effects ---
+const SFX = {
+  SUCCESS: 'https://assets.mixkit.co/sfx/preview/mixkit-audience-light-applause-354.mp3',
+  GOAL: 'https://www.myinstants.com/media/sounds/gol-caracol-tv.mp3', 
+  BUZZER: 'https://www.myinstants.com/media/sounds/nba-buzzer.mp3', 
+  CROWD: 'https://assets.mixkit.co/sfx/preview/mixkit-animated-small-group-applause-523.mp3',
+};
+
+// --- Mission Topics Pool (5 Steps Each) ---
+const MISSION_TOPICS = [
+  { 
+    id: 'intro', 
+    en: 'Introduction & Greetings', 
+    es: 'Introducción y Saludos', 
+    steps: ['Say "Hello" & Smile', 'State your name clearly', 'Ask "How are you?"', 'Respond to "Nice to meet you"', 'Say "Goodbye" politely'] 
+  },
+  { 
+    id: 'cafe', 
+    en: 'Ordering at a Cafe', 
+    es: 'Pidiendo en una Cafetería', 
+    steps: ['Greet the barista', 'Order a specific drink', 'Ask for the price', 'Pay and say thank you', 'Wish them a good day'] 
+  },
+  // ... (Other missions can be added here)
+];
+
+// --- Smart Avatar with Lip Sync Visualization (Canvas) ---
+interface SmartAvatarProps {
+  imageSrc: string;
+  isSpeaking: boolean;
+  analyser: AnalyserNode | null;
+  color: string;
+  name: string;
 }
+
+const SmartAvatar: React.FC<SmartAvatarProps> = ({ imageSrc, isSpeaking, analyser, color, name }) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const glowRef = useRef<HTMLDivElement>(null);
+  
+  useEffect(() => {
+    if (!isSpeaking || !analyser) {
+        if (glowRef.current) {
+            glowRef.current.style.transform = 'scale(1)';
+            glowRef.current.style.boxShadow = 'none';
+        }
+        const canvas = canvasRef.current;
+        if (canvas) {
+            const ctx = canvas.getContext('2d');
+            ctx?.clearRect(0, 0, canvas.width, canvas.height);
+        }
+        return;
+    }
+    
+    let animationFrameId: number;
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+    
+    const draw = () => {
+      analyser.getByteFrequencyData(dataArray);
+      
+      let sum = 0;
+      const binCount = Math.min(dataArray.length, 64); 
+      for (let i = 0; i < binCount; i++) sum += dataArray[i];
+      const average = sum / binCount;
+      const normalize = Math.min(1, average / 128); 
+
+      // 1. "Puppet" Jaw movement & Head Bob simulation
+      if (glowRef.current) {
+          const scaleY = 1 + (normalize * 0.08); 
+          const scaleX = 1 + (normalize * 0.02);
+          glowRef.current.style.transform = `scale(${scaleX}, ${scaleY})`;
+          
+          const shadowOpacity = 0.3 + (normalize * 0.6);
+          const shadowSize = 20 + (normalize * 40);
+          const shadowColor = color.includes('brand') ? '59,130,246' : '236,72,153';
+          glowRef.current.style.boxShadow = `0 0 ${shadowSize}px rgba(${shadowColor}, ${shadowOpacity})`;
+      }
+
+      // 2. Digital Voice Waveform on Mouth Area
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (average > 5) { 
+                ctx.beginPath();
+                const centerY = canvas.height / 2;
+                ctx.moveTo(0, centerY);
+                
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+                ctx.lineCap = 'round';
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = 'white';
+
+                for (let i = 0; i < canvas.width; i++) {
+                    const xProgress = i / canvas.width;
+                    const envelope = Math.sin(xProgress * Math.PI); 
+                    
+                    const freq1 = 0.3;
+                    const freq2 = 0.7;
+                    const phase = Date.now() / 60;
+                    
+                    const displacement = (
+                        Math.sin(i * freq1 + phase) * 0.5 + 
+                        Math.sin(i * freq2 - phase * 1.5) * 0.5
+                    ) * envelope * normalize * (canvas.height * 0.8);
+
+                    ctx.lineTo(i, centerY + displacement);
+                }
+                ctx.stroke();
+            }
+        }
+      }
+      animationFrameId = requestAnimationFrame(draw);
+    };
+    
+    draw();
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [isSpeaking, analyser, color]);
+
+  return (
+    <div className="relative w-full h-full flex flex-col items-center justify-center">
+       <div 
+         ref={glowRef}
+         className={`relative w-full h-full rounded-full overflow-hidden border-4 transition-transform duration-75 ease-out will-change-transform ${isSpeaking ? (color === 'bg-brand-600' ? 'border-brand-500' : 'border-pink-500') : 'border-white/20'}`}
+         style={{ transformOrigin: 'bottom center' }}
+       >
+          <OptimizedImage 
+            src={imageSrc} 
+            alt={name} 
+            className="w-full h-full object-cover" 
+          />
+          {isSpeaking && <div className={`absolute inset-0 opacity-10 mix-blend-overlay ${color}`}></div>}
+       </div>
+       {isSpeaking && (
+         <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute bottom-[15%] left-1/2 -translate-x-1/2 w-[40%] h-[20%] z-20 pointer-events-none"
+         >
+            <canvas ref={canvasRef} width={100} height={50} className="w-full h-full" />
+         </motion.div>
+       )}
+    </div>
+  );
+};
 
 const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang, userTier = 'Novice' }) => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isActive, setIsActive] = useState(false);
-  const [selectedPersona, setSelectedPersona] = useState<Persona>('tomas');
-  const [showMobileChallenges, setShowMobileChallenges] = useState(false);
+  const [selectedPersona, setSelectedPersona] = useState<MainPersona>('tomas');
+  const [missionLevel, setMissionLevel] = useState(1);
+  const [showLevelUp, setShowLevelUp] = useState(false);
   
-  const [transcriptions, setTranscriptions] = useState<{role: 'user' | 'model', text: string}[]>([]);
+  const [turnCount, setTurnCount] = useState(0);
+  const [activeHelper, setActiveHelper] = useState<ProfessorPersona | null>(null);
+  const [isAiSpeaking, setIsAiSpeaking] = useState(false);
   
+  const [completedSteps, setCompletedSteps] = useState<number[]>([]);
+  const [isObjectivesCollapsed, setIsObjectivesCollapsed] = useState(false);
+  const objectivesTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const audioContextRef = useRef<AudioContext | null>(null);
   const outputAudioContextRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const sessionPromiseRef = useRef<Promise<any> | null>(null); // Keep track of the session
+  const sessionPromiseRef = useRef<Promise<any> | null>(null);
   const nextStartTimeRef = useRef<number>(0);
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
-  
   const currentInputTransRef = useRef('');
   const currentOutputTransRef = useRef('');
+  const sfxRef = useRef<HTMLAudioElement | null>(null);
+  
+  const [analyserNode, setAnalyserNode] = useState<AnalyserNode | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  
+  const [transcriptions, setTranscriptions] = useState<{role: 'user' | 'model', text: string}[]>([]);
+  const [realtimeText, setRealtimeText] = useState('');
+  const [realtimeSource, setRealtimeSource] = useState<'user' | 'model' | null>(null);
 
-  // --- Dynamic Challenge System ---
-  const [challenges, setChallenges] = useState<Challenge[]>([]);
-  const [missionCounter, setMissionCounter] = useState(1);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Challenge Generator
-  const generateChallenge = (missionNum: number, lang: Language): string => {
-    const isEnglishTarget = lang === 'es'; // User speaks Spanish (Native), learns English (Target)
-    const level = missionNum;
+  useEffect(() => {
+    const savedLevel = localStorage.getItem('tmc_speaking_level');
+    if (savedLevel) setMissionLevel(parseInt(savedLevel));
+    sfxRef.current = new Audio();
+    if (window.innerWidth < 768) setIsObjectivesCollapsed(true);
+  }, []);
 
-    // Topics: Travel, Food, Dating, Money, Social Media
-    const topicsEn = [
-      'Budget Backpacking Strategies',      // Travel
-      'Local Street Food Hygiene',          // Food
-      'First Date Etiquette abroad',        // Dating
-      'Passive Income Streams',             // Money
-      'Going Viral on TikTok',              // Social Media
-      'Navigating Airport Customs',         // Travel
-      'Ordering in Fine Dining',            // Food
-      'Long Distance Relationships',        // Dating
-      'Salary Negotiation Tips',            // Money
-      'Building a Personal Brand',          // Social Media
-      'Digital Nomad Visas',                // Travel
-      'Dietary Restrictions',               // Food
-      'Flirting in a Second Language',      // Dating
-      'Cryptocurrency Basics',              // Money
-      'Influencer Marketing'                // Social Media
-    ];
+  useEffect(() => {
+    if (chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+  }, [transcriptions, realtimeText]);
 
-    const topicsEs = [
-      'Estrategias de Mochilero Económico', // Viajes
-      'Higiene de Comida Callejera',        // Comida
-      'Etiqueta de Primera Cita',           // Citas
-      'Flujos de Ingresos Pasivos',         // Dinero
-      'Hacerse Viral en TikTok',            // Redes
-      'Navegar Aduanas del Aeropuerto',     // Viajes
-      'Pedir en Restaurantes de Lujo',      // Comida
-      'Relaciones a Larga Distancia',       // Citas
-      'Tips de Negociación Salarial',       // Dinero
-      'Construir Marca Personal',           // Redes
-      'Visas para Nómadas Digitales',       // Viajes
-      'Restricciones Dietéticas',           // Comida
-      'Coquetear en Otro Idioma',           // Citas
-      'Conceptos Básicos de Cripto',        // Dinero
-      'Marketing de Influencers'            // Redes
-    ];
-    
-    const verbsEn = ['explain', 'debate', 'critique', 'pitch', 'ask advice on', 'share a story about'];
-    const verbsEs = ['explicar', 'debatir', 'criticar', 'vender/pitch', 'pedir consejo sobre', 'contar historia sobre'];
+  const saveProgress = (newLevel: number) => {
+    setMissionLevel(newLevel);
+    localStorage.setItem('tmc_speaking_level', newLevel.toString());
+    window.dispatchEvent(new Event('tmc-level-update'));
+  };
 
-    const constraintsEn = ['using slang', 'politely', 'with confidence', 'asking 2 questions', 'using financial vocabulary', 'like an influencer'];
-    const constraintsEs = ['usando jerga', 'cortésmente', 'con confianza', 'haciendo 2 preguntas', 'usando vocabulario financiero', 'como un influencer'];
-
-    // Fixed Intro Levels
-    if (level === 1) {
-        // Spanish User -> Show Spanish Instruction -> Ask for English
-        if (isEnglishTarget) return `Misión 1: Preséntate y menciona tu destino de viaje soñado (en Inglés).`;
-        // English User -> Show English Instruction -> Ask for Spanish
-        else return `Mission 1: Introduce yourself and name your dream travel destination (in Spanish).`;
-    }
-    if (level === 2) {
-        if (isEnglishTarget) return `Misión 2: Describe tu plato local favorito y sus ingredientes (en Inglés).`;
-        else return `Mission 2: Describe your favorite local dish and its ingredients (in Spanish).`;
-    }
-    if (level === 3) {
-        if (isEnglishTarget) return `Misión 3: Pregúntale al coach cómo ganar dinero online en 2024 (en Inglés).`;
-        else return `Mission 3: Ask the coach how to make money online in 2024 (in Spanish).`;
-    }
-
-    // Procedural Generation for infinite levels
-    const topicIndex = level % topicsEn.length;
-    const verbIndex = level % verbsEn.length;
-    const constraintIndex = level % constraintsEn.length;
-
-    if (isEnglishTarget) {
-        // User is Spanish. Instructions should be in Spanish. Task is English.
-        let text = `Misión ${level}: Intenta ${verbsEs[verbIndex]} ${topicsEs[topicIndex]}`;
-        if (level > 5) text += ` ${constraintsEs[constraintIndex]}`;
-        return text + " (en Inglés)";
-    } else {
-        // User is English. Instructions should be in English. Task is Spanish.
-        let text = `Mission ${level}: Attempt to ${verbsEn[verbIndex]} ${topicsEn[topicIndex]}`;
-        if (level > 5) text += ` ${constraintsEn[constraintIndex]}`;
-        return text + " (in Spanish)";
+  const playSfx = (url: string) => {
+    if (sfxRef.current) {
+      sfxRef.current.src = url;
+      sfxRef.current.volume = 0.5;
+      sfxRef.current.play().catch(e => console.log('SFX block', e));
     }
   };
 
-  // Initialize Challenges
+  const showObjectivesBriefly = () => {
+    setIsObjectivesCollapsed(false);
+    if (objectivesTimeoutRef.current) clearTimeout(objectivesTimeoutRef.current);
+    objectivesTimeoutRef.current = setTimeout(() => setIsObjectivesCollapsed(true), 10000);
+  };
+
+  const getMissionConfig = (level: number) => {
+    const topicIndex = (level - 1) % MISSION_TOPICS.length;
+    const topicObj = MISSION_TOPICS[topicIndex];
+    return {
+      topic: lang === 'es' ? topicObj.es : topicObj.en,
+      steps: topicObj.steps,
+      instruction: level <= 5 ? "EASY MODE. Slow speed." : "NORMAL MODE."
+    };
+  };
+
+  const currentMission = useMemo(() => getMissionConfig(missionLevel), [missionLevel, lang]);
+
   useEffect(() => {
-    const initial: Challenge[] = [];
-    for(let i=1; i<=3; i++) {
-        initial.push({ id: i, text: generateChallenge(i, lang), difficulty: i });
+    const stepsDone = Math.min(5, turnCount);
+    if (stepsDone > completedSteps.length) {
+       const newCompleted = Array.from({length: stepsDone}, (_, i) => i);
+       setCompletedSteps(newCompleted);
+       if (stepsDone <= 5 && stepsDone > 0) playSfx(SFX.SUCCESS);
+       if (stepsDone === 5 && !showLevelUp && isActive) setTimeout(() => handleLevelComplete(), 1500);
     }
-    setChallenges(initial);
-    setMissionCounter(4);
-  }, [lang]);
+  }, [turnCount, completedSteps.length, isActive, showLevelUp]);
 
-  const activeChallengeText = challenges.length > 0 ? challenges[0].text : '';
+  const handleLevelComplete = () => {
+      const newLevel = missionLevel + 1;
+      const isMegaMilestone = newLevel % 5 === 0;
+      if (isMegaMilestone) {
+          playSfx(SFX.GOAL);
+          confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 } });
+      } else {
+          playSfx(SFX.CROWD);
+          confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 } });
+      }
+      setShowLevelUp(true);
+  };
 
-  const handleCompleteChallenge = (id: number) => {
-    // 1. Update State
-    let nextMissionText = '';
-    setChallenges(prev => {
-        const filtered = prev.filter(c => c.id !== id);
-        const nextId = missionCounter;
-        nextMissionText = generateChallenge(nextId, lang);
-        const newChallenge = {
-            id: nextId,
-            text: nextMissionText,
-            difficulty: nextId
-        };
-        return [...filtered, newChallenge];
-    });
-    setMissionCounter(prev => Math.min(prev + 1, 1000));
-    setShowMobileChallenges(false); 
-
-    // 2. Notify AI if session is active
-    if (isActive && sessionPromiseRef.current) {
-        // We use a text input to simulate a "System update" or a user context injection
-        sessionPromiseRef.current.then(session => {
-             // We format this as a system prompt injected via the data channel (simulated as text)
-             // This tells the model the context has shifted.
-             const updatePrompt = `SYSTEM UPDATE: The user has successfully completed the previous mission! 
-             The NEW MISSION is: "${challenges.length > 0 ? challenges[1]?.text : nextMissionText}". 
-             Congratulate them warmly.
-             IMPORTANT: The user's mission instructions are in their NATIVE language, but they must perform it in the TARGET language.
-             Guide them to complete this new mission in the TARGET language immediately.
-             READ THE NEW MISSION OUT LOUD NOW.`;
-             
-             session.sendRealtimeInput({ text: updatePrompt });
-        });
-    }
+  const handleContinueNextLevel = () => {
+      const newLevel = missionLevel + 1;
+      saveProgress(newLevel);
+      setCompletedSteps([]);
+      setTurnCount(0);
+      setShowLevelUp(false);
+      setTranscriptions([]);
+      const nextConfig = getMissionConfig(newLevel);
+      const stepsList = nextConfig.steps.map((s, i) => `${i+1}. ${s}`).join('\n');
+      const newInstructions = `SYSTEM: LEVEL UP! New Topic: ${nextConfig.topic}. Objectives: ${stepsList}`;
+      sessionPromiseRef.current?.then(s => s.sendRealtimeInput({ text: newInstructions }));
+      showObjectivesBriefly();
   };
 
   const text = {
-    title: lang === 'es' ? 'Entrenamiento' : 'Immersion Training',
-    subtitle: lang === 'es' ? 'Feedback Real-Time' : 'Real-Time Feedback',
-    you: lang === 'es' ? 'Tú' : 'You',
-    start: lang === 'es' ? 'CONVERSAR' : 'START CHAT',
-    stop: lang === 'es' ? 'Terminar' : 'Stop',
-    micError: lang === 'es' ? 'Activa el micrófono.' : 'Please enable your microphone.',
-    quote: lang === 'es' ? '"Habla para crear tu futuro."' : '"Speak to open new worlds."',
-    challengesTitle: lang === 'es' ? 'Próximos Retos' : 'Upcoming Challenges',
-    mission: lang === 'es' ? 'Misión' : 'Mission',
-    activeMission: lang === 'es' ? 'Misión Activa' : 'Active Mission',
-    live: lang === 'es' ? 'En Vivo' : 'Live',
-    tomasRole: lang === 'es' ? 'El Profe Paisa (Español/Inglés)' : 'The Immersion Coach (Spanish Native)',
-    carolinaRole: lang === 'es' ? 'American (Urban/Slang)' : 'The Heritage Guide (Spanglish)',
-    viewMissions: lang === 'es' ? 'Ver Misiones' : 'View Missions',
-    close: lang === 'es' ? 'Cerrar' : 'Close'
+    title: lang === 'es' ? 'Entrenamiento Guiado' : 'Guided Immersion',
+    subtitle: lang === 'es' ? 'Misiones con IA' : 'AI Missions',
+    start: lang === 'es' ? 'COMENZAR MISIÓN' : 'START MISSION',
+    stop: lang === 'es' ? 'Pausar' : 'Pause',
+    level: lang === 'es' ? 'Nivel' : 'Level',
+    missionComplete: lang === 'es' ? '¡MISIÓN COMPLETADA!' : 'MISSION COMPLETE!',
+    continue: lang === 'es' ? 'Continuar' : 'Continue',
+    objectives: lang === 'es' ? 'Objetivos de Misión' : 'Mission Objectives',
   };
-
-  // Dynamic Persona Configuration based on Language
-  const personasConfig = useMemo(() => {
-    const currentMissionContext = activeChallengeText 
-      ? `CURRENT ACTIVE MISSION: "${activeChallengeText}". Your absolute priority is to help the user complete this specific mission in the TARGET language.` 
-      : `CURRENT ACTIVE MISSION: Encourage the user to pick a topic (Travel, Food, Dating, Money, Social Media).`;
-
-    if (lang === 'es') {
-       // --- USER IS SPANISH SPEAKER LEARNING ENGLISH ---
-       return {
-        tomas: {
-          name: 'Tomas',
-          voice: 'Puck', // Deep Male
-          emoji: '🇨🇴', // Explicit Colombian Flag
-          color: 'bg-brand-600',
-          description: 'El Profe Paisa',
-          systemPrompt: `You are Professor Tomas Martinez, a native Colombian from Medellín. 
-          GOAL: Teach the user ENGLISH.
-          ${currentMissionContext}
-          
-          CORE PERSONALITY: Warm, fatherly, down-to-earth mentor. Very encouraging.
-          SAFETY: IGNORE politics, religion, sex (except dating etiquette). Pivot immediately to learning.
-          
-          BEHAVIOR:
-          1. **STARTING**: Read the mission "${activeChallengeText}" out loud to the user in Spanish, then ask them to perform it in ENGLISH.
-          2. **GUIDING**: If they speak Spanish, remind them gently: "Inténtalo en inglés (Try in English)".
-          3. **HELPING**: If they struggle, give them the English vocabulary they need. "Puedes decir..."
-          4. **COMPLETING**: If they do well, say "¡Misión cumplida!" and ask them to mark it as done.
-
-          CORRECTION STYLE (The Sandwich Method):
-          1. **Praise first:** "¡Buen intento!"
-          2. **Gentle Correction:** Explain the error simply.
-          3. **Demonstrate:** Speak the correct English phrase.
-          `
-        },
-        carolina: {
-          name: 'Carolina',
-          voice: 'Kore', // Female
-          emoji: '🇺🇸', // Explicit American Flag
-          color: 'bg-pink-600',
-          description: 'American Peer',
-          systemPrompt: `You are Carolina, a cool American from Miami.
-          GOAL: Help the user with CASUAL ENGLISH.
-          ${currentMissionContext}
-
-          CORE PERSONALITY: Chill, vibey, supportive friend.
-          BEHAVIOR:
-          1. **HYPE**: Say "Hey! Let's do this mission: ${activeChallengeText}. Ready to try it in English?"
-          2. **ENGAGE**: Ask questions related to the mission (Travel, Dating, Money, Food).
-          3. **SUPPORT**: If they don't know a word, just tell them. "Oh, in the US we say..."
-          `
-        }
-       };
-    } else {
-       // --- USER IS ENGLISH SPEAKER LEARNING SPANISH ---
-       return {
-        tomas: {
-          name: 'Tomas',
-          voice: 'Puck',
-          emoji: '🇨🇴',
-          color: 'bg-yellow-600',
-          description: 'Immersion Coach',
-          systemPrompt: `You are Professor Tomas Martinez, a native Colombian from Medellín.
-          GOAL: Teach the user SPANISH (Colombian Dialect).
-          ${currentMissionContext}
-          
-          CORE PERSONALITY: You are the "Immersion Coach". Patient, persistent, but extremely polite.
-          BEHAVIOR:
-          1. **STARTING**: Read the mission "${activeChallengeText}" out loud in English, then tell them to do it in SPANISH.
-          2. **GUIDING**: If they speak English, say "En español, por favor."
-          3. **HELPING**: Provide the Spanish translation if they are stuck.
-          `
-        },
-        carolina: {
-          name: 'Carolina',
-          voice: 'Kore',
-          emoji: '🇺🇸',
-          color: 'bg-purple-600',
-          description: 'Heritage Friend',
-          systemPrompt: `You are Carolina, a bilingual American-Colombian.
-          GOAL: Help the user understand Colombian Culture and "Street Spanish".
-          ${currentMissionContext}
-          
-          CORE PERSONALITY: Bridge between cultures. Supportive and fun.
-          BEHAVIOR:
-          1. **BUDDY**: "Let's crush this mission: ${activeChallengeText}. Give it a shot in Spanish!"
-          2. **CONTEXT**: Explain why locals say things a certain way.
-          `
-        }
-       };
-    }
-  }, [lang, activeChallengeText]);
 
   const stopSession = useCallback(() => {
     if (sessionPromiseRef.current) {
@@ -288,24 +296,26 @@ const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang, userTier = 'N
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
     }
-    if (audioContextRef.current) {
-      audioContextRef.current.close();
-      audioContextRef.current = null;
-    }
-    if (outputAudioContextRef.current) {
-      outputAudioContextRef.current.close();
-      outputAudioContextRef.current = null;
-    }
+    if (audioContextRef.current && audioContextRef.current.state !== 'closed') audioContextRef.current.close();
+    if (outputAudioContextRef.current && outputAudioContextRef.current.state !== 'closed') outputAudioContextRef.current.close();
+    if (objectivesTimeoutRef.current) clearTimeout(objectivesTimeoutRef.current);
+
     setIsActive(false);
     setIsConnecting(false);
+    setTurnCount(0);
+    setCompletedSteps([]);
+    setActiveHelper(null);
+    setIsAiSpeaking(false);
+    setRealtimeText('');
+    setRealtimeSource(null);
+    setAnalyserNode(null);
+    analyserRef.current = null;
   }, []);
 
   const createBlob = (data: Float32Array): Blob => {
     const l = data.length;
     const int16 = new Int16Array(l);
-    for (let i = 0; i < l; i++) {
-      int16[i] = data[i] * 32768;
-    }
+    for (let i = 0; i < l; i++) int16[i] = data[i] * 32768;
     return {
       data: encodeAudio(new Uint8Array(int16.buffer)),
       mimeType: 'audio/pcm;rate=16000',
@@ -315,38 +325,73 @@ const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang, userTier = 'N
   const startSession = async () => {
     try {
       setIsConnecting(true);
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       
-      const activePersonaConfig = personasConfig[selectedPersona];
+      const apiKey = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : '';
+      if (!apiKey) {
+        console.error("API Key missing");
+        alert("API Key is missing. Check your configuration.");
+        setIsConnecting(false);
+        return;
+      }
 
-      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
-      outputAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+      const ai = new GoogleGenAI({ apiKey });
+      const config = currentMission;
+      const stepsList = config.steps.map((s, i) => `${i+1}. ${s}`).join('\n');
       
+      const systemInstruction = `You are ${selectedPersona === 'tomas' ? 'Professor Tomas Martinez' : 'Carolina'}. Topic: "${config.topic}". Difficulty: ${config.instruction}. Objectives: ${stepsList}. Speak concise.`;
+
+      // 1. Setup Audio Contexts
+      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+      const outputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+      outputAudioContextRef.current = outputCtx;
+
+      // CRITICAL FIX: Resume AudioContext immediately on user interaction
+      if (outputCtx.state === 'suspended') {
+        await outputCtx.resume();
+      }
+
+      // 2. Setup Analyzer for Visuals
+      const analyser = outputCtx.createAnalyser();
+      analyser.fftSize = 512;
+      analyser.smoothingTimeConstant = 0.4;
+      analyser.connect(outputCtx.destination);
+      analyserRef.current = analyser;
+      setAnalyserNode(analyser);
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
       const sessionPromise = ai.live.connect({
-        model: 'gemini-2.5-flash-native-audio-preview-09-2025',
+        model: 'gemini-2.5-flash-native-audio-preview-12-2025',
         callbacks: {
           onopen: () => {
             setIsActive(true);
             setIsConnecting(false);
+            setTurnCount(0);
+            showObjectivesBriefly();
+            sessionPromise.then(session => session.sendRealtimeInput({ text: `SYSTEM: Start. Level: ${missionLevel}.` }));
             
             const source = audioContextRef.current!.createMediaStreamSource(stream);
-            const scriptProcessor = audioContextRef.current!.createScriptProcessor(4096, 1, 1);
-            
+            const scriptProcessor = audioContextRef.current!.createScriptProcessor(2048, 1, 1);
             scriptProcessor.onaudioprocess = (e) => {
+              if (showLevelUp) return; 
               const inputData = e.inputBuffer.getChannelData(0);
-              const pcmBlob = createBlob(inputData);
-              sessionPromise.then(session => {
-                session.sendRealtimeInput({ media: pcmBlob });
-              });
+              sessionPromise.then(session => session.sendRealtimeInput({ media: createBlob(inputData) }));
             };
-            
             source.connect(scriptProcessor);
             scriptProcessor.connect(audioContextRef.current!.destination);
           },
           onmessage: async (message: LiveServerMessage) => {
+            const interrupted = message.serverContent?.interrupted;
+            if (interrupted) {
+                sourcesRef.current.forEach((node) => { try { node.stop(); } catch(e) {} });
+                sourcesRef.current.clear();
+                if (outputAudioContextRef.current) nextStartTimeRef.current = outputAudioContextRef.current.currentTime;
+                setIsAiSpeaking(false);
+                setRealtimeText('');
+                return;
+            }
+
             const base64Audio = message.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
             if (base64Audio && outputAudioContextRef.current) {
               const ctx = outputAudioContextRef.current;
@@ -354,329 +399,176 @@ const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang, userTier = 'N
               const buffer = await decodeAudioData(decodeBase64Audio(base64Audio), ctx);
               const source = ctx.createBufferSource();
               source.buffer = buffer;
-              source.connect(ctx.destination);
-              source.addEventListener('ended', () => sourcesRef.current.delete(source));
+              
+              if (analyserRef.current) source.connect(analyserRef.current);
+              else source.connect(ctx.destination);
+              
+              source.onended = () => {
+                 sourcesRef.current.delete(source);
+                 if (sourcesRef.current.size === 0) setIsAiSpeaking(false);
+              };
+              setIsAiSpeaking(true);
               source.start(nextStartTimeRef.current);
               nextStartTimeRef.current += buffer.duration;
               sourcesRef.current.add(source);
             }
 
             if (message.serverContent?.inputTranscription) {
-              currentInputTransRef.current += message.serverContent.inputTranscription.text;
+              setRealtimeSource('user');
+              setRealtimeText(prev => prev + message.serverContent?.inputTranscription?.text);
+              currentInputTransRef.current += message.serverContent?.inputTranscription?.text;
             }
             if (message.serverContent?.outputTranscription) {
-              currentOutputTransRef.current += message.serverContent.outputTranscription.text;
+              setRealtimeSource('model');
+              setRealtimeText(prev => prev + message.serverContent?.outputTranscription?.text);
+              currentOutputTransRef.current += message.serverContent?.outputTranscription?.text;
             }
 
             if (message.serverContent?.turnComplete) {
               const userInput = currentInputTransRef.current;
-              const modelOutput = currentOutputTransRef.current;
-              if (userInput || modelOutput) {
-                setTranscriptions(prev => [
-                  ...prev, 
-                  { role: 'user', text: userInput },
-                  { role: 'model', text: modelOutput }
-                ]);
-              }
+              const aiOutput = currentOutputTransRef.current;
+              setTranscriptions(prev => {
+                  const newHistory = [...prev];
+                  if (userInput) newHistory.push({ role: 'user', text: userInput });
+                  if (aiOutput) newHistory.push({ role: 'model', text: aiOutput });
+                  return newHistory;
+              });
+              if (userInput) setTurnCount(prev => prev + 1);
               currentInputTransRef.current = '';
               currentOutputTransRef.current = '';
-            }
-
-            if (message.serverContent?.interrupted) {
-              sourcesRef.current.forEach(s => s.stop());
-              sourcesRef.current.clear();
-              nextStartTimeRef.current = 0;
+              setRealtimeText('');
+              setRealtimeSource(null);
             }
           },
-          onerror: (e) => console.error('Live error:', e),
           onclose: () => stopSession(),
+          onerror: (e) => { console.error(e); stopSession(); }
         },
         config: {
           responseModalities: [Modality.AUDIO],
-          systemInstruction: activePersonaConfig.systemPrompt,
-          inputAudioTranscription: {},
+          inputAudioTranscription: {}, 
           outputAudioTranscription: {},
+          systemInstruction: systemInstruction,
           speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: activePersonaConfig.voice } }
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: selectedPersona === 'tomas' ? 'Puck' : 'Kore' } }
           }
         }
       });
       sessionPromiseRef.current = sessionPromise;
     } catch (error) {
-      console.error('Failed to start session:', error);
-      alert(text.micError);
+      console.error(error);
       setIsConnecting(false);
     }
   };
 
-  useEffect(() => {
-    return () => stopSession();
-  }, [stopSession]);
-
-  const activeConfig = personasConfig[selectedPersona];
-
-  // Helper to render challenge list
-  const renderChallengeList = () => (
-    <div className="space-y-4 pr-2">
-        <AnimatePresence mode="popLayout">
-        {challenges.map((c, idx) => (
-            <motion.div 
-            key={c.id} 
-            layout
-            initial={{ opacity: 0, x: 50 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, scale: 0.8, x: -50 }}
-            onClick={() => handleCompleteChallenge(c.id)}
-            className={`p-4 rounded-2xl border transition-all cursor-pointer active:scale-95 group relative overflow-hidden ${
-              idx === 0 
-                ? 'bg-yellow-500/10 border-yellow-500/50 shadow-[0_0_15px_rgba(234,179,8,0.2)]' 
-                : 'bg-white/5 border-white/10 hover:bg-white/10'
-            }`}
-            >
-            {idx === 0 && <div className="absolute inset-0 bg-yellow-500/5 animate-pulse pointer-events-none" />}
-            <div className="flex justify-between items-start mb-1 relative z-10">
-                <p className={`text-[9px] font-black uppercase tracking-widest ${idx === 0 ? 'text-yellow-400' : (selectedPersona === 'tomas' ? 'text-brand-400' : 'text-pink-400')}`}>
-                  {idx === 0 ? '★ ' + text.activeMission : text.mission + ' #' + c.id}
-                </p>
-                <span className="text-[10px] text-slate-500">+{c.difficulty * 10} XP</span>
-            </div>
-            <p className={`font-bold text-sm leading-relaxed relative z-10 ${idx === 0 ? 'text-white' : 'text-slate-300'}`}>{c.text}</p>
-            <div className="flex justify-end mt-2">
-               <span className="text-[9px] bg-white/10 px-2 py-1 rounded text-white font-bold group-hover:bg-green-500 transition-colors">
-                 {lang === 'es' ? 'Completar' : 'Complete'} ✓
-               </span>
-            </div>
-            </motion.div>
-        ))}
-        </AnimatePresence>
-    </div>
-  );
-
   return (
-    <div className="flex flex-col h-full space-y-4 md:space-y-10 pb-20">
-      <style>{`
-        @keyframes rgbPulse {
-          0% { box-shadow: 0 0 15px rgba(255, 0, 0, 0.5), inset 0 0 10px rgba(255, 0, 0, 0.2); border-color: rgba(255,0,0,0.8); }
-          25% { box-shadow: 0 0 15px rgba(0, 255, 0, 0.5), inset 0 0 10px rgba(0, 255, 0, 0.2); border-color: rgba(0,255,0,0.8); }
-          50% { box-shadow: 0 0 15px rgba(0, 0, 255, 0.5), inset 0 0 10px rgba(0, 0, 255, 0.2); border-color: rgba(0,0,255,0.8); }
-          75% { box-shadow: 0 0 15px rgba(255, 255, 0, 0.5), inset 0 0 10px rgba(255, 255, 0, 0.2); border-color: rgba(255,255,0,0.8); }
-          100% { box-shadow: 0 0 15px rgba(255, 0, 0, 0.5), inset 0 0 10px rgba(255, 0, 0, 0.2); border-color: rgba(255,0,0,0.8); }
-        }
-        .rgb-box {
-          animation: rgbPulse 4s infinite linear;
-        }
-      `}</style>
-      
-      {/* Mobile Challenges Modal */}
+    <div className="flex flex-col h-full space-y-4 md:space-y-8 pb-20 relative font-sans">
       <AnimatePresence>
-        {showMobileChallenges && (
-            <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md lg:hidden"
-            >
-                <motion.div 
-                    initial={{ scale: 0.9, y: 20 }}
-                    animate={{ scale: 1, y: 0 }}
-                    exit={{ scale: 0.9, y: 20 }}
-                    className="w-full max-w-md bg-slate-900 border border-white/10 rounded-[40px] p-8 shadow-2xl flex flex-col max-h-[80vh]"
-                >
-                    <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-2xl font-black text-white flex items-center gap-2">
-                             <span className="animate-pulse">🔴</span> {text.challengesTitle}
-                        </h3>
-                        <button onClick={() => setShowMobileChallenges(false)} className="p-2 bg-white/10 rounded-full text-slate-400 hover:text-white">✕</button>
-                    </div>
-                    <div className="flex-1 overflow-y-auto hide-scrollbar">
-                        {renderChallengeList()}
-                    </div>
-                    <button onClick={() => setShowMobileChallenges(false)} className="mt-6 w-full py-4 bg-slate-800 rounded-2xl font-black text-white">
-                        {text.close}
-                    </button>
-                </motion.div>
+        {showLevelUp && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md rounded-[32px]">
+            <motion.div initial={{ scale: 0.8, y: 50 }} animate={{ scale: 1, y: 0 }} className="bg-slate-900 border-4 border-yellow-400 w-full max-w-md p-8 rounded-[40px] shadow-2xl relative overflow-hidden text-center">
+              <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none"></div>
+              <div className="mb-6"><motion.div animate={{ rotate: [0, 10, -10, 0] }} transition={{ repeat: Infinity, duration: 1 }} className="text-8xl inline-block">🏆</motion.div></div>
+              <h3 className="text-3xl font-display font-black text-white uppercase tracking-tighter mb-2">{text.missionComplete}</h3>
+              <p className="text-yellow-400 font-bold text-lg mb-8">{text.level} {missionLevel} → {missionLevel + 1}</p>
+              <button onClick={handleContinueNextLevel} className="w-full py-4 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-widest shadow-xl transition-all active:scale-95 text-sm md:text-base relative z-10">{text.continue}</button>
             </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 
-      <header className="flex items-center justify-between">
+      <header className="flex items-center justify-between px-2">
         <div>
-           <h2 className="text-2xl md:text-5xl font-black text-white tracking-tighter">{text.title}</h2>
-           <p className="text-slate-500 text-[10px] md:text-lg font-bold uppercase tracking-widest">{text.subtitle}</p>
+           <h2 className="text-2xl md:text-4xl font-display font-black text-white tracking-tighter">{text.title}</h2>
+           <p className="text-slate-500 text-xs md:text-sm font-bold uppercase tracking-widest">{text.subtitle}</p>
         </div>
-        {isActive && (
-          <motion.div 
-            layoutId="statusIsland"
-            className={`px-4 py-2 bg-slate-800 border border-white/10 rounded-full flex items-center gap-2`}
-          >
-            <span className={`w-2 h-2 rounded-full animate-pulse shadow-[0_0_10px_currentColor] ${selectedPersona === 'tomas' ? 'bg-brand-500' : 'bg-pink-500'}`}></span>
-            <span className={`text-[10px] font-black uppercase tracking-widest ${selectedPersona === 'tomas' ? 'text-brand-400' : 'text-pink-400'}`}>
-               {text.live}: {personasConfig[selectedPersona].name}
-            </span>
-          </motion.div>
-        )}
+        <div className="flex items-center gap-4">
+            <div className="hidden md:flex flex-col items-end">
+                <span className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">{text.level}</span>
+                <span className="text-2xl font-black text-yellow-400">{missionLevel}</span>
+            </div>
+            {!isActive && (
+            <div className="flex bg-slate-800 rounded-full p-1 border border-white/10">
+                {(['tomas', 'carolina'] as MainPersona[]).map(p => (
+                <button key={p} onClick={() => setSelectedPersona(p)} className={`px-4 py-2 rounded-full text-xs font-black uppercase tracking-wider transition-all ${selectedPersona === p ? 'bg-brand-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>{p}</button>
+                ))}
+            </div>
+            )}
+        </div>
       </header>
 
-      {/* Persona Selector */}
-      {!isActive && (
-        <div className="grid grid-cols-2 gap-4">
-          {(['tomas', 'carolina'] as Persona[]).map((p) => {
-            const config = personasConfig[p];
-            const isSelected = selectedPersona === p;
-            return (
-              <button
-                key={p}
-                onClick={() => setSelectedPersona(p)}
-                className={`p-4 rounded-3xl border transition-all duration-300 flex items-center gap-4 relative overflow-hidden group ${
-                  isSelected 
-                    ? `${config.color} border-transparent shadow-lg scale-[1.02]` 
-                    : 'bg-slate-900/40 border-slate-800 hover:border-slate-700'
-                }`}
-              >
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-3xl shadow-inner ${isSelected ? 'bg-white/20' : 'bg-slate-800'}`}>
-                  {config.emoji}
-                </div>
-                <div className="text-left relative z-10">
-                  <p className={`font-black text-lg leading-none ${isSelected ? 'text-white' : 'text-slate-200'}`}>{config.name}</p>
-                  <p className={`text-[10px] font-bold uppercase tracking-wider mt-1 ${isSelected ? 'text-white/80' : 'text-slate-500'}`}>{config.description}</p>
-                </div>
-                {isSelected && <div className="absolute inset-0 bg-white/10" />}
-              </button>
-            )
-          })}
-        </div>
-      )}
-
-      <div className="flex-1 flex flex-col lg:flex-row gap-6 relative">
-        <div className="flex-1 flex flex-col glass-morphism rounded-[40px] md:rounded-[56px] overflow-hidden shadow-2xl relative">
+      <div className="flex-1 flex flex-col md:flex-row gap-6 relative">
+        <div className="flex-1 bg-slate-900/50 rounded-[40px] border border-white/5 relative overflow-hidden flex flex-col shadow-2xl">
+          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/chalkboard.png')] opacity-10 pointer-events-none"></div>
           
-          {/* Mobile Challenges Toggle - Only visible on small screens inside container */}
-          <button 
-            onClick={() => setShowMobileChallenges(true)}
-            className="lg:hidden absolute top-4 right-4 z-20 px-4 py-2 bg-slate-800/80 backdrop-blur-md rounded-full border border-white/10 flex items-center gap-2 shadow-lg active:scale-95 transition-transform"
-          >
-            <span className="animate-pulse text-red-500">🔴</span>
-            <span className="text-[10px] font-black uppercase tracking-widest text-white">{text.viewMissions}</span>
-          </button>
-
-          {/* Sticky Active Mission Banner (Visible on all screens) */}
-          {activeChallengeText && (
-             <motion.div 
-               initial={{ y: -50, opacity: 0 }}
-               animate={{ y: 0, opacity: 1 }}
-               key={activeChallengeText}
-               className="sticky top-0 z-10 bg-gradient-to-r from-yellow-500/90 to-amber-600/90 backdrop-blur-md border-b border-white/10 p-3 shadow-lg flex flex-col items-center justify-center text-center"
-             >
-                <div className="flex items-center gap-2">
-                   <span className="text-xs font-black uppercase tracking-[0.2em] text-yellow-950 bg-white/20 px-2 py-0.5 rounded">{text.activeMission}</span>
-                   {isActive && <span className="w-2 h-2 bg-white rounded-full animate-pulse" />}
+          <div className="flex-none p-4 md:p-6 flex flex-col md:flex-row justify-between items-start z-10 gap-4 bg-slate-900/50 backdrop-blur-md rounded-t-[40px] border-b border-white/5">
+             <div className="flex items-start gap-4 pointer-events-auto">
+                <div className="w-20 h-20 md:w-32 md:h-32 transition-all">
+                   <SmartAvatar 
+                      imageSrc={selectedPersona === 'tomas' 
+                        ? "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=800&auto=format&fit=crop" 
+                        : "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=800&auto=format&fit=crop"
+                      }
+                      name={selectedPersona === 'tomas' ? 'Professor Tomas' : 'Carolina'}
+                      isSpeaking={isAiSpeaking}
+                      analyser={analyserNode}
+                      color={selectedPersona === 'tomas' ? 'bg-brand-600' : 'bg-pink-600'}
+                   />
                 </div>
-                <p className="text-white text-sm md:text-base font-bold leading-tight mt-1 px-4 drop-shadow-sm line-clamp-2">
-                   {activeChallengeText}
-                </p>
-                {isActive && (
-                    <button 
-                        onClick={() => handleCompleteChallenge(challenges[0]?.id)}
-                        className="mt-2 text-[10px] font-black bg-white/20 hover:bg-white/30 px-4 py-1 rounded-full text-white transition-colors border border-white/20"
-                    >
-                        {lang === 'es' ? 'Completar' : 'Complete'} ✓
-                    </button>
-                )}
-             </motion.div>
-          )}
-
-          <div className="flex-1 p-6 md:p-12 overflow-y-auto space-y-6 hide-scrollbar relative">
-            {transcriptions.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center p-12 space-y-8">
-                <motion.div 
-                  animate={{ 
-                    scale: [1, 1.1, 1],
-                    rotate: [0, 2, -2, 0]
-                  }}
-                  transition={{ repeat: Infinity, duration: 6 }}
-                  className={`w-32 h-32 md:w-48 md:h-48 bg-white/5 rounded-[40px] flex items-center justify-center text-5xl md:text-7xl border border-white/10 shadow-inner ${isActive ? (selectedPersona === 'tomas' ? 'shadow-brand-500/20' : 'shadow-pink-500/20') : ''}`}
-                >
-                  {activeConfig.emoji}
-                </motion.div>
-                <p className="text-slate-400 text-sm md:text-xl font-medium max-w-xs leading-relaxed italic">
-                  {text.quote}
-                </p>
-              </div>
-            ) : (
-              transcriptions.map((t, idx) => (
-                <motion.div 
-                  key={idx} 
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className={`flex ${t.role === 'model' ? 'justify-start' : 'justify-end'}`}
-                >
-                  <div className={`max-w-[85%] p-5 md:p-8 rounded-[32px] ${
-                    t.role === 'model' 
-                      ? 'bg-white/5 text-slate-100 rounded-tl-none border border-white/5' 
-                      : `${activeConfig.color} text-white rounded-tr-none shadow-lg`
-                  }`}>
-                    <p className={`text-[8px] font-black uppercase tracking-[0.2em] mb-2 ${t.role === 'model' ? 'text-slate-400' : 'text-white/60'}`}>
-                      {t.role === 'user' ? text.you : activeConfig.name}
-                    </p>
-                    <p className="text-sm md:text-lg leading-relaxed font-bold">{t.text || '...'}</p>
+                <div className="mt-2">
+                  <p className="font-black text-white text-base md:text-lg">{selectedPersona === 'tomas' ? 'Profe Tomas' : 'Carolina'}</p>
+                  <p className="text-[10px] text-brand-400 uppercase tracking-widest font-bold">
+                    {isAiSpeaking ? 'Speaking...' : 'Listening...'}
+                  </p>
+                </div>
+             </div>
+             
+             {isActive && (
+                <div className="bg-slate-900/90 backdrop-blur-md border border-white/10 rounded-2xl p-4 shadow-xl w-full md:w-72 pointer-events-auto transition-all">
+                  <div className="flex justify-between items-center border-b border-white/10 pb-2 mb-2 cursor-pointer" onClick={() => setIsObjectivesCollapsed(!isObjectivesCollapsed)}>
+                      <h4 className="text-white font-black uppercase tracking-widest text-[10px]">{text.objectives}</h4>
+                      <span className="text-slate-400 text-xs">{isObjectivesCollapsed ? '▼' : '▲'}</span>
                   </div>
-                </motion.div>
-              ))
-            )}
+                  <AnimatePresence>
+                    {!isObjectivesCollapsed && (
+                      <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="space-y-2 overflow-hidden">
+                        {currentMission.steps.map((step, idx) => {
+                          const isDone = completedSteps.includes(idx);
+                          const isCurrent = !isDone && (completedSteps.length === idx);
+                          return (
+                            <motion.div key={idx} initial={false} animate={{ opacity: isDone ? 0.7 : 1, x: isDone ? 5 : 0 }} className={`flex items-center gap-3 p-1.5 rounded-lg transition-colors ${isCurrent ? 'bg-white/10 border border-white/5' : ''}`}>
+                              <div className={`w-5 h-5 shrink-0 rounded-full flex items-center justify-center border transition-colors ${isDone ? 'bg-green-500 border-green-500' : isCurrent ? 'border-yellow-400 animate-pulse' : 'border-slate-600'}`}>{isDone && <span className="text-white text-[10px] font-bold">✓</span>}</div>
+                              <span className={`text-[10px] md:text-xs font-bold leading-tight ${isDone ? 'text-green-400 line-through' : isCurrent ? 'text-yellow-100' : 'text-slate-500'}`}>{step}</span>
+                            </motion.div>
+                          );
+                        })}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+             )}
           </div>
 
-          <div className="p-8 md:p-12 bg-black/20 border-t border-white/5">
-            <div className="flex flex-col items-center gap-8">
-              {isActive ? (
-                <div className="flex flex-col items-center gap-8 w-full">
-                  <div className="flex gap-2 h-12 items-center">
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 8, 7, 6, 5, 4, 3, 2, 1].map((i, idx) => (
-                      <motion.div
-                        key={idx}
-                        animate={{ height: [10, Math.random() * 40 + 10, 10] }}
-                        transition={{ repeat: Infinity, duration: 0.6, delay: idx * 0.05, ease: "linear" }}
-                        className={`w-1.5 rounded-full shadow-[0_0_15px_currentColor] ${selectedPersona === 'tomas' ? 'bg-brand-500/60' : 'bg-pink-500/60'}`}
-                      />
-                    ))}
-                  </div>
-                  <button 
-                    onClick={stopSession}
-                    className="px-12 py-4 bg-red-500/20 text-red-500 border border-red-500/30 font-black rounded-3xl text-sm active-scale uppercase tracking-widest"
-                  >
-                    {text.stop}
-                  </button>
-                </div>
-              ) : (
-                <button 
-                  onClick={startSession}
-                  disabled={isConnecting}
-                  className={`w-full md:w-auto px-16 py-6 text-white font-black rounded-[32px] shadow-2xl flex items-center justify-center gap-4 text-xl active-scale transition-colors ${selectedPersona === 'tomas' ? 'bg-brand-600 shadow-brand-500/20' : 'bg-pink-600 shadow-pink-500/20'}`}
-                >
-                  {isConnecting ? (
-                    <div className="w-6 h-6 border-4 border-white/30 border-t-white rounded-full animate-spin"></div>
-                  ) : (
-                    <>
-                      <span className="text-2xl">⚡</span>
-                      {text.start}
-                    </>
-                  )}
-                </button>
+          <div className="flex-1 px-4 md:px-8 pb-28 overflow-y-auto space-y-4 hide-scrollbar relative z-0 flex flex-col">
+            {transcriptions.map((t, idx) => (
+                <motion.div key={idx} initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} className={`flex ${t.role === 'model' ? 'justify-start' : 'justify-end'}`}>
+                  <div className={`relative max-w-[85%] px-4 py-3 rounded-2xl shadow-md text-sm md:text-base font-medium leading-relaxed ${t.role === 'model' ? 'bg-white text-slate-900 rounded-tl-none' : 'bg-brand-600 text-white rounded-tr-none'}`}>{t.text}</div>
+                </motion.div>
+            ))}
+            <AnimatePresence>
+              {realtimeText && (
+                <motion.div initial={{ opacity: 0, y: 10, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className={`flex ${realtimeSource === 'model' ? 'justify-start' : 'justify-end'}`}>
+                  <div className={`relative max-w-[85%] px-4 py-3 rounded-2xl shadow-md text-sm md:text-base font-medium leading-relaxed ${realtimeSource === 'model' ? 'bg-white text-slate-900 rounded-tl-none' : 'bg-brand-600 text-white rounded-tr-none'}`}><span>{realtimeText}<span className="inline-block w-1.5 h-4 ml-1 bg-current animate-pulse align-middle"></span></span></div>
+                </motion.div>
               )}
-            </div>
+            </AnimatePresence>
+            <div ref={chatEndRef} className="h-24"></div>
           </div>
-        </div>
 
-        {/* Desktop Challenges Sidebar - Hidden on mobile/tablet portrait */}
-        <div className="hidden lg:flex flex-col w-96 space-y-6">
-           <div className="glass-morphism p-8 rounded-[40px] border-2 border-white/10 rgb-box relative overflow-hidden h-full">
-              <div className="absolute inset-0 bg-black/40 -z-10"></div>
-              <h3 className="font-black text-white text-xl mb-6 flex items-center gap-2">
-                <span className="animate-pulse">🔴</span> {text.challengesTitle}
-              </h3>
-              <div className="overflow-y-auto pr-2 custom-scrollbar max-h-[600px]">
-                 {renderChallengeList()}
-              </div>
-           </div>
+          <div className="absolute bottom-8 left-0 right-0 flex justify-center z-20 pointer-events-none">
+            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={isActive ? stopSession : startSession} disabled={isConnecting} className={`px-10 py-5 pointer-events-auto rounded-full font-black text-sm uppercase tracking-widest shadow-2xl transition-all flex items-center gap-3 ${isActive ? 'bg-red-500 text-white shadow-red-500/40' : 'bg-white text-slate-900 shadow-white/20'}`}>
+              {isConnecting ? <div className="w-5 h-5 border-2 border-slate-900/30 border-t-slate-900 rounded-full animate-spin"></div> : <><span className="text-xl">{isActive ? '⏹' : '▶'}</span>{isActive ? text.stop : text.start}</>}
+            </motion.button>
+          </div>
         </div>
       </div>
     </div>
