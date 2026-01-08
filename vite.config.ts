@@ -10,14 +10,12 @@ export default defineConfig(({ mode }) => {
             port: 3000,
             host: '0.0.0.0',
             strictPort: false,
-            // CRITICAL: CORS for YouTube and audio
             cors: {
                 origin: '*',
                 credentials: true,
                 methods: ['GET', 'POST', 'OPTIONS'],
                 allowedHeaders: ['Content-Type', 'Authorization']
             },
-            // Proxy YouTube API requests
             proxy: {
                 '/api/youtube': {
                     target: 'https://www.googleapis.com/youtube/v3',
@@ -46,6 +44,18 @@ export default defineConfig(({ mode }) => {
         },
         build: {
             outDir: 'dist',
+            sourcemap: false,
+            minify: 'terser',
+            rollupOptions: {
+                output: {
+                    manualChunks: {
+                        'vendor-react': ['react', 'react-dom'],
+                        'vendor-anim': ['framer-motion', 'lottie-react', 'canvas-confetti'],
+                        'vendor-ai': ['@google/genai'],
+                        'vendor-icons': ['lucide-react']
+                    }
+                }
+            }
         }
     };
 });

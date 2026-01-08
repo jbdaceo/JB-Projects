@@ -58,8 +58,8 @@ const WorldsPortal: React.FC<WorldsPortalProps> = ({ lang, onNavigate }) => {
   // Routing Logic
   const handleNavigation = (world: WorldData) => {
       if (world.id === 'city') {
-          // City -> World Chat / Community
-          onNavigate(AppSection.Community);
+          // City -> Global Chat (Original World Chat)
+          onNavigate(AppSection.Chat);
       } else if (world.id === 'game') {
           // Game -> Kids Zone
           onNavigate(AppSection.Kids);

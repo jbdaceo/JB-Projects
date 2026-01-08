@@ -159,6 +159,7 @@ export const YouTubeLive: React.FC<YouTubeLiveProps> = ({
                 height="100%"
                 src={iframeUrl}
                 frameBorder="0"
+                referrerPolicy="strict-origin-when-cross-origin"
                 allow="
                     accelerometer; 
                     autoplay; 

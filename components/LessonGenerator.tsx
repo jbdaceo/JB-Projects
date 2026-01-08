@@ -1,521 +1,635 @@
 
-import React, { useState, useEffect, useRef } from 'react';
-import { generateLesson, generateEncouragingFact, evaluateWritingExercise } from '../services/gemini';
-import { Lesson, Language, SavedLesson } from '../types';
+import React, { useState, useEffect } from 'react';
+import { generateLesson, getPronunciation, decodeBase64Audio, decodeAudioData } from '../services/gemini';
+import { SavedLesson, Language } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
-import Lottie from 'lottie-react';
-import { BookOpen, Star, Plus, CheckCircle, Lock, PlayCircle, RotateCcw, Trash2, PenTool, Lightbulb, Globe } from 'lucide-react';
+import { BookOpen, Star, CheckCircle, PenTool, Lightbulb, Globe, AlertTriangle, MessageCircle, Music, Coffee, Plane, Briefcase, Smile, Zap, Plus, ArrowLeft, ArrowRight, Volume2, RotateCcw, Award, Rocket } from 'lucide-react';
+import { Tooltip } from './Tooltip';
+import { triggerHaptic } from '../utils/performance';
 
 interface LessonGeneratorProps {
   lang: Language;
   userTier?: 'Novice' | 'Semi Pro' | 'Pro';
 }
 
-const LOADING_LOTTIE = {
-  v: "5.5.7", fr: 30, ip: 0, op: 60, w: 100, h: 100, nm: "Loading", ddd: 0, assets: [],
-  layers: [
-    { ddd: 0, ind: 1, ty: 4, nm: "Circle 1", sr: 1, ks: { o: { a: 0, k: 100 }, r: { a: 0, k: 0 }, p: { a: 0, k: [20, 50, 0] }, a: { a: 0, k: [0, 0, 0] }, s: { a: 1, k: [{ i: { x: [0.833, 0.833], y: [0.833, 0.833] }, o: { x: [0.167, 0.167], y: [0.167, 0.167] }, t: 0, s: [0, 0, 100] }, { i: { x: [0.833, 0.833], y: [0.833, 0.833] }, o: { x: [0.167, 0.167], y: [0.167, 0.167] }, t: 30, s: [100, 100, 100] }, { t: 60, s: [0, 0, 100] }] } }, shapes: [{ ty: "el", p: { a: 0, k: [0, 0] }, s: { a: 0, k: [20, 20] } }, { ty: "fl", c: { a: 0, k: [0.23, 0.51, 0.96, 1] }, o: { a: 0, k: 100 } }] },
-    { ddd: 0, ind: 2, ty: 4, nm: "Circle 2", sr: 1, ks: { o: { a: 0, k: 100 }, r: { a: 0, k: 0 }, p: { a: 0, k: [50, 50, 0] }, a: { a: 0, k: [0, 0, 0] }, s: { a: 1, k: [{ i: { x: [0.833, 0.833], y: [0.833, 0.833] }, o: { x: [0.167, 0.167], y: [0.167, 0.167] }, t: 10, s: [0, 0, 100] }, { i: { x: [0.833, 0.833], y: [0.833, 0.833] }, o: { x: [0.167, 0.167], y: [0.167, 0.167] }, t: 40, s: [100, 100, 100] }, { t: 70, s: [0, 0, 100] }] } }, shapes: [{ ty: "el", p: { a: 0, k: [0, 0] }, s: { a: 0, k: [20, 20] } }, { ty: "fl", c: { a: 0, k: [0.34, 0.8, 0.95, 1] }, o: { a: 0, k: 100 } }] },
-    { ddd: 0, ind: 3, ty: 4, nm: "Circle 3", sr: 1, ks: { o: { a: 0, k: 100 }, r: { a: 0, k: 0 }, p: { a: 0, k: [80, 50, 0] }, a: { a: 0, k: [0, 0, 0] }, s: { a: 1, k: [{ i: { x: [0.833, 0.833], y: [0.833, 0.833] }, o: { x: [0.167, 0.167], y: [0.167, 0.167] }, t: 20, s: [0, 0, 100] }, { i: { x: [0.833, 0.833], y: [0.833, 0.833] }, o: { x: [0.167, 0.167], y: [0.167, 0.167] }, t: 50, s: [100, 100, 100] }, { t: 80, s: [0, 0, 100] }] } }, shapes: [{ ty: "el", p: { a: 0, k: [0, 0] }, s: { a: 0, k: [20, 20] } }, { ty: "fl", c: { a: 0, k: [0.5, 0.2, 0.9, 1] }, o: { a: 0, k: 100 } }] }
-  ]
-};
+const TOPICS = [
+  { id: 'travel', label: 'Travel', icon: Plane, bg: 'bg-sky-500' },
+  { id: 'business', label: 'Business', icon: Briefcase, bg: 'bg-slate-600' },
+  { id: 'food', label: 'Food', icon: Coffee, bg: 'bg-orange-500' },
+  { id: 'social', label: 'Social', icon: Smile, bg: 'bg-pink-500' },
+  { id: 'tech', label: 'Tech', icon: Zap, bg: 'bg-blue-600' },
+];
 
 const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang, userTier = 'Novice' }) => {
-  const [viewState, setViewState] = useState<'dashboard' | 'generator' | 'lesson'>('dashboard');
+  const [viewState, setViewState] = useState<'dashboard' | 'create' | 'lesson'>('dashboard');
   const [loading, setLoading] = useState(false);
-  const [topic, setTopic] = useState('');
-  const [masteryLevel, setMasteryLevel] = useState(1);
-  const [activeLesson, setActiveLesson] = useState<SavedLesson | null>(null);
-  const [savedLessons, setSavedLessons] = useState<SavedLesson[]>([]);
-  const [quizScore, setQuizScore] = useState<number | null>(null);
-  const [userAnswers, setUserAnswers] = useState<Record<number, string>>({});
-  const [viewMode, setViewMode] = useState<'quick' | 'deep' | 'mastery'>('quick');
-  const [masteryInput, setMasteryInput] = useState('');
-  const [masteryFeedback, setMasteryFeedback] = useState<{stars:number, text:string} | null>(null);
-  const [isEvaluating, setIsEvaluating] = useState(false);
+  const [selectedTopic, setSelectedTopic] = useState('');
+  const [customTopic, setCustomTopic] = useState('');
+  const [difficulty, setDifficulty] = useState<number>(10);
   
-  // Dashboard Metrics
-  const totalXP = savedLessons.reduce((acc, l) => acc + (l.completed ? (l.numericLevel || 1) * 10 : 0), 0);
-  const completedCount = savedLessons.filter(l => l.completed).length;
-  const wordsLearned = savedLessons.filter(l => l.completed).reduce((acc, l) => acc + l.vocabulary.length, 0);
+  const [savedLessons, setSavedLessons] = useState<SavedLesson[]>([]);
+  const [activeLesson, setActiveLesson] = useState<SavedLesson | null>(null);
+  const [viewMode, setViewMode] = useState<'study' | 'quiz'>('study');
+  const [quizAnswers, setQuizAnswers] = useState<Record<number, string>>({});
+  const [speakingText, setSpeakingText] = useState<string | null>(null);
+
+  // Quiz State
+  const [quizSubmitted, setQuizSubmitted] = useState(false);
+  const [retryMode, setRetryMode] = useState(false);
+  const [wrongIndices, setWrongIndices] = useState<number[]>([]);
+  const [questionsToRetry, setQuestionsToRetry] = useState<number[]>([]);
 
   useEffect(() => {
-    const saved = localStorage.getItem('tmc_mastery_level');
-    if (saved) setMasteryLevel(parseInt(saved));
     const history = localStorage.getItem('tmc_saved_lessons');
     if (history) {
-      try { 
-        const parsed = JSON.parse(history);
-        setSavedLessons(parsed); 
-      } catch (e) { console.error("Error loading history", e); }
+        try { 
+            const parsed = JSON.parse(history);
+            // Only load lessons that are NOT completed (in-progress only)
+            const activeOnly = parsed.filter((l: SavedLesson) => !l.completed);
+            setSavedLessons(activeOnly); 
+        } catch (e) {}
+    }
+    
+    // Load persisted difficulty
+    const savedDifficulty = localStorage.getItem('tmc_lesson_difficulty');
+    if (savedDifficulty) {
+        setDifficulty(parseInt(savedDifficulty, 10));
     }
   }, []);
 
-  const saveLessonState = (updatedLesson: SavedLesson) => {
-    const updatedList = savedLessons.map(l => l.id === updatedLesson.id ? updatedLesson : l);
-    // If it's a new lesson not in list yet
-    if (!savedLessons.find(l => l.id === updatedLesson.id)) {
-        updatedList.unshift(updatedLesson);
-    }
-    setSavedLessons(updatedList);
-    localStorage.setItem('tmc_saved_lessons', JSON.stringify(updatedList));
-    setActiveLesson(updatedLesson);
-  };
-
-  const text = {
-    dashboardTitle: lang === 'es' ? 'Centro de Aprendizaje' : 'Learning Hub',
-    createBtn: lang === 'es' ? 'Crear Nueva Lección' : 'Create New Lesson',
-    resume: lang === 'es' ? 'Continuar' : 'Resume',
-    review: lang === 'es' ? 'Repasar' : 'Review',
-    completed: lang === 'es' ? 'Completado' : 'Completed',
-    inProgress: lang === 'es' ? 'En Progreso' : 'In Progress',
-    statsXP: lang === 'es' ? 'XP Total' : 'Total XP',
-    statsLessons: lang === 'es' ? 'Lecciones' : 'Lessons',
-    statsWords: lang === 'es' ? 'Palabras' : 'Words',
-    masteryMode: lang === 'es' ? 'Modo Maestría' : 'Mastery Mode',
-    masteryPrompt: lang === 'es' ? 'Usa tu vocabulario en un contexto real.' : 'Use your vocabulary in a real context.',
-    writePrompt: lang === 'es' ? 'Escribe un párrafo corto usando al menos 3 palabras de esta lección.' : 'Write a short paragraph using at least 3 words from this lesson.',
-    submitMastery: lang === 'es' ? 'Evaluar Escritura' : 'Evaluate Writing',
-    lockedMastery: lang === 'es' ? 'Desbloquea completando el Quiz' : 'Unlock by passing the Quiz',
-    delete: lang === 'es' ? 'Borrar' : 'Delete',
-    backToDash: lang === 'es' ? '← Volver al Panel' : '← Back to Dashboard',
-    generating: lang === 'es' ? 'Generando tu clase personalizada...' : 'Generating your custom lesson...',
-    topicLabel: lang === 'es' ? 'Tema de Interés' : 'Topic of Interest',
-    levelLabel: lang === 'es' ? 'Nivel' : 'Level',
-    startBtn: lang === 'es' ? 'Comenzar Lección' : 'Start Lesson',
-    
-    // Intro Section
-    welcomeTitle: lang === 'es' ? 'Tu Panel de Control' : 'Your Dashboard',
-    welcomeSteps: lang === 'es' 
-        ? [
-            '1. Crea lecciones sobre temas que te apasionen.',
-            '2. Completa los quizzes para ganar XP y subir de nivel.',
-            '3. Desbloquea el "Modo Maestría" para recibir feedback personal.'
-          ]
-        : [
-            '1. Create lessons on topics you are passionate about.',
-            '2. Complete quizzes to earn XP and level up.',
-            '3. Unlock "Mastery Mode" to receive personal feedback.'
-          ],
-    welcomeSubtitle: lang === 'es' ? '¡Tu camino hacia la fluidez comienza aquí!' : 'Your path to fluency starts here!',
-    
-    // Generator instructions
-    genTitle: lang === 'es' ? 'Diseña tu Clase' : 'Design Your Class',
-    genDesc: lang === 'es' 
-        ? 'Aquí tienes el control total. Escribe cualquier tema que te interese (fútbol, cocina, tecnología...) y nuestra IA construirá una lección bilingüe personalizada solo para ti.' 
-        : 'Here you have total control. Type any topic you are interested in (football, cooking, tech...) and our AI will build a personalized bilingual lesson just for you.'
+  const playAudio = async (text: string) => {
+      if (speakingText) return;
+      setSpeakingText(text);
+      try {
+          const base64 = await getPronunciation(text);
+          if (base64) {
+              const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+              const buffer = await decodeAudioData(decodeBase64Audio(base64), audioCtx);
+              const source = audioCtx.createBufferSource();
+              source.buffer = buffer;
+              source.connect(audioCtx.destination);
+              source.start();
+              source.onended = () => setSpeakingText(null);
+          } else {
+              setSpeakingText(null);
+          }
+      } catch (e) {
+          console.error(e);
+          setSpeakingText(null);
+      }
   };
 
   const handleGenerate = async () => {
-    if (!topic.trim()) return;
+    const finalTopic = customTopic.trim() || selectedTopic;
+    if (!finalTopic) return;
+    
     setLoading(true);
     try {
-      const result = await generateLesson(topic, masteryLevel, lang, userTier as any);
+      const result = await generateLesson(finalTopic, difficulty, lang, userTier as any);
       const newLesson: SavedLesson = {
         ...result,
         id: Date.now().toString(),
         dateSaved: Date.now(),
-        numericLevel: masteryLevel,
+        numericLevel: difficulty,
         progress: 0,
         completed: false
       };
       
-      const updatedList = [newLesson, ...savedLessons];
-      setSavedLessons(updatedList);
-      localStorage.setItem('tmc_saved_lessons', JSON.stringify(updatedList));
+      const updated = [newLesson, ...savedLessons];
+      setSavedLessons(updated);
+      localStorage.setItem('tmc_saved_lessons', JSON.stringify(updated));
+      setActiveLesson(newLesson);
       
-      loadLesson(newLesson);
-    } catch (error) {
-      console.error(error);
+      // Reset quiz state
+      setQuizAnswers({});
+      setQuizSubmitted(false);
+      setRetryMode(false);
+      setWrongIndices([]);
+      setQuestionsToRetry([]);
+      setViewState('lesson');
+    } catch (e) {
+      console.error(e);
     } finally {
       setLoading(false);
     }
   };
 
-  const loadLesson = (lesson: SavedLesson) => {
-    setActiveLesson(lesson);
-    setQuizScore(lesson.quizScore ?? null);
-    setUserAnswers({}); 
-    setMasteryFeedback(lesson.masteryFeedback ?? null);
-    setMasteryInput('');
-    setViewState('lesson');
-    setViewMode(lesson.completed ? 'mastery' : 'quick');
-  };
+  const triggerMoneyRain = () => {
+    const duration = 2500;
+    const end = Date.now() + duration;
 
-  const deleteLesson = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const updated = savedLessons.filter(l => l.id !== id);
-    setSavedLessons(updated);
-    localStorage.setItem('tmc_saved_lessons', JSON.stringify(updated));
-  };
+    (function frame() {
+      confetti({
+        particleCount: 5,
+        angle: 60,
+        spread: 55,
+        origin: { x: 0, y: 0.5 },
+        colors: ['#FFD700', '#DAA520', '#10B981'], // Gold and Green
+        shapes: ['square'],
+        scalar: 2
+      });
+      confetti({
+        particleCount: 5,
+        angle: 120,
+        spread: 55,
+        origin: { x: 1, y: 0.5 },
+        colors: ['#FFD700', '#DAA520', '#10B981'],
+        shapes: ['square'],
+        scalar: 2
+      });
 
-  const checkQuiz = () => {
-    if (!activeLesson) return;
-    let roundScore = 0;
-    activeLesson.quiz.forEach((q, idx) => {
-      if (userAnswers[idx] === q.answer) roundScore++;
-    });
-    setQuizScore(roundScore);
-    
-    const passed = roundScore === activeLesson.quiz.length;
-    const newProgress = passed ? 100 : Math.floor((roundScore / activeLesson.quiz.length) * 90);
-    
-    const updated: SavedLesson = {
-        ...activeLesson,
-        quizScore: roundScore,
-        progress: Math.max(activeLesson.progress, newProgress),
-        completed: passed ? true : activeLesson.completed
-    };
-    saveLessonState(updated);
-
-    if (passed) {
-      confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
-      setViewMode('mastery');
-    }
-  };
-
-  const submitMastery = async () => {
-    if (!masteryInput.trim() || !activeLesson) return;
-    setIsEvaluating(true);
-    const vocabList = activeLesson.vocabulary.map(v => v.word);
-    
-    try {
-        const result = await evaluateWritingExercise(masteryInput, vocabList, activeLesson.topic, lang);
-        setMasteryFeedback(result);
-        const updated: SavedLesson = {
-            ...activeLesson,
-            masteryFeedback: result
-        };
-        saveLessonState(updated);
-        if (result.stars >= 4) {
-            confetti({ particleCount: 200, spread: 100, colors: ['#facc15', '#ffffff'] });
-        }
-    } catch (e) {
-        console.error(e);
-    } finally {
-        setIsEvaluating(false);
-    }
-  };
-
-  const renderBilingualBlock = (data: any) => {
-      if (typeof data === 'string') {
-          return <div className="prose prose-invert max-w-none text-lg text-slate-300 leading-relaxed whitespace-pre-wrap">{data}</div>;
+      if (Date.now() < end) {
+        requestAnimationFrame(frame);
       }
-      return (
-          <div className="space-y-6">
-              <div className="bg-blue-900/20 p-6 rounded-2xl border-l-4 border-blue-500">
-                  <div className="flex items-center gap-2 mb-2 text-blue-400 font-bold text-xs uppercase tracking-widest">
-                      <Globe size={14} /> English (Target)
-                  </div>
-                  <p className="text-white text-lg leading-relaxed">{data.en}</p>
-              </div>
-              <div className="bg-slate-800/50 p-6 rounded-2xl border-l-4 border-slate-600">
-                  <div className="flex items-center gap-2 mb-2 text-slate-400 font-bold text-xs uppercase tracking-widest">
-                      <Globe size={14} /> Español (Apoyo)
-                  </div>
-                  <p className="text-indigo-200 text-lg leading-relaxed">{data.es}</p>
-              </div>
-          </div>
-      );
+    }());
   };
 
-  // --- RENDERERS ---
+  const handleSubmitQuiz = () => {
+    if (!activeLesson) return;
+    
+    const wrongs: number[] = [];
+    activeLesson.quiz.forEach((q, idx) => {
+        // Skip indices that aren't part of the current retry set if we are in retry mode
+        if (retryMode && !questionsToRetry.includes(idx)) return;
+
+        const userAnswer = quizAnswers[idx];
+        if (userAnswer !== q.answer) {
+            wrongs.push(idx);
+        }
+    });
+
+    setWrongIndices(wrongs);
+    setQuizSubmitted(true);
+    triggerHaptic(wrongs.length === 0 ? 'success' : 'medium');
+    
+    if (wrongs.length === 0) {
+        triggerMoneyRain();
+    }
+  };
+
+  const handleRetryMissed = () => {
+      setQuestionsToRetry([...wrongIndices]); // Snapshot wrongs for retry mode
+      setRetryMode(true);
+      setQuizSubmitted(false);
+      // Clear wrong ones to force re-selection
+      const newAnswers = { ...quizAnswers };
+      wrongIndices.forEach(idx => delete newAnswers[idx]);
+      setQuizAnswers(newAnswers);
+  };
+
+  const handleNextLevel = async () => {
+    if (!activeLesson) return;
+
+    // 1. Remove current completed lesson from list (Do not save completed ones)
+    const lessonsWithoutCurrent = savedLessons.filter(l => l.id !== activeLesson.id);
+    
+    // 2. Increase Level stats
+    const currentScore = parseInt(localStorage.getItem('tmc_mastery_level') || '1');
+    localStorage.setItem('tmc_mastery_level', (currentScore + 1).toString());
+    window.dispatchEvent(new Event('tmc-level-update'));
+
+    // 3. Increase Difficulty
+    const newDifficulty = Math.min(100, difficulty + 1);
+    setDifficulty(newDifficulty);
+    localStorage.setItem('tmc_lesson_difficulty', newDifficulty.toString());
+
+    // 4. Generate Next Lesson (Cycle)
+    const nextTopic = activeLesson.topic;
+    
+    setLoading(true);
+    try {
+        // Scroll to top
+        const main = document.querySelector('main');
+        if(main) main.scrollTo({ top: 0, behavior: 'smooth' });
+
+        const result = await generateLesson(nextTopic, newDifficulty, lang, userTier as any);
+        const newLesson: SavedLesson = {
+            ...result,
+            id: Date.now().toString(),
+            dateSaved: Date.now(),
+            numericLevel: newDifficulty,
+            progress: 0,
+            completed: false
+        };
+        
+        // Add new lesson to the list (old one is gone)
+        const newHistory = [newLesson, ...lessonsWithoutCurrent];
+        setSavedLessons(newHistory);
+        localStorage.setItem('tmc_saved_lessons', JSON.stringify(newHistory));
+        
+        setActiveLesson(newLesson);
+        
+        // Reset UI
+        setQuizAnswers({});
+        setQuizSubmitted(false);
+        setRetryMode(false);
+        setWrongIndices([]);
+        setQuestionsToRetry([]);
+        setViewMode('study'); // Back to study mode for the new lesson
+        
+    } catch(e) {
+        console.error(e);
+        // If error, just go back to dashboard, ensuring old one is removed if we consider it done
+        setSavedLessons(lessonsWithoutCurrent);
+        localStorage.setItem('tmc_saved_lessons', JSON.stringify(lessonsWithoutCurrent));
+        setViewState('dashboard');
+    } finally {
+        setLoading(false);
+    }
+  };
+
+  const handleFinishLesson = () => {
+      // Manual exit to dashboard
+      setViewState('dashboard');
+      setActiveLesson(null);
+      setQuizAnswers({});
+      setViewMode('study');
+      setQuizSubmitted(false);
+      setRetryMode(false);
+      setWrongIndices([]);
+      setQuestionsToRetry([]);
+  };
+
+  const text = {
+    myLessons: lang === 'es' ? 'Mis Lecciones' : 'My Lessons',
+    create: lang === 'es' ? 'Crear Nueva' : 'Create New',
+    pickTopic: lang === 'es' ? 'Elige un Tema' : 'Pick a Topic',
+    customPlaceholder: lang === 'es' ? 'O escribe el tuyo...' : 'Or type your own...',
+    level: lang === 'es' ? 'Nivel de Dificultad' : 'Difficulty Level',
+    generate: lang === 'es' ? 'Generar Clase' : 'Generate Class',
+    generating: lang === 'es' ? 'El Profesor está escribiendo...' : 'Professor is writing...',
+    readyForQuiz: lang === 'es' ? '¿Listo para el Quiz?' : 'Ready for Quiz?',
+    submit: lang === 'es' ? 'Enviar Respuestas' : 'Submit Answers',
+    results: lang === 'es' ? 'Resultados' : 'Results',
+    correct: lang === 'es' ? 'Correcto' : 'Correct',
+    wrong: lang === 'es' ? 'Incorrecto' : 'Wrong',
+    retry: lang === 'es' ? 'Reintentar Fallidas' : 'Retry Missed',
+    nextLevel: lang === 'es' ? 'Siguiente Nivel' : 'Next Level',
+    finish: lang === 'es' ? 'Salir' : 'Exit',
+    secondChance: lang === 'es' ? 'Segunda Oportunidad' : 'Second Opportunity',
+    previouslyFailed: lang === 'es' ? 'Preguntas falladas previamente' : 'Previously failed questions',
+    explanation: lang === 'es' ? 'Explicación' : 'Explanation',
+    correctAnswer: lang === 'es' ? 'Respuesta Correcta' : 'Correct Answer',
+    yourAnswer: lang === 'es' ? 'Tu Respuesta' : 'Your Answer'
+  };
+
+  // --- Renderers ---
 
   const renderDashboard = () => (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        {/* Welcome Header */}
-        <div className="bg-slate-900/80 border border-white/10 rounded-[32px] p-8 relative overflow-hidden backdrop-blur-md shadow-xl">
-            <div className="relative z-10 flex flex-col md:flex-row gap-8 items-start md:items-center">
-                <div className="flex-1 space-y-4">
-                    <div className="flex items-center gap-3 mb-2">
-                        <div className="p-2 bg-brand-500/20 rounded-xl text-brand-400">
-                            <Lightbulb size={24} />
-                        </div>
-                        <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight">
-                            {text.welcomeTitle}
-                        </h2>
-                    </div>
-                    <div className="space-y-2">
-                        {text.welcomeSteps.map((step, i) => (
-                            <p key={i} className="text-slate-300 text-sm md:text-base font-medium leading-relaxed flex items-start gap-2">
-                                <span className="text-brand-500 font-bold">•</span> {step}
-                            </p>
-                        ))}
-                    </div>
-                    <p className="text-white/60 text-xs font-bold uppercase tracking-widest pt-2">
-                        {text.welcomeSubtitle}
-                    </p>
-                </div>
-                <div className="hidden md:block opacity-20 rotate-12">
-                    <BookOpen size={140} className="text-white" />
-                </div>
-            </div>
-            <div className="absolute top-0 right-0 w-64 h-64 bg-brand-600/10 rounded-full blur-[80px] pointer-events-none"></div>
+    <div className="max-w-5xl mx-auto pt-6 px-4">
+      <div className="flex justify-between items-end mb-8">
+        <div>
+          <h2 className="text-4xl font-black text-white tracking-tight">{text.myLessons}</h2>
+          <p className="text-slate-400 font-medium mt-1">{savedLessons.length} lessons in progress</p>
         </div>
-
-        {/* Hero Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-gradient-to-br from-indigo-600 to-violet-700 p-6 rounded-3xl text-white shadow-xl relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-4 opacity-10 text-6xl">⚡</div>
-                <p className="text-indigo-200 text-xs font-black uppercase tracking-widest">{text.statsXP}</p>
-                <p className="text-4xl font-black mt-1">{totalXP}</p>
-            </div>
-            <div className="bg-slate-800 p-6 rounded-3xl text-white border border-white/5 relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-4 opacity-5 text-6xl">📚</div>
-                <p className="text-slate-400 text-xs font-black uppercase tracking-widest">{text.statsLessons}</p>
-                <p className="text-4xl font-black mt-1">{completedCount} <span className="text-lg text-slate-500 font-bold">/ {savedLessons.length}</span></p>
-            </div>
-            <div className="bg-slate-800 p-6 rounded-3xl text-white border border-white/5 relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-4 opacity-5 text-6xl">🧠</div>
-                <p className="text-slate-400 text-xs font-black uppercase tracking-widest">{text.statsWords}</p>
-                <p className="text-4xl font-black mt-1">{wordsLearned}</p>
-            </div>
-        </div>
-
-        {/* Create Button */}
         <button 
-            onClick={() => setViewState('generator')}
-            className="w-full py-6 rounded-[32px] border-4 border-dashed border-white/10 hover:border-brand-500/50 hover:bg-brand-500/5 transition-all flex flex-col items-center justify-center gap-2 group"
+          onClick={() => setViewState('create')} 
+          className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-2xl font-bold shadow-lg transition-transform active:scale-95 flex items-center gap-2"
         >
-            <div className="w-12 h-12 bg-brand-500 rounded-full flex items-center justify-center text-white text-2xl shadow-lg group-hover:scale-110 transition-transform"><Plus /></div>
-            <span className="text-slate-400 font-bold group-hover:text-brand-400 transition-colors">{text.createBtn}</span>
+          <Plus size={20} /> {text.create}
         </button>
+      </div>
 
-        {/* Lesson Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {savedLessons.map(lesson => (
-                <div 
-                    key={lesson.id}
-                    onClick={() => loadLesson(lesson)}
-                    className="bg-slate-900/50 hover:bg-slate-900 border border-white/5 hover:border-white/20 p-6 rounded-[32px] transition-all cursor-pointer group relative overflow-hidden"
-                >
-                    <div className="flex justify-between items-start mb-4">
-                        <span className="px-3 py-1 bg-slate-800 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-400">Lvl {lesson.numericLevel}</span>
-                        <div className="flex gap-2">
-                            {lesson.completed && <span className="text-emerald-400"><CheckCircle size={18} /></span>}
-                            <button onClick={(e) => deleteLesson(lesson.id, e)} className="text-slate-600 hover:text-red-400"><Trash2 size={18} /></button>
-                        </div>
-                    </div>
-                    
-                    <h3 className="text-xl font-black text-white mb-2 line-clamp-1 group-hover:text-brand-400 transition-colors">{lesson.topic}</h3>
-                    <p className="text-slate-500 text-xs line-clamp-2 mb-6 h-8">
-                        {typeof lesson.summary === 'string' ? lesson.summary.substring(0, 60) : lesson.summary.en.substring(0, 60)}...
-                    </p>
-                    
-                    <div className="space-y-2">
-                        <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                            <span>{text.inProgress}</span>
-                            <span>{lesson.progress}%</span>
-                        </div>
-                        <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
-                            <div className="h-full bg-brand-500 transition-all duration-1000" style={{ width: `${lesson.progress}%` }}></div>
-                        </div>
-                    </div>
-                </div>
-            ))}
+      {savedLessons.length === 0 ? (
+        <div className="text-center py-20 opacity-40">
+          <BookOpen size={64} className="mx-auto mb-4 text-slate-500" />
+          <p className="text-xl font-bold">No active lessons.</p>
         </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {savedLessons.map(l => (
+            <motion.div 
+              key={l.id}
+              onClick={() => { 
+                  setActiveLesson(l); 
+                  setViewState('lesson'); 
+                  setQuizAnswers({});
+                  setQuizSubmitted(false);
+                  setRetryMode(false);
+                  setWrongIndices([]);
+                  setQuestionsToRetry([]);
+              }}
+              whileHover={{ y: -5 }}
+              className="bg-slate-900 border border-white/5 p-6 rounded-[32px] cursor-pointer hover:border-blue-500/50 transition-all group"
+            >
+              <div className="flex justify-between items-start mb-4">
+                <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-slate-800 text-slate-400`}>
+                  In Progress
+                </span>
+                <span className="text-xs font-bold text-slate-500">Lvl {l.numericLevel}</span>
+              </div>
+              <h3 className="text-xl font-black text-white mb-2 line-clamp-2 group-hover:text-blue-400 transition-colors">{l.title}</h3>
+              <p className="text-slate-400 text-sm line-clamp-2">{l.topic}</p>
+            </motion.div>
+          ))}
+        </div>
+      )}
     </div>
   );
 
-  const renderGenerator = () => (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8 animate-in zoom-in-95 duration-300">
-        <button onClick={() => setViewState('dashboard')} className="self-start text-slate-500 hover:text-white font-bold text-sm uppercase tracking-widest">{text.backToDash}</button>
-        <div className="w-full max-w-lg bg-slate-900 border border-white/10 p-8 rounded-[40px] shadow-2xl relative overflow-hidden">
-            {loading ? (
-                <div className="flex flex-col items-center py-10">
-                    <div className="w-32 h-32"><Lottie animationData={LOADING_LOTTIE} loop={true} /></div>
-                    <p className="text-brand-400 font-bold animate-pulse mt-4">{text.generating}</p>
-                </div>
-            ) : (
-                <div className="space-y-6">
-                    <div className="text-center space-y-3">
-                        <h2 className="text-3xl font-black text-white">{text.genTitle}</h2>
-                        <div className="bg-blue-900/30 p-4 rounded-2xl border border-blue-500/20">
-                            <p className="text-blue-100 text-sm font-medium leading-relaxed">
-                                {text.genDesc}
-                            </p>
-                        </div>
-                    </div>
-                    
-                    <div className="space-y-2">
-                        <label className="text-xs font-black text-slate-500 uppercase tracking-widest">{text.topicLabel}</label>
-                        <input 
-                            value={topic}
-                            onChange={(e) => setTopic(e.target.value)}
-                            className="w-full bg-slate-950 border border-white/10 rounded-2xl p-4 text-white outline-none focus:border-brand-500 transition-all"
-                            placeholder="e.g. Ordering Coffee, Job Interview..."
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-xs font-black text-slate-500 uppercase tracking-widest">{text.levelLabel} ({masteryLevel})</label>
-                        <input 
-                            type="range" min="1" max="100" 
-                            value={masteryLevel} 
-                            onChange={(e) => setMasteryLevel(parseInt(e.target.value))}
-                            className="w-full accent-brand-500 h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer"
-                        />
-                    </div>
-                    <button 
-                        onClick={handleGenerate}
-                        disabled={!topic.trim()}
-                        className="w-full py-4 bg-brand-600 hover:bg-brand-500 text-white font-black rounded-2xl shadow-lg transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100"
-                    >
-                        {text.startBtn}
+  const renderCreate = () => (
+    <div className="max-w-2xl mx-auto pt-6 px-4 flex flex-col min-h-[80vh] justify-center">
+      <button onClick={() => setViewState('dashboard')} className="self-start text-slate-500 font-bold mb-8 hover:text-white flex items-center gap-2">
+        <ArrowLeft size={18} /> Back
+      </button>
+
+      {loading ? (
+        <div className="text-center">
+          <div className="text-6xl mb-6 animate-bounce">👨‍🏫</div>
+          <h3 className="text-2xl font-black text-white animate-pulse">{text.generating}</h3>
+        </div>
+      ) : (
+        <div className="space-y-10">
+          <div>
+            <h3 className="text-2xl font-black text-white mb-6 text-center">{text.pickTopic}</h3>
+            <div className="flex flex-wrap justify-center gap-4 mb-6">
+              {TOPICS.map(t => (
+                <button
+                  key={t.id}
+                  onClick={() => { setSelectedTopic(t.label); setCustomTopic(''); }}
+                  className={`p-6 rounded-3xl flex flex-col items-center gap-3 transition-all w-32 ${selectedTopic === t.label ? `${t.bg} text-white shadow-xl scale-105` : 'bg-slate-900 text-slate-400 hover:bg-slate-800'}`}
+                >
+                  <t.icon size={32} />
+                  <span className="text-xs font-black uppercase tracking-wide">{t.label}</span>
+                </button>
+              ))}
+            </div>
+            <input 
+              type="text" 
+              placeholder={text.customPlaceholder}
+              value={customTopic}
+              onChange={e => { setCustomTopic(e.target.value); setSelectedTopic(''); }}
+              onKeyDown={e => e.key === 'Enter' && (selectedTopic || customTopic) && handleGenerate()}
+              className="w-full bg-slate-900 border-2 border-slate-800 rounded-2xl p-5 text-white text-center font-bold focus:border-blue-500 outline-none transition-colors"
+            />
+          </div>
+
+          <div>
+            <div className="flex justify-between text-xs font-bold text-slate-500 mb-2 uppercase tracking-widest px-2">
+                <span>Beginner</span>
+                <span>Native</span>
+            </div>
+            <input 
+              type="range" 
+              min="1" max="100" 
+              value={difficulty} 
+              onChange={e => setDifficulty(parseInt(e.target.value))}
+              className="w-full h-4 bg-slate-800 rounded-full appearance-none cursor-pointer accent-blue-500"
+            />
+            <div className="text-center mt-2 font-black text-blue-400 text-xl">
+                {difficulty}
+                <span className="text-xs text-slate-500 ml-2 uppercase font-bold tracking-wider">
+                    {difficulty < 20 ? 'Novice' : difficulty < 60 ? 'Intermediate' : 'Advanced'}
+                </span>
+            </div>
+          </div>
+
+          <button 
+            onClick={handleGenerate}
+            disabled={!selectedTopic && !customTopic}
+            className="w-full py-5 bg-white text-slate-900 font-black rounded-[24px] text-xl uppercase tracking-widest shadow-2xl hover:scale-105 transition-transform disabled:opacity-50 disabled:scale-100"
+          >
+            {text.generate}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderLesson = () => {
+    if (loading) {
+       return (
+        <div className="flex items-center justify-center h-full">
+          <div className="text-center">
+            <div className="text-6xl mb-6 animate-bounce">🚀</div>
+            <h3 className="text-2xl font-black text-white animate-pulse">{text.generating}</h3>
+          </div>
+        </div>
+       );
+    }
+
+    if (!activeLesson) return null;
+    const c = activeLesson.content as any;
+
+    return (
+      <div className="max-w-3xl mx-auto pb-24 pt-6 px-4">
+        <div className="flex justify-between items-center mb-8 sticky top-0 bg-slate-950/90 backdrop-blur p-4 z-20 -mx-4 rounded-b-3xl border-b border-white/5 shadow-xl">
+          <button onClick={() => setViewState('dashboard')} className="text-slate-400 font-bold hover:text-white"><ArrowLeft /></button>
+          <div className="flex bg-slate-900 rounded-full p-1 border border-white/10">
+            <button onClick={() => setViewMode('study')} className={`px-6 py-2 rounded-full text-xs font-black uppercase tracking-widest transition-all ${viewMode === 'study' ? 'bg-white text-black' : 'text-slate-500'}`}>Study</button>
+            <button onClick={() => setViewMode('quiz')} className={`px-6 py-2 rounded-full text-xs font-black uppercase tracking-widest transition-all ${viewMode === 'quiz' ? 'bg-white text-black' : 'text-slate-500'}`}>Quiz ({activeLesson.quiz.length})</button>
+          </div>
+        </div>
+
+        <h1 className="text-4xl font-black text-white text-center mb-2">{activeLesson.title}</h1>
+        <p className="text-center text-slate-500 font-medium mb-12">{activeLesson.topic} • Level {activeLesson.numericLevel}</p>
+
+        <AnimatePresence mode="wait">
+          {viewMode === 'study' ? (
+            <motion.div key="study" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-8">
+              {/* Concept Card */}
+              <div className="bg-slate-900/50 border border-white/10 p-8 rounded-[40px] relative overflow-hidden backdrop-blur-sm group hover:border-yellow-500/30 transition-colors">
+                <div className="absolute top-0 left-0 w-2 h-full bg-yellow-500" />
+                <div className="flex justify-between items-start mb-4">
+                    <h3 className="text-2xl font-black text-white flex items-center gap-3">
+                    <Lightbulb className="text-yellow-500" /> Core Concept
+                    </h3>
+                    <button onClick={() => playAudio(c.concept.en)} className="p-2 bg-white/5 hover:bg-white/10 rounded-full text-yellow-400 transition-colors">
+                        <Volume2 size={20} />
                     </button>
                 </div>
-            )}
-        </div>
-    </div>
-  );
-
-  const renderLessonView = () => {
-      if (!activeLesson) return null;
-      
-      return (
-        <div className="space-y-6 animate-in slide-in-from-right-8 duration-500">
-            <div className="flex items-center justify-between">
-                <button onClick={() => setViewState('dashboard')} className="text-slate-500 hover:text-white font-bold text-sm uppercase tracking-widest">{text.backToDash}</button>
-                <div className="flex bg-slate-800 p-1 rounded-xl">
-                    {(['quick', 'deep', 'mastery'] as const).map(mode => (
-                        <button
-                            key={mode}
-                            onClick={() => setViewMode(mode)}
-                            disabled={mode === 'mastery' && !activeLesson.completed}
-                            className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${viewMode === mode ? 'bg-white text-slate-900 shadow-md' : 'text-slate-400 hover:text-white'} ${mode === 'mastery' && !activeLesson.completed ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        >
-                            {mode === 'mastery' ? (activeLesson.completed ? text.masteryMode : <span className="flex items-center gap-1"><Lock size={12}/> Mastery</span>) : mode === 'quick' ? 'Summary' : 'Deep Dive'}
-                        </button>
-                    ))}
+                <p className="text-lg text-slate-200 leading-relaxed mb-6">{c.concept.en}</p>
+                <div className="bg-black/30 p-4 rounded-2xl border border-white/5">
+                  <p className="text-slate-400 italic text-sm">{c.concept.es}</p>
                 </div>
-            </div>
+              </div>
 
-            <div className="bg-slate-900/50 border border-white/5 rounded-[40px] p-8 md:p-12 relative overflow-hidden min-h-[60vh]">
-                <h1 className="text-4xl font-black text-white mb-8 tracking-tight">{activeLesson.title}</h1>
-                
-                <AnimatePresence mode="wait">
-                    {viewMode === 'quick' && (
-                        <motion.div key="quick" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-8">
-                            {renderBilingualBlock(activeLesson.summary)}
-                            
-                            {/* Vocab Grid */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-8 border-t border-white/10">
-                                {activeLesson.vocabulary.map((v, i) => (
-                                    <div key={i} className="bg-white/5 p-4 rounded-2xl border border-white/5">
-                                        <p className="font-black text-white text-lg">{v.word}</p>
-                                        <p className="text-brand-400 text-sm italic mb-2">{v.translation}</p>
-                                        <p className="text-slate-400 text-xs">{v.example}</p>
-                                    </div>
+              {/* Scenario Card */}
+              <div className="bg-slate-900/50 border border-white/10 p-8 rounded-[40px] relative overflow-hidden backdrop-blur-sm group hover:border-blue-500/30 transition-colors">
+                <div className="absolute top-0 left-0 w-2 h-full bg-blue-500" />
+                <div className="flex justify-between items-start mb-4">
+                    <h3 className="text-2xl font-black text-white flex items-center gap-3">
+                    <MessageCircle className="text-blue-500" /> Scenario
+                    </h3>
+                    <button onClick={() => playAudio(c.scenario.en)} className="p-2 bg-white/5 hover:bg-white/10 rounded-full text-blue-400 transition-colors">
+                        <Volume2 size={20} />
+                    </button>
+                </div>
+                <p className="text-lg text-slate-200 leading-relaxed font-serif italic mb-4">"{c.scenario.en}"</p>
+                <p className="text-sm text-slate-500 leading-relaxed font-serif italic mt-2">"{c.scenario.es}"</p>
+              </div>
+
+              {/* Vocab Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {activeLesson.vocabulary.map((v, i) => (
+                  <div key={i} className="bg-slate-900 p-5 rounded-[24px] border border-white/5 hover:border-white/20 transition-colors flex justify-between items-center group">
+                    <div>
+                        <p className="font-black text-white text-xl">{v.word}</p>
+                        <p className="text-purple-400 text-sm font-bold uppercase tracking-wider mt-1">{v.translation}</p>
+                    </div>
+                    <button onClick={() => playAudio(v.word)} className="p-2 bg-white/5 hover:bg-white/10 rounded-full text-slate-400 hover:text-white opacity-0 group-hover:opacity-100 transition-all">
+                        <Volume2 size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Ready to Quiz Button */}
+              <div className="mt-8 text-center pb-8">
+                <button 
+                  onClick={() => setViewMode('quiz')}
+                  className="bg-brand-600 text-white px-10 py-4 rounded-full font-black text-lg shadow-xl hover:scale-105 transition-transform flex items-center gap-2 mx-auto active:scale-95 shadow-brand-500/20"
+                >
+                  {text.readyForQuiz} <ArrowRight size={20} />
+                </button>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div key="quiz" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-8">
+              
+              {/* RESULTS VIEW */}
+              {quizSubmitted ? (
+                  <div className="space-y-8">
+                      <div className="bg-slate-900 border border-white/10 rounded-[32px] p-8 text-center">
+                          <h2 className="text-3xl font-black text-white mb-2">{text.results}</h2>
+                          
+                          {/* Score Display */}
+                          <div className="text-5xl font-black mb-4">
+                              <span className="text-green-400">
+                                  {activeLesson.quiz.length - wrongIndices.length}
+                              </span>
+                              <span className="text-slate-600"> / </span>
+                              <span className="text-white">
+                                  {activeLesson.quiz.length}
+                              </span>
+                          </div>
+
+                          <div className="flex justify-center gap-4">
+                              {/* Show Retry ONLY if there are wrongs AND we are not already in retry mode */}
+                              {wrongIndices.length > 0 && !retryMode ? (
+                                  <button onClick={handleRetryMissed} className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-3 rounded-xl font-bold transition-colors flex items-center gap-2">
+                                      <RotateCcw size={18} /> {text.retry}
+                                  </button>
+                              ) : (
+                                  // Success or End of Cycle
+                                  <button onClick={handleNextLevel} className="bg-green-600 hover:bg-green-500 text-white px-8 py-3 rounded-xl font-bold transition-colors flex items-center gap-2 shadow-lg shadow-green-500/20">
+                                      <Rocket size={18} /> {text.nextLevel}
+                                  </button>
+                              )}
+                              
+                              {/* Exit Option */}
+                              <button onClick={handleFinishLesson} className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-6 py-3 rounded-xl font-bold transition-colors flex items-center gap-2">
+                                  <Award size={18} /> {text.finish}
+                              </button>
+                          </div>
+                      </div>
+
+                      <div className="space-y-6">
+                          {activeLesson.quiz.map((q, idx) => {
+                              if (retryMode && !questionsToRetry.includes(idx)) return null;
+
+                              const isWrong = wrongIndices.includes(idx);
+                              const userAnswer = quizAnswers[idx];
+                              
+                              return (
+                                  <div key={idx} className={`p-6 rounded-3xl border-l-4 ${isWrong ? 'bg-red-500/5 border-red-500' : 'bg-green-500/5 border-green-500'}`}>
+                                      <div className="flex justify-between mb-2">
+                                          <span className="text-sm font-bold text-slate-400">Question {idx + 1}</span>
+                                          <span className={`text-xs font-black uppercase ${isWrong ? 'text-red-400' : 'text-green-400'}`}>
+                                              {isWrong ? text.wrong : text.correct}
+                                          </span>
+                                      </div>
+                                      <p className="font-bold text-white text-lg mb-4">{q.question}</p>
+                                      
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mb-4">
+                                          <div className={`p-3 rounded-xl ${isWrong ? 'bg-red-500/10 text-red-200' : 'bg-green-500/10 text-green-200'}`}>
+                                              <span className="block text-[10px] font-bold uppercase opacity-70 mb-1">{text.yourAnswer}</span>
+                                              {userAnswer || 'No answer'}
+                                          </div>
+                                          <div className="p-3 rounded-xl bg-blue-500/10 text-blue-200">
+                                              <span className="block text-[10px] font-bold uppercase opacity-70 mb-1">{text.correctAnswer}</span>
+                                              {q.answer}
+                                          </div>
+                                      </div>
+                                      
+                                      {q.explanation && (
+                                          <div className="pt-4 border-t border-white/5 text-slate-300 text-sm italic flex gap-3">
+                                              <Lightbulb size={18} className="text-yellow-500 shrink-0 mt-0.5" />
+                                              <div>
+                                                  <span className="font-bold text-yellow-500 block text-xs uppercase mb-1">{text.explanation}</span>
+                                                  {q.explanation}
+                                              </div>
+                                          </div>
+                                      )}
+                                  </div>
+                              );
+                          })}
+                      </div>
+                  </div>
+              ) : (
+                  <>
+                    {retryMode && (
+                        <div className="bg-amber-500/10 border border-amber-500/50 p-4 rounded-2xl flex items-center gap-3 text-amber-200 mb-6 animate-pulse">
+                            <AlertTriangle size={24} />
+                            <div>
+                                <p className="font-black text-sm uppercase tracking-wide">{text.secondChance}</p>
+                                <p className="text-xs">{text.previouslyFailed}</p>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeLesson.quiz.map((q, idx) => {
+                        if (retryMode && !questionsToRetry.includes(idx)) return null;
+
+                        return (
+                            <div key={idx} className={`bg-slate-900/80 p-8 rounded-[40px] border backdrop-blur-md transition-colors ${retryMode ? 'border-amber-500/30' : 'border-white/10'}`}>
+                            <div className="flex items-center gap-4 mb-6">
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-white border ${retryMode ? 'bg-amber-900 border-amber-500' : 'bg-slate-800 border-white/5'}`}>
+                                    {idx + 1}
+                                </div>
+                                <p className="font-bold text-white text-lg leading-tight">{q.question}</p>
+                            </div>
+                            <div className="grid gap-3 pl-14">
+                                {q.options.map(opt => (
+                                <button
+                                    key={opt}
+                                    onClick={() => setQuizAnswers({...quizAnswers, [idx]: opt})}
+                                    className={`p-4 rounded-2xl text-left font-medium border-2 transition-all active:scale-[0.99] ${
+                                    quizAnswers[idx] === opt 
+                                        ? 'bg-blue-600 border-blue-500 text-white shadow-lg' 
+                                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-600 hover:bg-slate-900'
+                                    }`}
+                                >
+                                    {opt}
+                                </button>
                                 ))}
                             </div>
-
-                            {/* Quiz Preview */}
-                            {!activeLesson.completed && (
-                                <div className="mt-8 p-6 bg-indigo-900/20 rounded-3xl border border-indigo-500/30 text-center">
-                                    <h3 className="text-xl font-black text-white mb-2">Ready to master this?</h3>
-                                    <p className="text-indigo-200 text-sm mb-4">Complete the quiz below to unlock Mastery Mode.</p>
-                                    <div className="space-y-4 text-left">
-                                        {activeLesson.quiz.map((q, idx) => (
-                                            <div key={idx} className="space-y-2">
-                                                <p className="font-bold text-white">{idx + 1}. {q.question}</p>
-                                                <div className="grid grid-cols-2 gap-2">
-                                                    {q.options.map(opt => (
-                                                        <button 
-                                                            key={opt}
-                                                            onClick={() => !activeLesson.completed && setUserAnswers({...userAnswers, [idx]: opt})}
-                                                            className={`p-3 rounded-xl text-sm font-medium border transition-all ${
-                                                                userAnswers[idx] === opt 
-                                                                ? 'bg-brand-600 border-brand-500 text-white' 
-                                                                : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'
-                                                            } ${activeLesson.completed && opt === q.answer ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400' : ''}`}
-                                                        >
-                                                            {opt}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <button 
-                                        onClick={checkQuiz}
-                                        disabled={activeLesson.completed}
-                                        className="mt-8 px-8 py-3 bg-white text-indigo-900 font-black rounded-full shadow-lg hover:scale-105 transition-transform disabled:opacity-50"
-                                    >
-                                        {activeLesson.completed ? 'Quiz Passed!' : 'Submit Quiz'}
-                                    </button>
-                                </div>
-                            )}
-                        </motion.div>
-                    )}
-
-                    {viewMode === 'deep' && (
-                        <motion.div key="deep" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
-                            {renderBilingualBlock(activeLesson.content)}
-                        </motion.div>
-                    )}
-
-                    {viewMode === 'mastery' && (
-                        <motion.div key="mastery" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col h-full">
-                            <div className="bg-gradient-to-br from-amber-500/20 to-orange-600/20 p-8 rounded-[32px] border border-amber-500/30 flex-1 flex flex-col">
-                                <div className="flex items-center gap-3 mb-6">
-                                    <div className="p-3 bg-amber-500 rounded-xl text-white"><PenTool /></div>
-                                    <div>
-                                        <h3 className="text-2xl font-black text-white">{text.masteryMode}</h3>
-                                        <p className="text-amber-200/80 text-sm font-bold">{text.masteryPrompt}</p>
-                                    </div>
-                                </div>
-                                
-                                <div className="bg-slate-950/50 p-6 rounded-2xl mb-6 border border-white/5">
-                                    <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-2">Challenge:</p>
-                                    <p className="text-white text-lg font-medium">"{text.writePrompt}"</p>
-                                    <div className="flex flex-wrap gap-2 mt-4">
-                                        {activeLesson.vocabulary.map((v,i) => (
-                                            <span key={i} className="px-2 py-1 bg-white/10 rounded text-xs text-slate-300 font-mono">{v.word}</span>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {masteryFeedback ? (
-                                    <div className="bg-white/10 p-6 rounded-2xl border border-white/10 text-center animate-in zoom-in">
-                                        <div className="flex justify-center gap-2 mb-4 text-3xl text-amber-400">
-                                            {[...Array(5)].map((_, i) => (
-                                                <Star key={i} fill={i < masteryFeedback.stars ? "currentColor" : "none"} />
-                                            ))}
-                                        </div>
-                                        <p className="text-white text-lg font-medium italic">"{masteryFeedback.text}"</p>
-                                        <button onClick={() => setMasteryFeedback(null)} className="mt-6 text-slate-400 hover:text-white text-sm font-bold underline">Try Again</button>
-                                    </div>
-                                ) : (
-                                    <>
-                                        <textarea 
-                                            value={masteryInput}
-                                            onChange={e => setMasteryInput(e.target.value)}
-                                            className="w-full flex-1 bg-slate-900 border border-white/10 rounded-2xl p-6 text-white text-lg outline-none focus:border-amber-500 transition-all resize-none min-h-[200px]"
-                                            placeholder="Start writing here..."
-                                        />
-                                        <button 
-                                            onClick={submitMastery}
-                                            disabled={isEvaluating || !masteryInput.trim()}
-                                            className="mt-6 w-full py-4 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-2xl shadow-lg transition-all active:scale-95 disabled:opacity-50"
-                                        >
-                                            {isEvaluating ? 'Professor Tomas is reading...' : text.submitMastery}
-                                        </button>
-                                    </>
-                                )}
                             </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-            </div>
-        </div>
-      );
+                        );
+                    })}
+                    <div className="text-center pt-8 pb-12">
+                        <button 
+                        onClick={handleSubmitQuiz}
+                        className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-12 py-5 rounded-full font-black text-xl shadow-xl hover:scale-105 transition-transform hover:shadow-blue-500/30"
+                        >
+                        {text.submit}
+                        </button>
+                    </div>
+                  </>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
   };
 
   return (
-    <div className="h-full overflow-y-auto pb-20 px-2 font-sans hide-scrollbar">
-        {viewState === 'dashboard' && renderDashboard()}
-        {viewState === 'generator' && renderGenerator()}
-        {viewState === 'lesson' && renderLessonView()}
+    <div className="h-full overflow-y-auto hide-scrollbar bg-slate-950 font-sans">
+      {viewState === 'dashboard' && renderDashboard()}
+      {viewState === 'create' && renderCreate()}
+      {viewState === 'lesson' && renderLesson()}
     </div>
   );
 };

@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Language, AppSection } from '../types';
 import { searchBilingualJobs, JobListing } from '../services/gemini';
 import { Briefcase, MapPin, Clock, ExternalLink, ArrowLeft, Search, Globe, DollarSign } from 'lucide-react';
+import { useAnimationVariants } from '../utils/performance';
 
 interface JobsBoardProps {
   lang: Language;
@@ -14,6 +15,7 @@ const JobsBoard: React.FC<JobsBoardProps> = ({ lang, onNavigate }) => {
   const [jobs, setJobs] = useState<JobListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const animationVariants = useAnimationVariants();
 
   useEffect(() => {
     const fetchJobs = async () => {
@@ -43,19 +45,6 @@ const JobsBoard: React.FC<JobsBoardProps> = ({ lang, onNavigate }) => {
     location: lang === 'es' ? 'Ubicación' : 'Location',
     source: lang === 'es' ? 'Fuente' : 'Source',
     noJobs: lang === 'es' ? 'No se encontraron trabajos recientes. Intenta más tarde.' : 'No recent jobs found. Try again later.'
-  };
-
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: { staggerChildren: 0.1 }
-    }
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    show: { opacity: 1, y: 0 }
   };
 
   return (
@@ -103,15 +92,15 @@ const JobsBoard: React.FC<JobsBoardProps> = ({ lang, onNavigate }) => {
           </div>
         ) : jobs.length > 0 ? (
           <motion.div 
-            variants={containerVariants}
+            variants={animationVariants.container}
             initial="hidden"
-            animate="show"
+            animate="visible"
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
           >
             {jobs.map((job, idx) => (
               <motion.div
                 key={idx}
-                variants={itemVariants}
+                variants={animationVariants.slideUp}
                 whileHover={{ y: -5, transition: { duration: 0.2 } }}
                 className="group relative bg-slate-900/40 backdrop-blur-md border border-white/10 hover:border-blue-500/50 rounded-[32px] p-6 flex flex-col h-full shadow-xl overflow-hidden transition-all"
               >

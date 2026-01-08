@@ -12,7 +12,7 @@ export interface Lesson {
   content: ContentBlock | string;
   summary: ContentBlock | string;
   vocabulary: { word: string; translation: string; example: string }[];
-  quiz: { question: string; options: string[]; answer: string }[];
+  quiz: { question: string; options: string[]; answer: string; explanation?: string }[];
 }
 
 export interface SavedLesson extends Lesson {
@@ -30,6 +30,8 @@ export interface SavedLesson extends Lesson {
 }
 
 export type Language = 'es' | 'en';
+export type CEFRLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2' | 'PhD';
+export type SpecializationTrack = 'General' | 'Medical' | 'Legal' | 'Academic' | 'Business';
 
 export enum AppSection {
   Home = 'home',
@@ -145,31 +147,15 @@ export interface GameState {
   feedback?: string;
 }
 
-// --- Immersion Training Types ---
-
-export interface ProfessorPersona {
+// --- SRS Types ---
+export interface SRSItem {
   id: string;
-  name: string;
-  role: string;
-  tone: string;
-  specialty: string;
-  emoji: string;
-  color: string;
-  systemPromptAddon: string;
-}
-
-export interface KnowledgeCheckItem {
-  id: string;
-  question: string;
-  options: string[];
-  correctAnswer: string;
-  explanation: string;
-}
-
-export interface ImmersionMission {
-  id: string;
-  title: string;
-  objective: string;
-  steps: string[];
-  knowledgeChecks: KnowledgeCheckItem[];
+  term: string; // The word or chunk
+  translation: string;
+  context: string;
+  level: CEFRLevel;
+  nextReview: number; // timestamp
+  interval: number; // days
+  repetition: number;
+  easeFactor: number;
 }

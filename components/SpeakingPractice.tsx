@@ -1,316 +1,163 @@
 
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality, Blob } from '@google/genai';
 import { encodeAudio, decodeBase64Audio, decodeAudioData } from '../services/gemini';
-import { Language, ProfessorPersona } from '../types';
+import { Language } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
-import OptimizedImage from '../utils/performance';
+import { Mic, MicOff, Volume2, ArrowRight, Play, Trophy, RotateCcw, Info, MessageSquare, StopCircle, Zap, User, Flag, CheckCircle, Lock, Coffee } from 'lucide-react';
+import OptimizedImage, { triggerHaptic } from '../utils/performance';
+import { Tooltip } from './Tooltip';
 
 interface SpeakingPracticeProps {
   lang: Language;
   userTier?: 'Novice' | 'Semi Pro' | 'Pro';
 }
 
-type MainPersona = 'tomas' | 'carolina';
-
-// --- Sound Effects ---
-const SFX = {
-  SUCCESS: 'https://assets.mixkit.co/sfx/preview/mixkit-audience-light-applause-354.mp3',
-  GOAL: 'https://www.myinstants.com/media/sounds/gol-caracol-tv.mp3', 
-  BUZZER: 'https://www.myinstants.com/media/sounds/nba-buzzer.mp3', 
-  CROWD: 'https://assets.mixkit.co/sfx/preview/mixkit-animated-small-group-applause-523.mp3',
-};
-
-// --- Mission Topics Pool (5 Steps Each) ---
-const MISSION_TOPICS = [
-  { 
-    id: 'intro', 
-    en: 'Introduction & Greetings', 
-    es: 'Introducción y Saludos', 
-    steps: ['Say "Hello" & Smile', 'State your name clearly', 'Ask "How are you?"', 'Respond to "Nice to meet you"', 'Say "Goodbye" politely'] 
-  },
-  { 
-    id: 'cafe', 
-    en: 'Ordering at a Cafe', 
-    es: 'Pidiendo en una Cafetería', 
-    steps: ['Greet the barista', 'Order a specific drink', 'Ask for the price', 'Pay and say thank you', 'Wish them a good day'] 
-  },
-  // ... (Other missions can be added here)
-];
-
-// --- Smart Avatar with Lip Sync Visualization (Canvas) ---
-interface SmartAvatarProps {
-  imageSrc: string;
-  isSpeaking: boolean;
-  analyser: AnalyserNode | null;
-  color: string;
-  name: string;
-}
-
-const SmartAvatar: React.FC<SmartAvatarProps> = ({ imageSrc, isSpeaking, analyser, color, name }) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const glowRef = useRef<HTMLDivElement>(null);
-  
-  useEffect(() => {
-    if (!isSpeaking || !analyser) {
-        if (glowRef.current) {
-            glowRef.current.style.transform = 'scale(1)';
-            glowRef.current.style.boxShadow = 'none';
-        }
-        const canvas = canvasRef.current;
-        if (canvas) {
-            const ctx = canvas.getContext('2d');
-            ctx?.clearRect(0, 0, canvas.width, canvas.height);
-        }
-        return;
-    }
-    
-    let animationFrameId: number;
-    const dataArray = new Uint8Array(analyser.frequencyBinCount);
-    
-    const draw = () => {
-      analyser.getByteFrequencyData(dataArray);
-      
-      let sum = 0;
-      const binCount = Math.min(dataArray.length, 64); 
-      for (let i = 0; i < binCount; i++) sum += dataArray[i];
-      const average = sum / binCount;
-      const normalize = Math.min(1, average / 128); 
-
-      // 1. "Puppet" Jaw movement & Head Bob simulation
-      if (glowRef.current) {
-          const scaleY = 1 + (normalize * 0.08); 
-          const scaleX = 1 + (normalize * 0.02);
-          glowRef.current.style.transform = `scale(${scaleX}, ${scaleY})`;
-          
-          const shadowOpacity = 0.3 + (normalize * 0.6);
-          const shadowSize = 20 + (normalize * 40);
-          const shadowColor = color.includes('brand') ? '59,130,246' : '236,72,153';
-          glowRef.current.style.boxShadow = `0 0 ${shadowSize}px rgba(${shadowColor}, ${shadowOpacity})`;
-      }
-
-      // 2. Digital Voice Waveform on Mouth Area
-      const canvas = canvasRef.current;
-      if (canvas) {
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            if (average > 5) { 
-                ctx.beginPath();
-                const centerY = canvas.height / 2;
-                ctx.moveTo(0, centerY);
-                
-                ctx.lineWidth = 3;
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
-                ctx.lineCap = 'round';
-                ctx.shadowBlur = 10;
-                ctx.shadowColor = 'white';
-
-                for (let i = 0; i < canvas.width; i++) {
-                    const xProgress = i / canvas.width;
-                    const envelope = Math.sin(xProgress * Math.PI); 
-                    
-                    const freq1 = 0.3;
-                    const freq2 = 0.7;
-                    const phase = Date.now() / 60;
-                    
-                    const displacement = (
-                        Math.sin(i * freq1 + phase) * 0.5 + 
-                        Math.sin(i * freq2 - phase * 1.5) * 0.5
-                    ) * envelope * normalize * (canvas.height * 0.8);
-
-                    ctx.lineTo(i, centerY + displacement);
-                }
-                ctx.stroke();
-            }
-        }
-      }
-      animationFrameId = requestAnimationFrame(draw);
-    };
-    
-    draw();
-    return () => cancelAnimationFrame(animationFrameId);
-  }, [isSpeaking, analyser, color]);
-
-  return (
-    <div className="relative w-full h-full flex flex-col items-center justify-center">
-       <div 
-         ref={glowRef}
-         className={`relative w-full h-full rounded-full overflow-hidden border-4 transition-transform duration-75 ease-out will-change-transform ${isSpeaking ? (color === 'bg-brand-600' ? 'border-brand-500' : 'border-pink-500') : 'border-white/20'}`}
-         style={{ transformOrigin: 'bottom center' }}
-       >
-          <OptimizedImage 
-            src={imageSrc} 
-            alt={name} 
-            className="w-full h-full object-cover" 
-          />
-          {isSpeaking && <div className={`absolute inset-0 opacity-10 mix-blend-overlay ${color}`}></div>}
-       </div>
-       {isSpeaking && (
-         <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute bottom-[15%] left-1/2 -translate-x-1/2 w-[40%] h-[20%] z-20 pointer-events-none"
-         >
-            <canvas ref={canvasRef} width={100} height={50} className="w-full h-full" />
-         </motion.div>
-       )}
-    </div>
-  );
-};
+const TOMAS_AVATAR = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=1000&auto=format&fit=crop";
+const CAROLINA_AVATAR = "https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=1000&auto=format&fit=crop";
 
 const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang, userTier = 'Novice' }) => {
+  // --- STATE ---
+  const [currentLevel, setCurrentLevel] = useState(1);
+  const [professor, setProfessor] = useState<'tomas' | 'carolina'>('tomas');
+  const [isSessionActive, setIsSessionActive] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [isActive, setIsActive] = useState(false);
-  const [selectedPersona, setSelectedPersona] = useState<MainPersona>('tomas');
-  const [missionLevel, setMissionLevel] = useState(1);
-  const [showLevelUp, setShowLevelUp] = useState(false);
-  
-  const [turnCount, setTurnCount] = useState(0);
-  const [activeHelper, setActiveHelper] = useState<ProfessorPersona | null>(null);
   const [isAiSpeaking, setIsAiSpeaking] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   
-  const [completedSteps, setCompletedSteps] = useState<number[]>([]);
-  const [isObjectivesCollapsed, setIsObjectivesCollapsed] = useState(false);
-  const objectivesTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Real-time Data
+  const [currentChallenge, setCurrentChallenge] = useState<string>(''); 
+  const [transcriptions, setTranscriptions] = useState<{role: 'user' | 'model' | 'system', text: string}[]>([]);
+  const [realtimeText, setRealtimeText] = useState('');
 
+  // 5-Mission Block Logic
+  const [missionsCompleted, setMissionsCompleted] = useState(0);
+  const [isBreakTime, setIsBreakTime] = useState(false);
+
+  // Refs
   const audioContextRef = useRef<AudioContext | null>(null);
   const outputAudioContextRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const sessionPromiseRef = useRef<Promise<any> | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const latestLevelRef = useRef(1); // To track level inside callbacks without closure staleness
   const nextStartTimeRef = useRef<number>(0);
-  const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
-  const currentInputTransRef = useRef('');
-  const currentOutputTransRef = useRef('');
-  const sfxRef = useRef<HTMLAudioElement | null>(null);
-  
-  const [analyserNode, setAnalyserNode] = useState<AnalyserNode | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  
-  const [transcriptions, setTranscriptions] = useState<{role: 'user' | 'model', text: string}[]>([]);
-  const [realtimeText, setRealtimeText] = useState('');
-  const [realtimeSource, setRealtimeSource] = useState<'user' | 'model' | null>(null);
+  const isConnectedRef = useRef(false); // Ref for immediate access in loops
 
-  const chatEndRef = useRef<HTMLDivElement>(null);
-
+  // Load Level and Progress on Mount
   useEffect(() => {
-    const savedLevel = localStorage.getItem('tmc_speaking_level');
-    if (savedLevel) setMissionLevel(parseInt(savedLevel));
-    sfxRef.current = new Audio();
-    if (window.innerWidth < 768) setIsObjectivesCollapsed(true);
+    const savedLevel = localStorage.getItem('tmc_speaking_level_v2');
+    const savedMission = localStorage.getItem('tmc_speaking_mission_progress');
+    
+    if (savedLevel) {
+        const lvl = parseInt(savedLevel);
+        setCurrentLevel(lvl);
+        latestLevelRef.current = lvl;
+    }
+    
+    if (savedMission) {
+        setMissionsCompleted(parseInt(savedMission));
+    }
   }, []);
 
+  // Scroll to bottom of chat
   useEffect(() => {
-    if (chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [transcriptions, realtimeText]);
 
-  const saveProgress = (newLevel: number) => {
-    setMissionLevel(newLevel);
-    localStorage.setItem('tmc_speaking_level', newLevel.toString());
-    window.dispatchEvent(new Event('tmc-level-update'));
-  };
+  // --- AUDIO VISUALIZER ---
+  const Visualizer = ({ isSpeaking }: { isSpeaking: boolean }) => (
+    <div className="flex items-center justify-center gap-1.5 h-16 w-full opacity-90">
+      {[...Array(8)].map((_, i) => (
+        <motion.div
+          key={i}
+          animate={{ 
+            height: isSpeaking ? [12, Math.random() * 40 + 16, 12] : [8, 12, 8],
+            backgroundColor: isSpeaking ? '#60a5fa' : '#334155' 
+          }}
+          transition={{ duration: isSpeaking ? 0.15 : 1.5, repeat: Infinity, repeatDelay: isSpeaking ? 0 : 0.1 * i }}
+          className="w-3 rounded-full shadow-[0_0_10px_rgba(96,165,250,0.3)]"
+        />
+      ))}
+    </div>
+  );
 
-  const playSfx = (url: string) => {
-    if (sfxRef.current) {
-      sfxRef.current.src = url;
-      sfxRef.current.volume = 0.5;
-      sfxRef.current.play().catch(e => console.log('SFX block', e));
-    }
-  };
-
-  const showObjectivesBriefly = () => {
-    setIsObjectivesCollapsed(false);
-    if (objectivesTimeoutRef.current) clearTimeout(objectivesTimeoutRef.current);
-    objectivesTimeoutRef.current = setTimeout(() => setIsObjectivesCollapsed(true), 10000);
-  };
-
-  const getMissionConfig = (level: number) => {
-    const topicIndex = (level - 1) % MISSION_TOPICS.length;
-    const topicObj = MISSION_TOPICS[topicIndex];
-    return {
-      topic: lang === 'es' ? topicObj.es : topicObj.en,
-      steps: topicObj.steps,
-      instruction: level <= 5 ? "EASY MODE. Slow speed." : "NORMAL MODE."
-    };
-  };
-
-  const currentMission = useMemo(() => getMissionConfig(missionLevel), [missionLevel, lang]);
-
-  useEffect(() => {
-    const stepsDone = Math.min(5, turnCount);
-    if (stepsDone > completedSteps.length) {
-       const newCompleted = Array.from({length: stepsDone}, (_, i) => i);
-       setCompletedSteps(newCompleted);
-       if (stepsDone <= 5 && stepsDone > 0) playSfx(SFX.SUCCESS);
-       if (stepsDone === 5 && !showLevelUp && isActive) setTimeout(() => handleLevelComplete(), 1500);
-    }
-  }, [turnCount, completedSteps.length, isActive, showLevelUp]);
-
-  const handleLevelComplete = () => {
-      const newLevel = missionLevel + 1;
-      const isMegaMilestone = newLevel % 5 === 0;
-      if (isMegaMilestone) {
-          playSfx(SFX.GOAL);
-          confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 } });
-      } else {
-          playSfx(SFX.CROWD);
-          confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 } });
-      }
-      setShowLevelUp(true);
-  };
-
-  const handleContinueNextLevel = () => {
-      const newLevel = missionLevel + 1;
-      saveProgress(newLevel);
-      setCompletedSteps([]);
-      setTurnCount(0);
-      setShowLevelUp(false);
-      setTranscriptions([]);
-      const nextConfig = getMissionConfig(newLevel);
-      const stepsList = nextConfig.steps.map((s, i) => `${i+1}. ${s}`).join('\n');
-      const newInstructions = `SYSTEM: LEVEL UP! New Topic: ${nextConfig.topic}. Objectives: ${stepsList}`;
-      sessionPromiseRef.current?.then(s => s.sendRealtimeInput({ text: newInstructions }));
-      showObjectivesBriefly();
-  };
-
-  const text = {
-    title: lang === 'es' ? 'Entrenamiento Guiado' : 'Guided Immersion',
-    subtitle: lang === 'es' ? 'Misiones con IA' : 'AI Missions',
-    start: lang === 'es' ? 'COMENZAR MISIÓN' : 'START MISSION',
-    stop: lang === 'es' ? 'Pausar' : 'Pause',
-    level: lang === 'es' ? 'Nivel' : 'Level',
-    missionComplete: lang === 'es' ? '¡MISIÓN COMPLETADA!' : 'MISSION COMPLETE!',
-    continue: lang === 'es' ? 'Continuar' : 'Continue',
-    objectives: lang === 'es' ? 'Objetivos de Misión' : 'Mission Objectives',
-  };
+  // --- SESSION MANAGEMENT ---
 
   const stopSession = useCallback(() => {
+    isConnectedRef.current = false;
+    
     if (sessionPromiseRef.current) {
-      sessionPromiseRef.current.then(s => s.close());
+      sessionPromiseRef.current
+        .then(s => {
+            if (s && typeof s.close === 'function') s.close();
+        })
+        .catch(() => {}); // Ignore errors on close
       sessionPromiseRef.current = null;
     }
+    
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
     }
-    if (audioContextRef.current && audioContextRef.current.state !== 'closed') audioContextRef.current.close();
-    if (outputAudioContextRef.current && outputAudioContextRef.current.state !== 'closed') outputAudioContextRef.current.close();
-    if (objectivesTimeoutRef.current) clearTimeout(objectivesTimeoutRef.current);
-
-    setIsActive(false);
+    
+    try {
+        if (audioContextRef.current?.state !== 'closed') audioContextRef.current?.close();
+        if (outputAudioContextRef.current?.state !== 'closed') outputAudioContextRef.current?.close();
+    } catch(e) { console.error("Audio cleanup error", e); }
+    
+    setIsSessionActive(false);
     setIsConnecting(false);
-    setTurnCount(0);
-    setCompletedSteps([]);
-    setActiveHelper(null);
     setIsAiSpeaking(false);
-    setRealtimeText('');
-    setRealtimeSource(null);
-    setAnalyserNode(null);
-    analyserRef.current = null;
+    // Do NOT reset missionsCompleted here to preserve "Pick up where left off" state
+    setIsBreakTime(false);
   }, []);
+
+  const handleMissionComplete = () => {
+      triggerHaptic('success');
+      
+      setMissionsCompleted(prev => {
+          const newVal = prev + 1;
+          localStorage.setItem('tmc_speaking_mission_progress', newVal.toString());
+          
+          // Check if this completes the block of 5
+          if (newVal >= 5) {
+              setTimeout(() => {
+                  setIsBreakTime(true);
+                  triggerLevelUp(); // Actually level up now
+              }, 1500);
+          }
+          return newVal;
+      });
+
+      setTranscriptions(prev => [...prev, { role: 'system', text: `✨ Mission Complete.` }]);
+  };
+
+  const triggerLevelUp = () => {
+      confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 }, colors: ['#fbbf24', '#f59e0b', '#10b981'] });
+      
+      const nextLevel = latestLevelRef.current + 1;
+      setCurrentLevel(nextLevel);
+      latestLevelRef.current = nextLevel;
+      localStorage.setItem('tmc_speaking_level_v2', nextLevel.toString());
+      
+      // Reset missions for the new level
+      setMissionsCompleted(5); // Keep at 5 visually until they click Continue
+  };
+
+  const handleContinueAfterBreak = () => {
+      setMissionsCompleted(0);
+      localStorage.setItem('tmc_speaking_mission_progress', '0');
+      setIsBreakTime(false);
+      
+      // Re-trigger the AI to start the next block
+      if (sessionPromiseRef.current) {
+          sessionPromiseRef.current.then(session => 
+              session.sendRealtimeInput([{ parts: [{ text: `SYSTEM: User is starting Level ${latestLevelRef.current}. Start Mission 1 of 5 for Level ${latestLevelRef.current} immediately.` }] }])
+          );
+      }
+  };
 
   const createBlob = (data: Float32Array): Blob => {
     const l = data.length;
@@ -323,254 +170,462 @@ const SpeakingPractice: React.FC<SpeakingPracticeProps> = ({ lang, userTier = 'N
   };
 
   const startSession = async () => {
+    triggerHaptic('heavy');
+    setIsSessionActive(true);
+    setIsConnecting(true);
+    setTranscriptions([]);
+    setErrorMsg(null);
+    setIsBreakTime(false);
+    setCurrentChallenge(lang === 'es' ? 'Conectando...' : 'Connecting...');
+    isConnectedRef.current = false;
+
+    // Timeout fail-safe (8 seconds)
+    const timeoutId = setTimeout(() => {
+        if (isConnecting && !isConnectedRef.current) {
+            setErrorMsg(lang === 'es' ? 'Tiempo de espera agotado. Reintentar.' : 'Connection timed out. Retry.');
+            stopSession();
+        }
+    }, 8000);
+
     try {
-      setIsConnecting(true);
-      
       const apiKey = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : '';
-      if (!apiKey) {
-        console.error("API Key missing");
-        alert("API Key is missing. Check your configuration.");
-        setIsConnecting(false);
-        return;
-      }
+      if (!apiKey) throw new Error("API Key missing");
 
-      const ai = new GoogleGenAI({ apiKey });
-      const config = currentMission;
-      const stepsList = config.steps.map((s, i) => `${i+1}. ${s}`).join('\n');
+      // 1. Initialize Audio Contexts immediately
+      const AudioContextClass = (window.AudioContext || (window as any).webkitAudioContext);
+      const inputCtx = new AudioContextClass({ sampleRate: 16000 });
+      const outputCtx = new AudioContextClass({ sampleRate: 24000 });
       
-      const systemInstruction = `You are ${selectedPersona === 'tomas' ? 'Professor Tomas Martinez' : 'Carolina'}. Topic: "${config.topic}". Difficulty: ${config.instruction}. Objectives: ${stepsList}. Speak concise.`;
-
-      // 1. Setup Audio Contexts
-      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
-      const outputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+      audioContextRef.current = inputCtx;
       outputAudioContextRef.current = outputCtx;
+      nextStartTimeRef.current = 0;
 
-      // CRITICAL FIX: Resume AudioContext immediately on user interaction
-      if (outputCtx.state === 'suspended') {
-        await outputCtx.resume();
-      }
+      // 2. Parallelize Stream & AI Connection
+      const ai = new GoogleGenAI({ apiKey });
+      
+      const targetLang = lang === 'es' ? 'English' : 'Spanish';
+      const explainLang = professor === 'tomas' ? 'Spanish' : 'English';
+      const voiceName = professor === 'tomas' ? 'Fenrir' : 'Kore';
+      const professorName = professor === 'tomas' ? 'Professor Tomas' : 'Carolina';
 
-      // 2. Setup Analyzer for Visuals
-      const analyser = outputCtx.createAnalyser();
-      analyser.fftSize = 512;
-      analyser.smoothingTimeConstant = 0.4;
-      analyser.connect(outputCtx.destination);
-      analyserRef.current = analyser;
-      setAnalyserNode(analyser);
+      // UPDATED PROMPT: Strict 5-mission cycle for the specific level
+      const systemInstruction = `
+        IDENTITY: You are ${professorName}.
+        ORIGIN: ${professor === 'tomas' ? 'Colombia' : 'USA'}.
+        CURRENT LEVEL: ${currentLevel} / 500.
+        CURRENT MISSION PROGRESS: ${missionsCompleted} / 5.
+        TARGET LANGUAGE: ${targetLang} (The language the student must speak).
+        EXPLANATION LANGUAGE: ${explainLang} (Your dominant language).
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
+        FORMAT:
+        We are doing a cycle of 5 speaking missions appropriate for Level ${currentLevel}.
+        If Current Mission Progress is 0, start with Mission 1.
+        If Current Mission Progress is 3, start immediately with Mission 4.
 
+        PROTOCOL FOR EVERY TURN:
+        1. EXPLAIN: Briefly explain what the student needs to say in ${explainLang}.
+        2. DEMONSTRATE: Speak the target phrase clearly in ${targetLang}.
+        3. ASK: Ask the student to repeat it (in ${explainLang}).
+        
+        CRITICAL OUTPUT FORMAT:
+        Every time you present a new challenge, you MUST prefix the phrase with "MISSION: ".
+        Example: "MISSION: Say 'Good Morning'. ${explainLang === 'Spanish' ? "Para saludar..." : "To greet..."} Good Morning."
+        
+        VERIFICATION:
+        4. Listen to the user's response.
+        5. IF CORRECT: Say "CORRECT." or "MUY BIEN." immediately, then move to the next numbered mission.
+        6. IF INCORRECT: Explain the mistake in ${explainLang}, say the phrase correctly again in ${targetLang}, and ask them to try again.
+        
+        Structure: Complete the remaining missions up to 5. Be encouraging.
+      `;
+
+      // Start Stream Promise with Noise Cancellation
+      const streamPromise = navigator.mediaDevices.getUserMedia({ 
+          audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+              channelCount: 1
+          } 
+      });
+
+      // Start AI Promise
       const sessionPromise = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-12-2025',
         callbacks: {
           onopen: () => {
-            setIsActive(true);
-            setIsConnecting(false);
-            setTurnCount(0);
-            showObjectivesBriefly();
-            sessionPromise.then(session => session.sendRealtimeInput({ text: `SYSTEM: Start. Level: ${missionLevel}.` }));
-            
-            const source = audioContextRef.current!.createMediaStreamSource(stream);
-            const scriptProcessor = audioContextRef.current!.createScriptProcessor(2048, 1, 1);
-            scriptProcessor.onaudioprocess = (e) => {
-              if (showLevelUp) return; 
-              const inputData = e.inputBuffer.getChannelData(0);
-              sessionPromise.then(session => session.sendRealtimeInput({ media: createBlob(inputData) }));
-            };
-            source.connect(scriptProcessor);
-            scriptProcessor.connect(audioContextRef.current!.destination);
+            clearTimeout(timeoutId);
+            setIsConnecting(false); 
+            isConnectedRef.current = true;
+            // Send trigger message immediately
+            if (sessionPromiseRef.current) {
+                sessionPromiseRef.current.then(session => 
+                    session.sendRealtimeInput([{ parts: [{ text: `SYSTEM_TRIGGER: User is at Mission ${missionsCompleted + 1} of 5 for Level ${currentLevel}. Start immediately.` }] }])
+                ).catch((e) => console.error("Trigger error", e));
+            }
           },
           onmessage: async (message: LiveServerMessage) => {
-            const interrupted = message.serverContent?.interrupted;
-            if (interrupted) {
-                sourcesRef.current.forEach((node) => { try { node.stop(); } catch(e) {} });
-                sourcesRef.current.clear();
-                if (outputAudioContextRef.current) nextStartTimeRef.current = outputAudioContextRef.current.currentTime;
-                setIsAiSpeaking(false);
-                setRealtimeText('');
-                return;
-            }
-
+            // Audio Output
             const base64Audio = message.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
             if (base64Audio && outputAudioContextRef.current) {
               const ctx = outputAudioContextRef.current;
-              nextStartTimeRef.current = Math.max(nextStartTimeRef.current, ctx.currentTime);
               const buffer = await decodeAudioData(decodeBase64Audio(base64Audio), ctx);
+              
               const source = ctx.createBufferSource();
               source.buffer = buffer;
+              source.connect(ctx.destination);
               
-              if (analyserRef.current) source.connect(analyserRef.current);
-              else source.connect(ctx.destination);
+              const currentTime = ctx.currentTime;
+              if (nextStartTimeRef.current < currentTime) {
+                  nextStartTimeRef.current = currentTime;
+              }
               
-              source.onended = () => {
-                 sourcesRef.current.delete(source);
-                 if (sourcesRef.current.size === 0) setIsAiSpeaking(false);
-              };
-              setIsAiSpeaking(true);
               source.start(nextStartTimeRef.current);
               nextStartTimeRef.current += buffer.duration;
-              sourcesRef.current.add(source);
+              
+              setIsAiSpeaking(true);
+              source.onended = () => {
+                  if (ctx.currentTime >= nextStartTimeRef.current - 0.1) {
+                      setIsAiSpeaking(false);
+                  }
+              };
             }
 
-            if (message.serverContent?.inputTranscription) {
-              setRealtimeSource('user');
-              setRealtimeText(prev => prev + message.serverContent?.inputTranscription?.text);
-              currentInputTransRef.current += message.serverContent?.inputTranscription?.text;
-            }
+            // Text / Logic Handling
             if (message.serverContent?.outputTranscription) {
-              setRealtimeSource('model');
               setRealtimeText(prev => prev + message.serverContent?.outputTranscription?.text);
-              currentOutputTransRef.current += message.serverContent?.outputTranscription?.text;
             }
-
+            
             if (message.serverContent?.turnComplete) {
-              const userInput = currentInputTransRef.current;
-              const aiOutput = currentOutputTransRef.current;
-              setTranscriptions(prev => {
-                  const newHistory = [...prev];
-                  if (userInput) newHistory.push({ role: 'user', text: userInput });
-                  if (aiOutput) newHistory.push({ role: 'model', text: aiOutput });
-                  return newHistory;
-              });
-              if (userInput) setTurnCount(prev => prev + 1);
-              currentInputTransRef.current = '';
-              currentOutputTransRef.current = '';
-              setRealtimeText('');
-              setRealtimeSource(null);
+               setRealtimeText((fullText) => {
+                   if (fullText) {
+                       setTranscriptions(prev => [...prev, { role: 'model', text: fullText }]);
+                       
+                       // Detect success keywords to increment mission count
+                       // "CORRECT" or "MUY BIEN" or "EXCELLENT"
+                       if (fullText.match(/(CORRECT|MUY BIEN|EXCELLENT|PERFECT|GENIAL)/i)) {
+                           handleMissionComplete();
+                       }
+                       
+                       const missionMatch = fullText.match(/MISSION:\s*([^.!?\n]+[.!?]?)/i);
+                       if (missionMatch && missionMatch[1]) {
+                           setCurrentChallenge(missionMatch[1].trim());
+                       }
+                   }
+                   return '';
+               });
             }
           },
-          onclose: () => stopSession(),
-          onerror: (e) => { console.error(e); stopSession(); }
+          onclose: () => {
+              console.log("Session closed");
+              stopSession();
+          },
+          onerror: (e) => { 
+              console.error("Session error:", e);
+              setErrorMsg(lang === 'es' ? "Error de conexión." : "Connection error.");
+              stopSession(); 
+          }
         },
         config: {
           responseModalities: [Modality.AUDIO],
-          inputAudioTranscription: {}, 
-          outputAudioTranscription: {},
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceName } } },
           systemInstruction: systemInstruction,
-          speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: selectedPersona === 'tomas' ? 'Puck' : 'Kore' } }
-          }
+          outputAudioTranscription: { }
         }
       });
+
       sessionPromiseRef.current = sessionPromise;
-    } catch (error) {
+
+      // 3. Connect Stream to Processor only after stream is ready
+      const stream = await streamPromise;
+      streamRef.current = stream;
+      
+      const source = inputCtx.createMediaStreamSource(stream);
+      const scriptProcessor = inputCtx.createScriptProcessor(4096, 1, 1);
+      
+      scriptProcessor.onaudioprocess = (e) => {
+        // Use ref to check connection status to avoid closure staleness
+        // Also pause sending audio if on break
+        if (isConnectedRef.current && sessionPromiseRef.current && !isBreakTime) { 
+            const inputData = e.inputBuffer.getChannelData(0);
+            sessionPromiseRef.current.then(session => {
+                if (session) {
+                    session.sendRealtimeInput({ media: createBlob(inputData) });
+                }
+            }).catch(() => {}); // Silent catch for send errors
+        }
+      };
+      
+      source.connect(scriptProcessor);
+      scriptProcessor.connect(inputCtx.destination);
+
+      await sessionPromise; 
+
+    } catch (error: any) {
+      clearTimeout(timeoutId);
       console.error(error);
       setIsConnecting(false);
+      setIsSessionActive(false);
+      setErrorMsg(error.message || (lang === 'es' ? 'Error al conectar' : 'Failed to connect'));
     }
   };
 
+  // --- RENDER ---
+
+  const currentAvatar = professor === 'tomas' ? TOMAS_AVATAR : CAROLINA_AVATAR;
+
   return (
-    <div className="flex flex-col h-full space-y-4 md:space-y-8 pb-20 relative font-sans">
-      <AnimatePresence>
-        {showLevelUp && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md rounded-[32px]">
-            <motion.div initial={{ scale: 0.8, y: 50 }} animate={{ scale: 1, y: 0 }} className="bg-slate-900 border-4 border-yellow-400 w-full max-w-md p-8 rounded-[40px] shadow-2xl relative overflow-hidden text-center">
-              <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none"></div>
-              <div className="mb-6"><motion.div animate={{ rotate: [0, 10, -10, 0] }} transition={{ repeat: Infinity, duration: 1 }} className="text-8xl inline-block">🏆</motion.div></div>
-              <h3 className="text-3xl font-display font-black text-white uppercase tracking-tighter mb-2">{text.missionComplete}</h3>
-              <p className="text-yellow-400 font-bold text-lg mb-8">{text.level} {missionLevel} → {missionLevel + 1}</p>
-              <button onClick={handleContinueNextLevel} className="w-full py-4 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-widest shadow-xl transition-all active:scale-95 text-sm md:text-base relative z-10">{text.continue}</button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <header className="flex items-center justify-between px-2">
-        <div>
-           <h2 className="text-2xl md:text-4xl font-display font-black text-white tracking-tighter">{text.title}</h2>
-           <p className="text-slate-500 text-xs md:text-sm font-bold uppercase tracking-widest">{text.subtitle}</p>
-        </div>
-        <div className="flex items-center gap-4">
-            <div className="hidden md:flex flex-col items-end">
-                <span className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">{text.level}</span>
-                <span className="text-2xl font-black text-yellow-400">{missionLevel}</span>
-            </div>
-            {!isActive && (
-            <div className="flex bg-slate-800 rounded-full p-1 border border-white/10">
-                {(['tomas', 'carolina'] as MainPersona[]).map(p => (
-                <button key={p} onClick={() => setSelectedPersona(p)} className={`px-4 py-2 rounded-full text-xs font-black uppercase tracking-wider transition-all ${selectedPersona === p ? 'bg-brand-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>{p}</button>
-                ))}
-            </div>
-            )}
-        </div>
-      </header>
-
-      <div className="flex-1 flex flex-col md:flex-row gap-6 relative">
-        <div className="flex-1 bg-slate-900/50 rounded-[40px] border border-white/5 relative overflow-hidden flex flex-col shadow-2xl">
-          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/chalkboard.png')] opacity-10 pointer-events-none"></div>
+    <div className="h-full bg-slate-950 font-sans flex flex-col relative overflow-hidden">
+      
+      {/* 1. Header / Status Bar */}
+      <div className="flex-none p-4 md:p-6 flex items-center justify-between z-20 bg-slate-950/80 backdrop-blur-md border-b border-white/5">
+          <div>
+              <h2 className="text-2xl font-black text-white tracking-tighter uppercase font-display flex items-center gap-2">
+                  <Trophy className="text-yellow-400" />
+                  Level {currentLevel} <span className="text-slate-600 text-sm">/ 500</span>
+              </h2>
+              {/* Global Progress Bar */}
+              <div className="w-48 h-2 bg-slate-800 rounded-full mt-2 overflow-hidden">
+                  <div className="h-full bg-gradient-to-r from-yellow-400 to-amber-600 transition-all duration-500" style={{ width: `${(currentLevel / 500) * 100}%` }} />
+              </div>
+          </div>
           
-          <div className="flex-none p-4 md:p-6 flex flex-col md:flex-row justify-between items-start z-10 gap-4 bg-slate-900/50 backdrop-blur-md rounded-t-[40px] border-b border-white/5">
-             <div className="flex items-start gap-4 pointer-events-auto">
-                <div className="w-20 h-20 md:w-32 md:h-32 transition-all">
-                   <SmartAvatar 
-                      imageSrc={selectedPersona === 'tomas' 
-                        ? "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=800&auto=format&fit=crop" 
-                        : "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=800&auto=format&fit=crop"
-                      }
-                      name={selectedPersona === 'tomas' ? 'Professor Tomas' : 'Carolina'}
-                      isSpeaking={isAiSpeaking}
-                      analyser={analyserNode}
-                      color={selectedPersona === 'tomas' ? 'bg-brand-600' : 'bg-pink-600'}
-                   />
-                </div>
-                <div className="mt-2">
-                  <p className="font-black text-white text-base md:text-lg">{selectedPersona === 'tomas' ? 'Profe Tomas' : 'Carolina'}</p>
-                  <p className="text-[10px] text-brand-400 uppercase tracking-widest font-bold">
-                    {isAiSpeaking ? 'Speaking...' : 'Listening...'}
-                  </p>
-                </div>
-             </div>
-             
-             {isActive && (
-                <div className="bg-slate-900/90 backdrop-blur-md border border-white/10 rounded-2xl p-4 shadow-xl w-full md:w-72 pointer-events-auto transition-all">
-                  <div className="flex justify-between items-center border-b border-white/10 pb-2 mb-2 cursor-pointer" onClick={() => setIsObjectivesCollapsed(!isObjectivesCollapsed)}>
-                      <h4 className="text-white font-black uppercase tracking-widest text-[10px]">{text.objectives}</h4>
-                      <span className="text-slate-400 text-xs">{isObjectivesCollapsed ? '▼' : '▲'}</span>
-                  </div>
-                  <AnimatePresence>
-                    {!isObjectivesCollapsed && (
-                      <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="space-y-2 overflow-hidden">
-                        {currentMission.steps.map((step, idx) => {
-                          const isDone = completedSteps.includes(idx);
-                          const isCurrent = !isDone && (completedSteps.length === idx);
-                          return (
-                            <motion.div key={idx} initial={false} animate={{ opacity: isDone ? 0.7 : 1, x: isDone ? 5 : 0 }} className={`flex items-center gap-3 p-1.5 rounded-lg transition-colors ${isCurrent ? 'bg-white/10 border border-white/5' : ''}`}>
-                              <div className={`w-5 h-5 shrink-0 rounded-full flex items-center justify-center border transition-colors ${isDone ? 'bg-green-500 border-green-500' : isCurrent ? 'border-yellow-400 animate-pulse' : 'border-slate-600'}`}>{isDone && <span className="text-white text-[10px] font-bold">✓</span>}</div>
-                              <span className={`text-[10px] md:text-xs font-bold leading-tight ${isDone ? 'text-green-400 line-through' : isCurrent ? 'text-yellow-100' : 'text-slate-500'}`}>{step}</span>
-                            </motion.div>
-                          );
-                        })}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-             )}
-          </div>
-
-          <div className="flex-1 px-4 md:px-8 pb-28 overflow-y-auto space-y-4 hide-scrollbar relative z-0 flex flex-col">
-            {transcriptions.map((t, idx) => (
-                <motion.div key={idx} initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} className={`flex ${t.role === 'model' ? 'justify-start' : 'justify-end'}`}>
-                  <div className={`relative max-w-[85%] px-4 py-3 rounded-2xl shadow-md text-sm md:text-base font-medium leading-relaxed ${t.role === 'model' ? 'bg-white text-slate-900 rounded-tl-none' : 'bg-brand-600 text-white rounded-tr-none'}`}>{t.text}</div>
-                </motion.div>
-            ))}
-            <AnimatePresence>
-              {realtimeText && (
-                <motion.div initial={{ opacity: 0, y: 10, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className={`flex ${realtimeSource === 'model' ? 'justify-start' : 'justify-end'}`}>
-                  <div className={`relative max-w-[85%] px-4 py-3 rounded-2xl shadow-md text-sm md:text-base font-medium leading-relaxed ${realtimeSource === 'model' ? 'bg-white text-slate-900 rounded-tl-none' : 'bg-brand-600 text-white rounded-tr-none'}`}><span>{realtimeText}<span className="inline-block w-1.5 h-4 ml-1 bg-current animate-pulse align-middle"></span></span></div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-            <div ref={chatEndRef} className="h-24"></div>
-          </div>
-
-          <div className="absolute bottom-8 left-0 right-0 flex justify-center z-20 pointer-events-none">
-            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={isActive ? stopSession : startSession} disabled={isConnecting} className={`px-10 py-5 pointer-events-auto rounded-full font-black text-sm uppercase tracking-widest shadow-2xl transition-all flex items-center gap-3 ${isActive ? 'bg-red-500 text-white shadow-red-500/40' : 'bg-white text-slate-900 shadow-white/20'}`}>
-              {isConnecting ? <div className="w-5 h-5 border-2 border-slate-900/30 border-t-slate-900 rounded-full animate-spin"></div> : <><span className="text-xl">{isActive ? '⏹' : '▶'}</span>{isActive ? text.stop : text.start}</>}
-            </motion.button>
-          </div>
-        </div>
+          {isSessionActive && (
+              <button 
+                onClick={stopSession}
+                className="bg-red-500/10 hover:bg-red-500/20 text-red-400 px-6 py-3 rounded-xl font-bold text-xs uppercase tracking-widest border border-red-500/30 transition-all flex items-center gap-2"
+              >
+                  <StopCircle size={16} /> {lang === 'es' ? 'Terminar' : 'End'}
+              </button>
+          )}
       </div>
+
+      {/* 2. Main Active Area */}
+      <div className="flex-1 relative flex flex-col items-center justify-center p-4">
+          
+          {/* Start Screen (If not active) */}
+          {!isSessionActive && (
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="text-center space-y-8 max-w-md w-full"
+              >
+                  <div className="flex justify-center gap-6 mb-4">
+                      {/* Tomas Selector */}
+                      <button onClick={() => setProfessor('tomas')} className={`relative group transition-all ${professor === 'tomas' ? 'scale-110' : 'scale-90 opacity-60 hover:opacity-100 hover:scale-95'}`}>
+                          <div className={`w-28 h-28 rounded-full p-1 ${professor === 'tomas' ? 'bg-gradient-to-br from-yellow-400 to-blue-600 shadow-[0_0_30px_rgba(250,204,21,0.4)]' : 'bg-slate-700'}`}>
+                              <div className="w-full h-full rounded-full overflow-hidden border-4 border-slate-950 bg-slate-800">
+                                  <OptimizedImage src={TOMAS_AVATAR} alt="Tomas" className="w-full h-full object-cover" />
+                              </div>
+                          </div>
+                          <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-slate-900 px-3 py-1 rounded-full border border-white/10 flex items-center gap-1 shadow-lg">
+                              <span className="text-[10px] font-black uppercase text-yellow-400">Tomas</span>
+                              <span className="text-[8px]">🇨🇴</span>
+                          </div>
+                      </button>
+
+                      {/* Carolina Selector */}
+                      <button onClick={() => setProfessor('carolina')} className={`relative group transition-all ${professor === 'carolina' ? 'scale-110' : 'scale-90 opacity-60 hover:opacity-100 hover:scale-95'}`}>
+                          <div className={`w-28 h-28 rounded-full p-1 ${professor === 'carolina' ? 'bg-gradient-to-br from-blue-500 to-red-600 shadow-[0_0_30px_rgba(59,130,246,0.4)]' : 'bg-slate-700'}`}>
+                              <div className="w-full h-full rounded-full overflow-hidden border-4 border-slate-950 bg-slate-800">
+                                  <OptimizedImage src={CAROLINA_AVATAR} alt="Carolina" className="w-full h-full object-cover" />
+                              </div>
+                          </div>
+                          <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-slate-900 px-3 py-1 rounded-full border border-white/10 flex items-center gap-1 shadow-lg">
+                              <span className="text-[10px] font-black uppercase text-blue-400">Carolina</span>
+                              <span className="text-[8px]">🇺🇸</span>
+                          </div>
+                      </button>
+                  </div>
+                  
+                  <div>
+                      <h3 className="text-3xl font-black text-white mb-2">{professor === 'tomas' ? 'Professor Tomas' : 'Carolina'}</h3>
+                      <p className="text-slate-400 text-sm font-medium leading-relaxed px-4">
+                          {professor === 'tomas' 
+                            ? (lang === 'es' ? 'Nativo de Colombia. Explica en ESPAÑOL.' : 'Native Colombian. Explains in SPANISH.')
+                            : (lang === 'es' ? 'Nativa de USA. Explica en INGLÉS.' : 'Native American. Explains in ENGLISH.')}
+                      </p>
+                      {/* Resume Progress Indicator */}
+                      <p className="text-blue-400 text-xs font-bold uppercase tracking-widest mt-4">
+                          {missionsCompleted > 0 ? 
+                              (lang === 'es' ? `Continuar Misión ${missionsCompleted + 1}` : `Continue Mission ${missionsCompleted + 1}`) : 
+                              (lang === 'es' ? 'Empezar Misión 1' : 'Start Mission 1')}
+                      </p>
+                  </div>
+
+                  {errorMsg && (
+                      <div className="bg-red-500/10 border border-red-500/30 p-3 rounded-xl text-red-400 text-sm font-bold">
+                          {errorMsg}
+                      </div>
+                  )}
+
+                  <button 
+                    onClick={startSession}
+                    className="w-full py-5 bg-white text-slate-900 rounded-[20px] font-black text-xl uppercase tracking-widest shadow-2xl hover:scale-105 active:scale-95 transition-transform flex items-center justify-center gap-3"
+                  >
+                      <Zap className="text-yellow-500 fill-yellow-500" /> {lang === 'es' ? 'Conectar Rápido' : 'Fast Connect'}
+                  </button>
+              </motion.div>
+          )}
+
+          {/* Active Session UI */}
+          {isSessionActive && (
+              <div className="w-full h-full flex flex-col items-center justify-center relative">
+                  
+                  {/* Break Modal Overlay */}
+                  <AnimatePresence>
+                      {isBreakTime && (
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.9 }}
+                            className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-lg"
+                          >
+                              <div className="bg-slate-900 border border-white/10 rounded-[32px] p-8 max-w-sm w-full text-center shadow-2xl relative overflow-hidden">
+                                  <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 to-purple-500"></div>
+                                  <div className="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-6 text-4xl animate-bounce">
+                                      <Coffee className="text-yellow-400" size={32} />
+                                  </div>
+                                  <h3 className="text-2xl font-black text-white mb-2">{lang === 'es' ? '¡5 Misiones Completas!' : '5 Missions Complete!'}</h3>
+                                  <p className="text-green-400 font-bold mb-2 uppercase tracking-wider">{lang === 'es' ? '¡Nivel Subido!' : 'Level Up!'}</p>
+                                  <p className="text-slate-400 mb-8">{lang === 'es' ? 'Toma un respiro. Lo estás haciendo genial.' : 'Take a breath. You are doing great.'}</p>
+                                  
+                                  <button 
+                                    onClick={handleContinueAfterBreak}
+                                    className="w-full py-4 bg-white text-slate-900 font-black rounded-2xl shadow-lg hover:scale-105 active:scale-95 transition-transform flex items-center justify-center gap-2"
+                                  >
+                                      {lang === 'es' ? 'Siguiente Nivel' : 'Next Level'} <ArrowRight size={20} />
+                                  </button>
+                              </div>
+                          </motion.div>
+                      )}
+                  </AnimatePresence>
+
+                  {/* Mission Roadmap (Left Side or Top Mobile) */}
+                  <div className="absolute left-0 top-0 md:left-4 md:top-1/2 md:-translate-y-1/2 flex flex-row md:flex-col gap-2 z-30 p-2 md:p-0 w-full md:w-auto justify-center">
+                      {[1, 2, 3, 4, 5].map((num) => {
+                          const isCompleted = num <= missionsCompleted;
+                          const isCurrent = num === missionsCompleted + 1;
+                          const isLocked = num > missionsCompleted + 1;
+                          
+                          return (
+                              <div key={num} className={`flex items-center gap-3 p-2 rounded-xl transition-all duration-300 ${isCurrent ? 'bg-slate-800 border border-white/20 scale-110 shadow-lg' : 'opacity-60'}`}>
+                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs transition-colors ${
+                                      isCompleted ? 'bg-green-500 text-white' : 
+                                      isCurrent ? 'bg-blue-500 text-white animate-pulse' : 
+                                      'bg-slate-700 text-slate-500'
+                                  }`}>
+                                      {isCompleted ? <CheckCircle size={14} /> : isLocked ? <Lock size={12} /> : num}
+                                  </div>
+                                  <span className="hidden md:block text-[10px] font-bold text-slate-300 uppercase tracking-wider">
+                                      {lang === 'es' ? 'Misión' : 'Mission'} {num}
+                                  </span>
+                              </div>
+                          );
+                      })}
+                  </div>
+
+                  {/* Connecting Overlay */}
+                  {isConnecting && (
+                      <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-slate-950/80 backdrop-blur-sm rounded-[32px]">
+                          <div className="animate-spin text-4xl mb-4 text-blue-500">⚡</div>
+                          <p className="text-white font-bold animate-pulse text-lg tracking-wide">{lang === 'es' ? 'Conectando...' : 'Connecting...'}</p>
+                          <p className="text-slate-400 text-xs mt-2 uppercase tracking-wider">AI Noise Cancellation Active</p>
+                      </div>
+                  )}
+
+                  <div className="w-full max-w-xl flex flex-col items-center gap-8 relative z-10">
+                      {/* Challenge Card (Embedded Prompt) */}
+                      <motion.div 
+                        initial={{ y: 20, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        className="w-full bg-slate-900/60 backdrop-blur-xl border border-white/10 p-8 rounded-[32px] shadow-2xl text-center relative overflow-hidden min-h-[160px] flex flex-col justify-center"
+                      >
+                          {/* Pulse effect behind card if speaking */}
+                          {isAiSpeaking && <div className="absolute inset-0 bg-blue-500/5 animate-pulse" />}
+                          
+                          <div className="flex justify-center mb-4">
+                              <span className="px-3 py-1 bg-blue-600 rounded-full text-[10px] font-black uppercase text-white tracking-widest shadow-lg shadow-blue-600/20">
+                                  {lang === 'es' ? `Misión ${Math.min(5, missionsCompleted + 1)}` : `Mission ${Math.min(5, missionsCompleted + 1)}`}
+                              </span>
+                          </div>
+                          
+                          <h3 className="text-2xl md:text-3xl font-serif text-white leading-tight font-medium">
+                              "{currentChallenge || (lang === 'es' ? 'Escucha al profesor...' : 'Listen to the professor...')}"
+                          </h3>
+                      </motion.div>
+
+                      {/* Avatar & Visualizer */}
+                      <div className="relative">
+                          <div className={`w-32 h-32 rounded-full overflow-hidden border-4 transition-all duration-300 ${isAiSpeaking ? 'border-blue-400 shadow-[0_0_40px_rgba(96,165,250,0.4)] scale-105' : 'border-slate-700'}`}>
+                              <OptimizedImage src={currentAvatar} alt="AI" className="w-full h-full object-cover" />
+                          </div>
+                          {/* Status Badge */}
+                          <div className="absolute -bottom-3 left-1/2 -translate-x-1/2">
+                              <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border border-slate-900 shadow-lg flex items-center gap-1 ${isAiSpeaking ? 'bg-blue-500 text-white' : 'bg-red-500 text-white'}`}>
+                                  <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span>
+                                  {isAiSpeaking ? 'Speaking' : 'Listening'}
+                              </span>
+                          </div>
+                      </div>
+
+                      <Visualizer isSpeaking={isAiSpeaking} />
+                  </div>
+
+              </div>
+          )}
+      </div>
+
+      {/* 3. Transcript Log (Bottom Anchored) */}
+      {isSessionActive && (
+          <div className="h-1/3 min-h-[200px] bg-slate-900 border-t border-white/10 flex flex-col">
+              <div className="px-6 py-2 bg-slate-950/50 border-b border-white/5 flex justify-between items-center">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-2">
+                      <MessageSquare size={12} /> Transcript
+                  </span>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto p-4 space-y-3 scroll-smooth" ref={scrollRef}>
+                  {transcriptions.map((t, i) => {
+                      const isSystem = t.role === 'system';
+                      const isUser = t.role === 'user';
+                      const displayText = t.text.replace(/MISSION:\s*/, '');
+
+                      return (
+                          <motion.div 
+                            key={i} 
+                            initial={{ opacity: 0, x: isUser ? 20 : -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
+                          >
+                              {isSystem ? (
+                                  <div className="w-full text-center py-2">
+                                      <span className="bg-gradient-to-r from-yellow-400/20 to-orange-500/20 text-yellow-200 px-4 py-1 rounded-full text-xs font-bold border border-yellow-500/30">
+                                          {displayText}
+                                      </span>
+                                  </div>
+                              ) : (
+                                  <div className={`max-w-[85%] p-3 rounded-2xl text-sm font-medium ${
+                                      isUser 
+                                      ? 'bg-indigo-600 text-white rounded-tr-none' 
+                                      : 'bg-slate-800 text-slate-200 rounded-tl-none border border-white/5'
+                                  }`}>
+                                      {displayText}
+                                  </div>
+                              )}
+                          </motion.div>
+                      );
+                  })}
+                  {realtimeText && (
+                      <div className="flex justify-start">
+                          <div className="max-w-[85%] p-3 rounded-2xl text-sm font-medium bg-slate-800/50 text-slate-400 rounded-tl-none border border-white/5 italic">
+                              {realtimeText} <span className="animate-pulse">|</span>
+                          </div>
+                      </div>
+                  )}
+              </div>
+          </div>
+      )}
     </div>
   );
 };

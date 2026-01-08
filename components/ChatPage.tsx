@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { socket } from '../services/mockBackend';
 import { ChatMsg, Language } from '../types';
 import { motion } from 'framer-motion';
+import { useAnimationVariants } from '../utils/performance';
 
 interface ChatPageProps {
   lang: Language;
@@ -14,6 +15,7 @@ const ChatPage: React.FC<ChatPageProps> = ({ lang }) => {
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
+  const animationVariants = useAnimationVariants();
 
   useEffect(() => {
     if (!user) return;
@@ -76,42 +78,11 @@ const ChatPage: React.FC<ChatPageProps> = ({ lang }) => {
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-4">
         {messages.map((m) => (
           <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
+            variants={animationVariants.slideUp}
+            initial="hidden"
+            animate="visible"
             key={m.id} 
             className={`flex flex-col ${m.isUser ? 'items-end' : 'items-start'}`}
           >
             <div className="flex items-center gap-2 mb-1 px-1">
-              <span className={`text-[10px] font-bold ${m.type === 'ai' ? 'text-purple-400' : 'text-slate-400'}`}>
-                {m.user} {m.type === 'ai' && '🤖'}
-              </span>
-            </div>
-            <div className={`max-w-[80%] p-4 rounded-2xl text-sm font-medium leading-relaxed ${
-              m.isUser 
-                ? 'bg-blue-600 text-white rounded-tr-none' 
-                : m.type === 'ai' 
-                  ? 'bg-purple-900/40 border border-purple-500/30 text-purple-100 rounded-tl-none' 
-                  : 'bg-slate-800 text-slate-200 rounded-tl-none'
-            }`}>
-              {m.text}
-            </div>
-          </motion.div>
-        ))}
-      </div>
-
-      <form onSubmit={sendMessage} className="p-4 bg-slate-950/80 border-t border-white/5 flex gap-3">
-        <input 
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          placeholder={lang === 'es' ? "Escribe un mensaje o pregunta a @Tomas..." : "Type a message or ask @Tomas..."}
-          className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-blue-500 transition-all"
-        />
-        <button className="bg-blue-600 hover:bg-blue-500 text-white p-3 rounded-xl transition-all">
-          ➤
-        </button>
-      </form>
-    </div>
-  );
-};
-
-export default ChatPage;
+              <span className={`text-[10px] font

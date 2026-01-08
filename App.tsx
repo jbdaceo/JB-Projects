@@ -1,16 +1,18 @@
-
-import React, { useState, useEffect, Suspense, ReactNode } from 'react';
+import React, { useState, useEffect, Suspense, ReactNode, ErrorInfo, Component } from 'react';
+import ReactDOM from 'react-dom/client';
 import { AppSection, Language } from './types';
 import Sidebar from './components/Sidebar';
 import MobileNav from './components/MobileNav';
 import Home from './components/Home'; // Critical Path
-import Mascot from './components/Mascot';
 import AuthModal from './components/AuthModal';
 import LevelRequirementsModal from './components/LevelRequirementsModal';
 import { AuthProvider } from './contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAudioInitialization } from './hooks/useAudioInitialization';
+import { triggerHaptic } from './utils/performance';
 
+// Lazy load heavy components
+const Mascot = React.lazy(() => import('./components/Mascot'));
 const LessonGenerator = React.lazy(() => import('./components/LessonGenerator'));
 const SpeakingPractice = React.lazy(() => import('./components/SpeakingPractice'));
 const VocabularyTool = React.lazy(() => import('./components/VocabularyTool'));
@@ -24,6 +26,7 @@ const WorldPage = React.lazy(() => import('./components/WorldPage'));
 const BreakoutRoom = React.lazy(() => import('./components/BreakoutRoom'));
 const LiveClassroom = React.lazy(() => import('./components/LiveClassroom'));
 const JobsBoard = React.lazy(() => import('./components/JobsBoard'));
+const AIAssistant = React.lazy(() => import('./components/AIAssistant'));
 
 const THEME_CONFIG: Record<AppSection, { hue: number, sat: number }> = {
   [AppSection.Home]: { hue: 220, sat: 90 },
@@ -45,10 +48,13 @@ const THEME_CONFIG: Record<AppSection, { hue: number, sat: number }> = {
 interface ErrorBoundaryProps { children?: ReactNode; }
 interface ErrorBoundaryState { hasError: boolean; }
 
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   state: ErrorBoundaryState = { hasError: false };
+
   static getDerivedStateFromError(error: any): ErrorBoundaryState { return { hasError: true }; }
-  componentDidCatch(error: any, errorInfo: any) { console.error("ErrorBoundary caught error", error, errorInfo); }
+  
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) { console.error("ErrorBoundary caught error", error, errorInfo); }
+  
   render() {
     if (this.state.hasError) {
       return (
@@ -73,16 +79,20 @@ const AppContent: React.FC = () => {
   const [tmcLevel, setTmcLevel] = useState<'Novice' | 'Semi Pro' | 'Pro'>('Novice');
   const [levelProgress, setLevelProgress] = useState(10);
   const [showLevelModal, setShowLevelModal] = useState(false);
+  const [showAiAssistant, setShowAiAssistant] = useState(false);
 
   useEffect(() => {
-    const base = THEME_CONFIG[activeSection];
-    const langHueShift = lang === 'en' ? 180 : 0;
-    const randomHueShift = Math.floor(Math.random() * 30) - 15;
-    const randomSatShift = Math.floor(Math.random() * 10) - 5;
-    const finalHue = (base.hue + langHueShift + randomHueShift) % 360;
-    const finalSat = Math.max(50, Math.min(100, base.sat + randomSatShift));
-    document.documentElement.style.setProperty('--brand-hue', finalHue.toString());
-    document.documentElement.style.setProperty('--brand-sat', `${finalSat}%`);
+    // Optimized theme switching without layout thrashing
+    requestAnimationFrame(() => {
+        const base = THEME_CONFIG[activeSection];
+        const langHueShift = lang === 'en' ? 180 : 0;
+        const randomHueShift = Math.floor(Math.random() * 30) - 15;
+        const randomSatShift = Math.floor(Math.random() * 10) - 5;
+        const finalHue = (base.hue + langHueShift + randomHueShift) % 360;
+        const finalSat = Math.max(50, Math.min(100, base.sat + randomSatShift));
+        document.documentElement.style.setProperty('--brand-hue', finalHue.toString());
+        document.documentElement.style.setProperty('--brand-sat', `${finalSat}%`);
+    });
   }, [activeSection, lang]);
 
   const checkLevel = () => {
@@ -109,11 +119,22 @@ const AppContent: React.FC = () => {
     return () => window.removeEventListener('tmc-level-update', checkLevel);
   }, []);
 
+  const handleNavigate = (section: AppSection) => {
+      setActiveSection(section);
+      // Trigger haptic on major section changes if on mobile
+      if (window.innerWidth < 1024) triggerHaptic('light'); 
+  };
+
+  const handleLangToggle = () => {
+      triggerHaptic('medium');
+      setLang(l => l === 'es' ? 'en' : 'es');
+  };
+
   const renderContent = () => {
     switch (activeSection) {
-      case AppSection.Home: return <Home onStart={() => setActiveSection(AppSection.Worlds)} onNavigate={setActiveSection} lang={lang} />;
-      case AppSection.Worlds: return <WorldPage lang={lang} onNavigate={setActiveSection} />;
-      case AppSection.WorldHub: return <WorldsPortal lang={lang} onNavigate={setActiveSection} />;
+      case AppSection.Home: return <Home onStart={() => handleNavigate(AppSection.Worlds)} onNavigate={handleNavigate} lang={lang} />;
+      case AppSection.Worlds: return <WorldPage lang={lang} onNavigate={handleNavigate} />;
+      case AppSection.WorldHub: return <WorldsPortal lang={lang} onNavigate={handleNavigate} />;
       case AppSection.Chat: return <ChatPage lang={lang} />;
       case AppSection.Breakout: return <BreakoutRoom lang={lang} />;
       case AppSection.LiveClassroom: return <LiveClassroom lang={lang} />;
@@ -122,10 +143,10 @@ const AppContent: React.FC = () => {
       case AppSection.Speaking: return <SpeakingPractice lang={lang} userTier={tmcLevel} />;
       case AppSection.Vocab: return <VocabularyTool lang={lang} />;
       case AppSection.Coaching: return <CoachingSessions lang={lang} />;
-      case AppSection.Community: return <Community lang={lang} onNavigate={setActiveSection} />;
+      case AppSection.Community: return <Community lang={lang} onNavigate={handleNavigate} />;
       case AppSection.Kids: return <KidsZone lang={lang} />;
-      case AppSection.Jobs: return <JobsBoard lang={lang} onNavigate={setActiveSection} />;
-      default: return <Home onStart={() => setActiveSection(AppSection.Worlds)} onNavigate={setActiveSection} lang={lang} />;
+      case AppSection.Jobs: return <JobsBoard lang={lang} onNavigate={handleNavigate} />;
+      default: return <Home onStart={() => handleNavigate(AppSection.Worlds)} onNavigate={handleNavigate} lang={lang} />;
     }
   };
 
@@ -134,33 +155,40 @@ const AppContent: React.FC = () => {
       <AuthModal isOpen={showAuthModal} onLogin={() => setShowAuthModal(false)} onGuest={() => setShowAuthModal(false)} lang={lang} />
       <LevelRequirementsModal isOpen={showLevelModal} onClose={() => setShowLevelModal(false)} lang={lang} currentLevel={tmcLevel} />
 
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-40 h-[calc(60px+env(safe-area-inset-top))] pt-safe-top native-glass flex items-center justify-between px-4 transition-all border-b border-white/5">
-        <button onClick={() => setLang(l => l === 'es' ? 'en' : 'es')} className="h-8 px-3 bg-white/5 rounded-full flex items-center gap-2 active-scale border border-white/10">
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-40 h-[calc(60px+env(safe-area-inset-top))] pt-safe-top native-glass flex items-center justify-between px-4 transition-all border-b border-white/5 gpu-layer">
+        <button onClick={handleLangToggle} className="h-8 px-3 bg-white/5 rounded-full flex items-center gap-2 active-scale border border-white/10">
            <div className="flex gap-1"><div className={`w-1.5 h-1.5 rounded-full ${lang === 'es' ? 'bg-brand-500' : 'bg-slate-600'}`}></div><div className={`w-1.5 h-1.5 rounded-full ${lang === 'en' ? 'bg-brand-500' : 'bg-slate-600'}`}></div></div>
           <span className="text-[10px] font-black uppercase text-slate-300 tracking-wider">{lang === 'es' ? 'Spanish' : 'English'}</span>
         </button>
-        <button onClick={() => setShowLevelModal(true)} className="h-8 bg-white/5 rounded-full flex items-center justify-center px-4 active-scale relative overflow-hidden border border-white/10">
+        <button onClick={() => { triggerHaptic('light'); setShowLevelModal(true); }} className="h-8 bg-white/5 rounded-full flex items-center justify-center px-4 active-scale relative overflow-hidden border border-white/10">
           <div className="absolute inset-0 bg-brand-500/20" style={{ width: `${Math.min(100, Math.max(0, levelProgress))}%` }}></div>
           <span className={`relative z-10 text-[10px] font-black uppercase tracking-widest ${tmcLevel === 'Pro' ? 'text-amber-400' : tmcLevel === 'Semi Pro' ? 'text-cyan-400' : 'text-slate-400'}`}>{lang === 'es' ? 'Nivel' : 'Level'}: {tmcLevel} {tmcLevel === 'Pro' ? '⚡' : tmcLevel === 'Semi Pro' ? '🚀' : '🌱'}</span>
         </button>
       </div>
 
       <div className="hidden lg:block h-full relative z-50">
-        <Sidebar activeSection={activeSection} onNavigate={setActiveSection} lang={lang} onLangToggle={() => setLang(l => l === 'es' ? 'en' : 'es')} tmcLevel={tmcLevel} levelProgress={levelProgress} onOpenLevelInfo={() => setShowLevelModal(true)} />
+        <Sidebar activeSection={activeSection} onNavigate={handleNavigate} lang={lang} onLangToggle={handleLangToggle} tmcLevel={tmcLevel} levelProgress={levelProgress} onOpenLevelInfo={() => setShowLevelModal(true)} onOpenAiAssistant={() => setShowAiAssistant(true)} />
       </div>
 
       <main className="flex-1 relative h-full overflow-y-auto overflow-x-hidden scroll-smooth w-full pt-[calc(70px+env(safe-area-inset-top))] pb-[calc(100px+env(safe-area-inset-bottom))] lg:pt-8 lg:pb-8 lg:px-8 px-4" style={{ WebkitOverflowScrolling: 'touch' }}>
         <div className="max-w-7xl mx-auto min-h-full flex flex-col">
           <AnimatePresence mode="wait">
-            <motion.div key={activeSection} initial={{ opacity: 0, y: 10, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -10, scale: 0.98 }} transition={{ duration: 0.3, ease: "easeOut" }} className="flex-1">
+            <motion.div 
+                key={activeSection} 
+                initial={{ opacity: 0, y: 10, scale: 0.99 }} 
+                animate={{ opacity: 1, y: 0, scale: 1 }} 
+                exit={{ opacity: 0, scale: 0.99 }} 
+                transition={{ duration: 0.25, ease: "easeOut" }} 
+                className="flex-1 gpu-layer"
+            >
               <ErrorBoundary>
                 <Suspense fallback={
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center justify-center h-96 w-full">
+                  <div className="flex items-center justify-center h-96 w-full">
                     <div className="flex flex-col items-center gap-4">
-                      <motion.div className="w-10 h-10 border-4 border-brand-500 border-t-transparent rounded-full" animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }} style={{ willChange: 'transform' }} />
-                      <motion.p className="text-xs font-black text-brand-500 uppercase tracking-widest" animate={{ opacity: [1, 0.6, 1] }} transition={{ duration: 1.5, repeat: Infinity }}>Loading...</motion.p>
+                      <div className="w-10 h-10 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
+                      <p className="text-xs font-black text-brand-500 uppercase tracking-widest animate-pulse">Loading...</p>
                     </div>
-                  </motion.div>
+                  </div>
                 }>
                   {renderContent()}
                 </Suspense>
@@ -169,8 +197,24 @@ const AppContent: React.FC = () => {
           </AnimatePresence>
         </div>
       </main>
-      <Mascot activeSection={activeSection} lang={lang} />
-      <div className="lg:hidden"><MobileNav activeSection={activeSection} onNavigate={setActiveSection} lang={lang} /></div>
+      
+      {/* Lazy loaded Assistant Overlay */}
+      <Suspense fallback={null}>
+        <AIAssistant 
+            isOpen={showAiAssistant} 
+            onClose={() => setShowAiAssistant(false)} 
+            lang={lang} 
+            currentSection={activeSection} 
+            onNavigate={handleNavigate} 
+        />
+      </Suspense>
+
+      {/* Lazy loaded Mascot */}
+      <Suspense fallback={null}>
+        <Mascot activeSection={activeSection} lang={lang} />
+      </Suspense>
+      
+      <div className="lg:hidden"><MobileNav activeSection={activeSection} onNavigate={handleNavigate} lang={lang} /></div>
     </div>
   );
 };

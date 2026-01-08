@@ -2,6 +2,19 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 
+// --- HAPTIC FEEDBACK ENGINE ---
+export const triggerHaptic = (pattern: 'light' | 'medium' | 'heavy' | 'success' | 'error' = 'light') => {
+  if (typeof navigator !== 'undefined' && navigator.vibrate) {
+    switch (pattern) {
+      case 'light': navigator.vibrate(5); break; // Subtle click
+      case 'medium': navigator.vibrate(10); break; // Standard tap
+      case 'heavy': navigator.vibrate(20); break; // Strong interaction
+      case 'success': navigator.vibrate([10, 30, 10]); break; // Da-da-da
+      case 'error': navigator.vibrate([30, 50, 30]); break; // Buzz-buzz
+    }
+  }
+};
+
 // Optimized Image Component
 interface OptimizedImageProps {
   src: string;
@@ -27,10 +40,22 @@ export const OptimizedImage = React.memo(({
 
   const imageSrcSet = useMemo(() => {
     if (!src) return '';
-    const sizes = [400, 800, 1200];
     // Check if source is a URL or base64 to avoid errors
     if (src.startsWith('data:')) return undefined;
-    return sizes.map(size => `${src}${src.includes('?') ? '&' : '?'}w=${size}&q=80 ${size}w`).join(', ');
+    
+    // SKIP optimization for GitHub raw content or SVGs or already processed URLs
+    if (src.includes('raw.githubusercontent.com') || src.endsWith('.svg') || src.includes('dicebear')) {
+        return undefined;
+    }
+    
+    // Add auto=format for WebP/AVIF support on Unsplash and other CDNs
+    const sizes = [400, 800, 1200];
+    return sizes.map(size => {
+        const separator = src.includes('?') ? '&' : '?';
+        // Add auto=format if not already present
+        const fmtParam = src.includes('auto=format') ? '' : '&auto=format';
+        return `${src}${separator}w=${size}&q=80${fmtParam} ${size}w`;
+    }).join(', ');
   }, [src]);
 
   if (hasError) {
@@ -41,11 +66,10 @@ export const OptimizedImage = React.memo(({
 
   return (
     <motion.div
-      className={`relative overflow-hidden ${aspectRatio === 'square' ? 'aspect-square' : ''} ${className}`}
+      className={`relative overflow-hidden ${aspectRatio === 'square' ? 'aspect-square' : ''} ${className} gpu-layer`}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
-      style={{ willChange: 'opacity' }}
     >
       <picture>
         {imageSrcSet && <source srcSet={imageSrcSet} type="image/jpeg" />}
@@ -71,9 +95,9 @@ OptimizedImage.displayName = 'OptimizedImage';
 export const useAnimationVariants = () => {
   return useMemo(() => ({
     slideUp: {
-      hidden: { opacity: 0, y: 20, filter: "blur(4px)" },
+      hidden: { opacity: 0, y: 20 },
       visible: { 
-        opacity: 1, y: 0, filter: "blur(0px)",
+        opacity: 1, y: 0,
         transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] as const }
       }
     },
@@ -101,34 +125,6 @@ export const useAnimationVariants = () => {
       transition: { duration: 0.6, ease: "easeOut" }
     }
   }), []);
-};
-
-// Debounce utility
-export const debounce = <T extends (...args: any[]) => any>(
-  func: T,
-  delay: number
-): ((...args: Parameters<T>) => void) => {
-  let timeoutId: ReturnType<typeof setTimeout>;
-  return (...args: Parameters<T>) => {
-    clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => func(...args), delay);
-  };
-};
-
-// Request cache
-export const createRequestCache = <T,>(
-  fetchFn: (key: string) => Promise<T>,
-  cacheTimeMs: number = 5 * 60 * 1000
-) => {
-  const cache = new Map<string, { value: T; timestamp: number }>();
-  return async (key: string): Promise<T> => {
-    const now = Date.now();
-    const cached = cache.get(key);
-    if (cached && now - cached.timestamp < cacheTimeMs) return cached.value;
-    const value = await fetchFn(key);
-    cache.set(key, { value, timestamp: now });
-    return value;
-  };
 };
 
 export default OptimizedImage;

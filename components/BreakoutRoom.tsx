@@ -2,14 +2,17 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { socket } from '../services/mockBackend';
-import { RoomState, Language } from '../types';
+import { RoomState, Language, AppSection } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ArrowLeft } from 'lucide-react';
 
 interface BreakoutRoomProps {
   lang: Language;
+  onNavigate?: (section: AppSection) => void;
 }
 
-const BreakoutRoom: React.FC<BreakoutRoomProps> = ({ lang }) => {
+// NOTE: Added onNavigate prop to fix exit button logic
+const BreakoutRoom: React.FC<BreakoutRoomProps> = ({ lang, onNavigate }) => {
   const { user } = useAuth();
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [room, setRoom] = useState<RoomState | null>(null);
@@ -86,8 +89,15 @@ const BreakoutRoom: React.FC<BreakoutRoomProps> = ({ lang }) => {
   // --- LOBBY VIEW ---
   if (!activeRoomId) {
       return (
-          <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-12">
-              <div className="text-center space-y-4">
+          <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-12 relative">
+              <button 
+                onClick={() => onNavigate?.(AppSection.Home)} 
+                className="absolute top-0 left-0 text-slate-400 hover:text-white font-bold flex items-center gap-2"
+              >
+                  <ArrowLeft size={18} /> {lang === 'es' ? 'Volver' : 'Back'}
+              </button>
+
+              <div className="text-center space-y-4 pt-10">
                   <h2 className="text-4xl font-black text-white">{lang === 'es' ? 'Salas de Ruptura' : 'Breakout Rooms'}</h2>
                   <p className="text-slate-400 max-w-md mx-auto">{lang === 'es' ? 'Crea una sala privada o únete a un amigo para un desafío bilingüe.' : 'Create a private room or join a friend for a bilingual challenge.'}</p>
               </div>
@@ -160,7 +170,9 @@ const BreakoutRoom: React.FC<BreakoutRoomProps> = ({ lang }) => {
   return (
     <div className="flex flex-col items-center justify-center h-full max-w-2xl mx-auto space-y-8 pb-20">
       <div className="w-full flex justify-between items-center">
-        <button onClick={() => setActiveRoomId(null)} className="text-slate-500 hover:text-white font-bold text-xs uppercase tracking-widest">← Leave</button>
+        <button onClick={() => setActiveRoomId(null)} className="text-slate-500 hover:text-white font-bold text-xs uppercase tracking-widest flex items-center gap-2">
+            <ArrowLeft size={14} /> Leave
+        </button>
         <div className="flex gap-4 text-xs font-black uppercase tracking-widest text-slate-500">
             <span>Room: {activeRoomId}</span>
             <span>Level {room.currentLevel}</span>
