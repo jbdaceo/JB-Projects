@@ -9,6 +9,7 @@ import AuthModal from './components/AuthModal';
 import LevelRequirementsModal from './components/LevelRequirementsModal';
 import { AuthProvider } from './contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAudioInitialization } from './hooks/useAudioInitialization';
 
 const LessonGenerator = React.lazy(() => import('./components/LessonGenerator'));
 const SpeakingPractice = React.lazy(() => import('./components/SpeakingPractice'));
@@ -22,6 +23,7 @@ const ChatPage = React.lazy(() => import('./components/ChatPage'));
 const WorldPage = React.lazy(() => import('./components/WorldPage'));
 const BreakoutRoom = React.lazy(() => import('./components/BreakoutRoom'));
 const LiveClassroom = React.lazy(() => import('./components/LiveClassroom'));
+const JobsBoard = React.lazy(() => import('./components/JobsBoard'));
 
 const THEME_CONFIG: Record<AppSection, { hue: number, sat: number }> = {
   [AppSection.Home]: { hue: 220, sat: 90 },
@@ -37,6 +39,7 @@ const THEME_CONFIG: Record<AppSection, { hue: number, sat: number }> = {
   [AppSection.Kids]: { hue: 330, sat: 90 },
   [AppSection.Breakout]: { hue: 50, sat: 95 },
   [AppSection.LiveClassroom]: { hue: 10, sat: 90 },
+  [AppSection.Jobs]: { hue: 210, sat: 90 },
 };
 
 interface ErrorBoundaryProps { children?: ReactNode; }
@@ -61,6 +64,9 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 }
 
 const AppContent: React.FC = () => {
+  // Initialize audio context on first interaction
+  useAudioInitialization();
+
   const [activeSection, setActiveSection] = useState<AppSection>(AppSection.Home);
   const [lang, setLang] = useState<Language>('es');
   const [showAuthModal, setShowAuthModal] = useState(true);
@@ -118,6 +124,7 @@ const AppContent: React.FC = () => {
       case AppSection.Coaching: return <CoachingSessions lang={lang} />;
       case AppSection.Community: return <Community lang={lang} onNavigate={setActiveSection} />;
       case AppSection.Kids: return <KidsZone lang={lang} />;
+      case AppSection.Jobs: return <JobsBoard lang={lang} onNavigate={setActiveSection} />;
       default: return <Home onStart={() => setActiveSection(AppSection.Worlds)} onNavigate={setActiveSection} lang={lang} />;
     }
   };

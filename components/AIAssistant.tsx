@@ -176,7 +176,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, lang, curren
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-xl shadow-lg shadow-blue-500/20">🤖</div>
                 <div>
-                  <p className="font-black text-white text-sm">TMC Assistant</p>
+                  <p className="font-black text-white text-sm">Immersive Assistant</p>
                   <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Context Aware AI</p>
                 </div>
               </div>
@@ -270,3 +270,4 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, lang, curren
 };
 
 export default AIAssistant;
+    

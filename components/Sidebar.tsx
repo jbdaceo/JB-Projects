@@ -3,7 +3,7 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { AppSection, Language } from '../types';
 import { motion, useAnimation, Variants } from 'framer-motion';
 import { 
-  Home, Gamepad2, Globe, Tv, BookOpen, Mic, Languages, Users, Sparkles, Instagram, MessageCircle 
+  Home, Gamepad2, Globe, Tv, BookOpen, Mic, Languages, Users, Sparkles, Instagram, MessageCircle, Briefcase 
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -57,11 +57,11 @@ const Sidebar: React.FC<SidebarProps> = React.memo(({
     coaching: lang === 'es' ? 'Tutorías' : 'Coaching',
     community: lang === 'es' ? 'Comunidad' : 'Community',
     kids: lang === 'es' ? 'Niños' : 'For Kids',
+    jobs: lang === 'es' ? 'Trabajos' : 'Jobs',
   }), [lang]);
 
   const items = useMemo(() => [
     { id: AppSection.Home, label: text.welcome, icon: Home },
-    { id: AppSection.Kids, label: text.kids, icon: Gamepad2 },
     { id: AppSection.Worlds, label: text.worlds, icon: Globe },
     { id: AppSection.Classes, label: text.classes, icon: Tv },
     { id: AppSection.Lessons, label: text.lessons, icon: BookOpen },
@@ -69,6 +69,8 @@ const Sidebar: React.FC<SidebarProps> = React.memo(({
     { id: AppSection.Vocab, label: text.vocab, icon: Languages },
     { id: AppSection.Coaching, label: text.coaching, icon: Sparkles },
     { id: AppSection.Community, label: text.community, icon: Users },
+    { id: AppSection.Kids, label: text.kids, icon: Gamepad2 },
+    { id: AppSection.Jobs, label: text.jobs, icon: Briefcase },
   ], [text]);
 
   const handleNavClick = useCallback((id: AppSection) => {
@@ -102,7 +104,7 @@ const Sidebar: React.FC<SidebarProps> = React.memo(({
             <motion.div whileHover={{ rotate: 15, scale: 1.1 }} className={`w-12 h-12 rounded-2xl ${lang === 'es' ? 'colombia-gradient' : 'usa-gradient'} flex items-center justify-center text-white font-bold text-2xl shrink-0 shadow-xl shadow-brand-500/20 font-display gpu-accelerated`}>C</motion.div>
             <div className="flex flex-col whitespace-nowrap">
                 <span className="font-display font-black text-xl leading-tight tracking-tighter text-white uppercase italic">El Camino</span>
-                <span className="font-sans font-bold text-[9px] text-brand-500 uppercase tracking-[0.25em]">with TMC teacher</span>
+                <span className="font-sans font-bold text-[9px] text-brand-500 uppercase tracking-[0.25em]">IMS</span>
             </div>
         </div>
 

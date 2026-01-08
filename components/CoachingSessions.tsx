@@ -43,7 +43,7 @@ const CoachingSessions: React.FC<CoachingSessionsProps> = ({ lang }) => {
     goal: lang === 'es' ? '¿Cuál es tu objetivo principal?' : 'What is your main goal?',
     goalPlaceholder: lang === 'es' ? 'Describe lo que quieres lograr en estos 60 minutos...' : 'Describe what you want to achieve in these 60 minutes...',
     confirm: lang === 'es' ? 'Confirmar Tutoría' : 'Confirm Session',
-    quote: lang === 'es' ? '"El Camino with TMC teacher se construye paso a paso."' : '"El Camino with TMC teacher is built step by step."',
+    quote: lang === 'es' ? '"El Camino with Immersive Learning Systems se construye paso a paso."' : '"El Camino with Immersive Learning Systems is built step by step."',
     quoteDesc: lang === 'es' ? 'Estas sesiones son el catalizador de tu carrera. Tomas te dará el feedback real que las academias tradicionales temen darte. Prepárate para subir de nivel.' : 'These sessions are the catalyst for your career. Tomas will give you the real feedback traditional academies fear to give. Get ready to level up.'
   };
 
@@ -250,3 +250,4 @@ const CoachingSessions: React.FC<CoachingSessionsProps> = ({ lang }) => {
 };
 
 export default CoachingSessions;
+    

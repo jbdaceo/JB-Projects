@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Language, AppSection } from '../types';
@@ -115,7 +116,7 @@ const Home: React.FC<HomeProps> = ({ onStart, onNavigate, lang }) => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
             { icon: '💬', label: 'WhatsApp', sub: 'Group', color: 'bg-emerald-500/10 text-emerald-400', link: 'https://wa.link/fhe3xu' },
-            { icon: '📸', label: 'Instagram', sub: '@tmc_teacher', color: 'bg-pink-500/10 text-pink-400', link: 'https://www.instagram.com/tmc_teacher/' },
+            { icon: '📸', label: 'Instagram', sub: '@immersive_learning', color: 'bg-pink-500/10 text-pink-400', link: 'https://www.instagram.com/tmc_teacher/' },
             { icon: '🤝', label: 'Coaching', sub: '1-on-1', color: 'bg-amber-500/10 text-amber-400', action: AppSection.Coaching },
             { icon: '🎙️', label: 'Speaking', sub: 'Practice', color: 'bg-cyan-500/10 text-cyan-400', action: AppSection.Speaking },
         ].map((item, idx) => {
@@ -134,8 +135,18 @@ const Home: React.FC<HomeProps> = ({ onStart, onNavigate, lang }) => {
 
       <motion.div variants={container} initial="hidden" animate="show" className="flex flex-col gap-4">
         <h3 className="text-lg font-black text-white px-2 mt-4 font-display">{lang === 'es' ? 'Destacado' : 'Featured'}</h3>
-        {[{ icon: '🚀', title: lang === 'es' ? 'Futuro Global' : 'Global Future', desc: lang === 'es' ? 'Carreras internacionales.' : 'International careers.' }, { icon: '🌎', title: lang === 'es' ? 'Sin Límites' : 'Limitless', desc: lang === 'es' ? 'El idioma no será obstáculo.' : 'No barriers.' }].map((card, idx) => (
-          <motion.div key={idx} variants={item} whileHover={{ scale: 1.02, x: 5, backgroundColor: "rgba(15, 23, 42, 0.8)" }} whileTap={{ scale: 0.98 }} className="flex items-center gap-4 p-5 bg-slate-900/60 rounded-[28px] border border-white/5 backdrop-blur-sm cursor-pointer">
+        {[
+          { icon: '🚀', title: lang === 'es' ? 'Futuro Global' : 'Global Future', desc: lang === 'es' ? 'Bolsa de Trabajo Bilingüe (0-3 Años).' : 'Bilingual Job Board (0-3 Years).', action: AppSection.Jobs }, 
+          { icon: '🌎', title: lang === 'es' ? 'Sin Límites' : 'Limitless', desc: lang === 'es' ? 'El idioma no será obstáculo.' : 'No barriers.', action: AppSection.Worlds }
+        ].map((card, idx) => (
+          <motion.div 
+            key={idx} 
+            variants={item} 
+            onClick={() => onNavigate(card.action)}
+            whileHover={{ scale: 1.02, x: 5, backgroundColor: "rgba(15, 23, 42, 0.8)" }} 
+            whileTap={{ scale: 0.98 }} 
+            className="flex items-center gap-4 p-5 bg-slate-900/60 rounded-[28px] border border-white/5 backdrop-blur-sm cursor-pointer"
+          >
             <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center text-2xl shadow-inner border border-white/5">{card.icon}</div>
             <div><h3 className="font-black text-base text-white font-display">{card.title}</h3><p className="text-slate-500 text-xs font-medium">{card.desc}</p></div>
             <div className="ml-auto opacity-30 text-xl">→</div>

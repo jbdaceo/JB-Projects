@@ -1,10 +1,11 @@
+
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Language, Persona, ChatMsg, AppSection } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { generateCommunityChat, getPronunciation, decodeBase64Audio, decodeAudioData } from '../services/gemini';
 import { useAuth } from '../contexts/AuthContext';
 import { socket } from '../services/mockBackend';
-import OptimizedImage, { useAnimationVariants } from '../utils/performance';
+import { useAnimationVariants } from '../utils/performance';
 
 // --- Types ---
 interface CommunityProps {
@@ -20,13 +21,14 @@ interface Environment {
   type: 'urban' | 'coastal' | 'nature' | 'lounge';
 }
 
-// ... (Constants kept same as original, omitted for brevity but logic implies they are here)
-// Re-declaring constants for completeness in this file content replacement
 const MASCULINE_VOICES = ['Puck', 'Fenrir', 'Charon'];
 const FEMININE_VOICES = ['Kore', 'Aoede'];
 
-const US_UNISEX_NAMES = ["Alex", "Jordan", "Casey", "Taylor", "Morgan", "Riley", "Avery", "Quinn", "Rowan", "Charlie", "Peyton", "Reese"];
-const COL_UNISEX_NAMES = ["Alex", "Dani", "Cris", "Manu", "Santi", "Valen", "Cam", "Leo", "Rene", "Gaby", "Andrea", "Ariel"];
+const US_MALE_NAMES = ["James", "John", "Robert", "Michael", "William", "David", "Richard", "Joseph"];
+const US_FEMALE_NAMES = ["Mary", "Patricia", "Jennifer", "Linda", "Elizabeth", "Barbara", "Susan", "Jessica"];
+
+const COL_MALE_NAMES = ["Santiago", "Sebastián", "Matías", "Mateo", "Nicolás", "Alejandro", "Samuel", "Diego"];
+const COL_FEMALE_NAMES = ["Valentina", "Camila", "Mariana", "Valeria", "Isabella", "Daniela", "Gabriela", "Sofía"];
 
 const US_PERSONA_TOPICS = ['Tech & AI', 'Movies & Pop Culture', 'Sports & Fitness', 'Music & Concerts', 'Food & Dining', 'Travel & Adventure'];
 const COL_PERSONA_TOPICS = ['Reggaeton & Urban', 'Fútbol (Soccer)', 'Coffee & Gastronomy', 'Nature & Eco', 'Salsa & Festivals', 'Art & Design'];
@@ -114,12 +116,14 @@ const generatePersonalities = (lang: Language): Persona[] => {
       let topicList: string[];
 
       if (targetRegion === 'US') {
-          namePool = US_UNISEX_NAMES;
+          // Select gender-appropriate name pool
+          namePool = gender === 'masculine' ? US_MALE_NAMES : US_FEMALE_NAMES;
           region = ['NY', 'CA', 'TX', 'FL'][Math.floor(Math.random() * 4)];
           vibe = ['Chill', 'Fast', 'Urban', 'Friendly'][Math.floor(Math.random() * 4)];
           topicList = US_PERSONA_TOPICS;
       } else {
-          namePool = COL_UNISEX_NAMES;
+          // Select gender-appropriate name pool
+          namePool = gender === 'masculine' ? COL_MALE_NAMES : COL_FEMALE_NAMES;
           region = ['MED', 'BOG', 'CALI', 'CTG'][Math.floor(Math.random() * 4)];
           vibe = ['Paisa', 'Rolo', 'Costeño', 'Caleño'][Math.floor(Math.random() * 4)];
           topicList = COL_PERSONA_TOPICS;
@@ -171,9 +175,18 @@ const PersonaAvatar: React.FC<{
   onScreen: boolean; 
   position: { x: number; y: number }; 
   lastMessage?: string;
-}> = React.memo(({ persona, isSpeaking, isThinking, onScreen, position, lastMessage }) => {
+  alignment: 'left' | 'center' | 'right';
+}> = React.memo(({ persona, isSpeaking, isThinking, onScreen, position, lastMessage, alignment }) => {
   const color = useMemo(() => stringToColor(persona.name), [persona.name]);
   
+  const isMasculine = MASCULINE_VOICES.includes(persona.voice || '');
+  const avatarStyle = isMasculine 
+    ? 'top=shortHair,shortHairTheCaesar,shortHairFrizzle&facialHairChance=30' 
+    : 'top=longHair,longHairCurvy,longHairStraight&facialHairChance=0';
+    
+  // Using DiceBear 9.x API for better reliability
+  const avatarUrl = `https://api.dicebear.com/9.x/avataaars/svg?seed=${persona.name}&${avatarStyle}`;
+
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0 }}
@@ -197,16 +210,23 @@ const PersonaAvatar: React.FC<{
             initial={{ opacity: 0, y: 10, scale: 0.8 }}
             animate={{ opacity: 1, y: -20, scale: 1 }}
             exit={{ opacity: 0, scale: 0.5 }}
-            className="absolute bottom-full mb-2 z-50 pointer-events-auto flex flex-col items-center"
+            className={`absolute bottom-full mb-4 z-50 pointer-events-auto flex flex-col w-[180px] md:w-[240px] min-w-[140px]
+                ${alignment === 'left' ? 'items-start -left-2 origin-bottom-left' : 
+                  alignment === 'right' ? 'items-end -right-2 origin-bottom-right' : 
+                  'items-center left-1/2 -translate-x-1/2 origin-bottom'}`}
           >
-            <div className="relative bg-white text-slate-900 p-4 rounded-[24px] shadow-2xl min-w-[220px] max-w-[300px] border-4 border-slate-900 overflow-hidden">
+            <div className="relative bg-white text-slate-900 p-3 md:p-4 rounded-[24px] shadow-2xl w-full border-4 border-slate-900 overflow-hidden">
                 <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-20 pointer-events-none"></div>
-                <div className="absolute -top-2 -right-2 text-2xl animate-bounce pointer-events-none">☀️</div>
-                <p className="relative z-10 text-sm font-black leading-snug tracking-tight text-center">
-                    {lastMessage}
-                </p>
+                {/* Scrollable Container for Text to prevent overflow */}
+                <div className="max-h-[140px] overflow-y-auto hide-scrollbar relative z-10">
+                    <p className="text-xs md:text-sm font-black leading-snug tracking-tight text-center break-words whitespace-pre-wrap">
+                        {lastMessage}
+                    </p>
+                </div>
             </div>
-            <div className="w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-t-[15px] border-t-slate-900 -mt-1 drop-shadow-md"></div>
+            {/* Triangle pointing to avatar */}
+            <div className={`w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-t-[15px] border-t-slate-900 -mt-1 drop-shadow-md 
+                ${alignment === 'left' ? 'ml-6' : alignment === 'right' ? 'mr-6' : ''}`}></div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -216,10 +236,12 @@ const PersonaAvatar: React.FC<{
         style={{ borderColor: isSpeaking ? '#fff' : color }}
       >
          <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent z-10"></div>
+         {/* Use standard IMG tag for reliability */}
          <img 
-           src={`https://api.dicebear.com/7.x/micah/svg?seed=${persona.name}&backgroundColor=transparent`} 
+           src={avatarUrl} 
            alt={persona.name}
            className="w-full h-full object-cover transform scale-110 translate-y-2"
+           loading="eager"
          />
          {isThinking && <div className="absolute inset-0 bg-white/20 animate-pulse z-20"></div>}
       </div>
@@ -334,13 +356,21 @@ const Community: React.FC<CommunityProps> = ({ lang, onNavigate }) => {
       setSources([]);
       setSelectedExperience(null);
       setCurrentEnv(null);
-      if (ambientAudioRef.current) ambientAudioRef.current.pause();
+      if (ambientAudioRef.current) {
+          ambientAudioRef.current.pause();
+          ambientAudioRef.current.src = "";
+      }
       setIsListening(false);
       setCurrentSpeakerId(null);
       setCurrentSpeakerText(null);
       setThinkingPersonaId(null);
       isProcessingQueueRef.current = false;
   }, []);
+
+  // Ensure chat session resets when language changes
+  useEffect(() => {
+    resetSession();
+  }, [lang, resetSession]);
 
   const initAudioContext = () => {
       if (!audioContextRef.current) {
@@ -402,10 +432,15 @@ const Community: React.FC<CommunityProps> = ({ lang, onNavigate }) => {
 
   useEffect(() => {
       if (hasSelectedMode && !isVoiceMode && chatMessages.length === 0) {
-          const welcomeText = lang === 'es' 
-            ? "¡Hola! Bienvenidos al chat. ¿Qué opinan de las tendencias de hoy?" 
-            : "Hey everyone! Welcome to the chat. What's trending today?";
+          const isEnglishImmersion = lang === 'es';
+          
+          // STRICT LANGUAGE ENFORCEMENT for Seed Message
+          const welcomeText = isEnglishImmersion 
+            ? "Hey everyone! Welcome to the chat. What's trending today?"
+            : "¡Hola! Bienvenidos al chat. ¿Qué opinan de las tendencias de hoy?";
             
+          const seedTopic = isEnglishImmersion ? 'Introduction' : 'Introducción';
+
           const seedMsg: ChatMsg = {
               id: 'system-seed',
               userId: personalities[0].id,
@@ -418,7 +453,7 @@ const Community: React.FC<CommunityProps> = ({ lang, onNavigate }) => {
           };
           
           setChatMessages([seedMsg]);
-          fetchAIResponse(undefined, 'Introduction');
+          fetchAIResponse(undefined, seedTopic);
       }
   }, [hasSelectedMode, isVoiceMode, lang, personalities, fetchAIResponse, chatMessages.length]);
 
@@ -715,14 +750,40 @@ const Community: React.FC<CommunityProps> = ({ lang, onNavigate }) => {
                 ) : (
                     <>
                         <div className="absolute inset-0 transition-opacity duration-1000">
-                            <OptimizedImage src={currentEnv?.image || ''} alt="Environment" priority={true} className="w-full h-full object-cover brightness-[0.6] scale-105 blur-[2px]" />
+                            {/* Standard Img tag for robustness */}
+                            {currentEnv?.image && (
+                                <img 
+                                    src={currentEnv.image} 
+                                    alt="Environment" 
+                                    className="w-full h-full object-cover brightness-[0.6] scale-105 blur-[2px]" 
+                                    loading="eager"
+                                />
+                            )}
                             <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/30"></div>
                         </div>
                         <div className="absolute inset-0 z-10 pointer-events-none">
                              <div className="absolute bottom-0 w-full h-1/2 bg-[linear-gradient(to_bottom,transparent_0%,rgba(0,0,0,0.8)_100%)]"></div>
-                             {personalities.map((persona, index) => (
-                                 <PersonaAvatar key={persona.id} persona={persona} isSpeaking={currentSpeakerId === persona.id} isThinking={thinkingPersonaId === persona.id} onScreen={true} position={{ x: 20 + (index * 20), y: 60 + (index % 2 === 0 ? 5 : -5) }} lastMessage={currentSpeakerId === persona.id ? currentSpeakerText || '' : undefined} />
-                             ))}
+                             {personalities.map((persona, index) => {
+                                 // Determine alignment based on visual position 20, 40, 60, 80
+                                 const xPos = 20 + (index * 20);
+                                 // Smart alignment to prevent overflow
+                                 let alignment: 'left' | 'center' | 'right' = 'center';
+                                 if (xPos <= 40) alignment = 'left';
+                                 else if (xPos >= 60) alignment = 'right';
+                                 
+                                 return (
+                                     <PersonaAvatar 
+                                        key={persona.id} 
+                                        persona={persona} 
+                                        isSpeaking={currentSpeakerId === persona.id} 
+                                        isThinking={thinkingPersonaId === persona.id} 
+                                        onScreen={true} 
+                                        position={{ x: xPos, y: 60 + (index % 2 === 0 ? 5 : -5) }} 
+                                        lastMessage={currentSpeakerId === persona.id ? currentSpeakerText || '' : undefined}
+                                        alignment={alignment}
+                                     />
+                                 );
+                             })}
                         </div>
                         <div className="absolute bottom-6 left-0 right-0 flex justify-center z-50 pointer-events-auto">
                             <motion.button whileTap={{ scale: 0.95 }} onMouseDown={handleVoiceInput} onTouchStart={handleVoiceInput} className={`w-64 h-16 rounded-full font-black text-sm uppercase tracking-widest shadow-2xl flex items-center justify-center gap-3 border-4 transition-all ${isListening ? 'bg-red-600 border-red-400 text-white' : 'bg-white border-slate-300 text-slate-900'}`}>{isListening ? text.listening : text.tapToSpeak}</motion.button>
@@ -731,16 +792,16 @@ const Community: React.FC<CommunityProps> = ({ lang, onNavigate }) => {
                 )}
             </motion.div>
         ) : (
-            <motion.div key="text" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="flex-1 bg-slate-900/80 rounded-[32px] border border-white/5 relative overflow-hidden flex flex-col backdrop-blur-xl shadow-2xl">
+            <motion.div key="text" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="flex-1 bg-slate-900/80 rounded-[32px] border border-white/5 relative overflow-hidden flex flex-col backdrop-blur-xl shadow-2xl h-[calc(100vh-180px)]">
                 <div className="absolute inset-0 opacity-20 pointer-events-none">
-                    <OptimizedImage src={currentEnv?.image || ''} className="w-full h-full object-cover grayscale" alt="Atmosphere" />
+                    {currentEnv?.image && <img src={currentEnv.image} className="w-full h-full object-cover grayscale" alt="Atmosphere" loading="eager" />}
                 </div>
                 <div className="flex-1 overflow-y-auto p-4 space-y-6 relative z-10 scroll-smooth">
                     {chatMessages.map((msg, i) => (
                         <motion.div key={msg.id} initial="hidden" animate="visible" variants={animationVariants.slideUp} custom={i} className={`flex gap-4 ${msg.isUser ? 'flex-row-reverse' : ''}`}>
                             <div className="flex-shrink-0" onClick={() => handleUserClick(msg)}><div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg font-bold shadow-lg ${msg.isUser ? 'bg-gradient-to-br from-brand-500 to-brand-600 text-white' : 'bg-slate-700 text-slate-300'}`}>{msg.user.charAt(0)}</div></div>
                             <div className={`flex flex-col max-w-[75%] ${msg.isUser ? 'items-end' : 'items-start'}`}>
-                                <div className={`p-4 rounded-2xl text-sm leading-relaxed shadow-md backdrop-blur-sm ${msg.isUser ? 'bg-brand-600/20 border border-brand-500/30 text-slate-100 rounded-tr-none' : 'bg-white/5 border border-white/10 text-slate-200 rounded-tl-none'}`}>{msg.text}</div>
+                                <div className={`p-4 rounded-2xl text-sm leading-relaxed shadow-md backdrop-blur-md ${msg.isUser ? 'bg-brand-600 text-white rounded-tr-none border border-brand-500/50' : 'bg-slate-800 text-slate-200 rounded-tl-none border border-slate-700'}`}>{msg.text}</div>
                             </div>
                         </motion.div>
                     ))}

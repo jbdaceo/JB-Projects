@@ -1,11 +1,16 @@
 
+export interface ContentBlock {
+  en: string;
+  es: string;
+}
+
 export interface Lesson {
   title: string;
   topic: string;
   level: string; // The academic grade string (e.g. "Grade 10")
   numericLevel?: number; // Internal numeric tracker
-  content: string;
-  summary: string;
+  content: ContentBlock | string;
+  summary: ContentBlock | string;
   vocabulary: { word: string; translation: string; example: string }[];
   quiz: { question: string; options: string[]; answer: string }[];
 }
@@ -13,6 +18,15 @@ export interface Lesson {
 export interface SavedLesson extends Lesson {
   id: string;
   dateSaved: number;
+  numericLevel?: number;
+  // Progress Tracking
+  progress: number; // 0 to 100
+  completed: boolean;
+  quizScore?: number;
+  masteryFeedback?: {
+    stars: number;
+    text: string;
+  };
 }
 
 export type Language = 'es' | 'en';
@@ -30,7 +44,8 @@ export enum AppSection {
   Community = 'community',
   Kids = 'kids',
   Breakout = 'breakout',
-  LiveClassroom = 'live_classroom'
+  LiveClassroom = 'live_classroom',
+  Jobs = 'jobs' // New Jobs Board
 }
 
 export interface User {

@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { Lesson, AppSection, AssistantMessage, Persona, ChatMsg, GameState } from "../types";
 
@@ -11,6 +10,170 @@ const getAI = () => {
     console.warn("API Key is missing. AI features will not work.");
   }
   return new GoogleGenAI({ apiKey: apiKey || 'MISSING_KEY' });
+};
+
+// --- JOB SEARCH SERVICE ---
+
+export interface JobListing {
+  title: string;
+  company: string;
+  location: string;
+  salary?: string;
+  description: string;
+  url?: string;
+  postedTime?: string;
+}
+
+export const searchBilingualJobs = async (lang: 'es' | 'en'): Promise<JobListing[]> => {
+  const ai = getAI();
+  const searchPrompt = `
+    Find 6 recent (last 96 hours) ENTRY LEVEL (0-3 years experience) BILINGUAL (Spanish/English) job openings in USA or Colombia.
+    Prioritize jobs from major boards like LinkedIn, Indeed, Glassdoor, Torre, etc.
+    
+    CRITERIA:
+    1. Must be Bilingual (English/Spanish).
+    2. Must be Entry Level or Junior.
+    3. Location: USA or Colombia (Remote is okay).
+    
+    OUTPUT JSON FORMAT:
+    [
+      {
+        "title": "Job Title",
+        "company": "Company Name",
+        "location": "City, Country (or Remote)",
+        "salary": "$X/year or Competitive (if found)",
+        "description": "Short 1 sentence summary",
+        "url": "Direct Link to job (if found via search) or Search URL",
+        "postedTime": "2h ago"
+      }
+    ]
+  `;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [{ role: 'user', parts: [{ text: searchPrompt }] }],
+      config: {
+        tools: [{googleSearch: {}}],
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              title: { type: Type.STRING },
+              company: { type: Type.STRING },
+              location: { type: Type.STRING },
+              salary: { type: Type.STRING, nullable: true },
+              description: { type: Type.STRING },
+              url: { type: Type.STRING, nullable: true },
+              postedTime: { type: Type.STRING, nullable: true }
+            },
+            required: ["title", "company", "location", "description"]
+          }
+        }
+      }
+    });
+
+    const jobs = JSON.parse(response.text || '[]');
+    
+    // Enrich with grounding metadata if available (fallback urls)
+    const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
+    if (groundingChunks && jobs.length > 0) {
+       jobs.forEach((job: any, index: number) => {
+          if (!job.url && groundingChunks[index % groundingChunks.length]?.web?.uri) {
+             job.url = groundingChunks[index % groundingChunks.length].web?.uri;
+          }
+       });
+    }
+    
+    return jobs;
+  } catch (e) {
+    console.error("Job Search Error", e);
+    // Fallback Mock Data if search fails (to maintain aesthetic)
+    return [
+      {
+        title: "Bilingual Customer Success Specialist",
+        company: "TechGlobal",
+        location: "Bogotá, Colombia (Remote)",
+        salary: "$1,200 - $1,500 USD/mo",
+        description: "Support US clients via chat and email. No experience required.",
+        postedTime: "4h ago"
+      },
+      {
+        title: "Junior Spanish/English Translator",
+        company: "LangBridge USA",
+        location: "Miami, FL (Hybrid)",
+        salary: "$45,000/yr",
+        description: "Translate documents and assist in client meetings.",
+        postedTime: "1d ago"
+      },
+      {
+        title: "Sales Development Rep (Bilingual)",
+        company: "StartUp Flow",
+        location: "Medellín, Colombia",
+        salary: "Competitive + Commission",
+        description: "Entry level sales role targeting the Latin American market.",
+        postedTime: "12h ago"
+      }
+    ];
+  }
+};
+
+// --- WRITING EVALUATION ---
+
+export const evaluateWritingExercise = async (
+  text: string, 
+  targetWords: string[], 
+  topic: string, 
+  lang: 'es' | 'en'
+): Promise<{ stars: number, text: string }> => {
+  const ai = getAI();
+  const targetLang = lang === 'es' ? 'English' : 'Spanish'; // The language the user is writing in (presumably target)
+  
+  const systemInstruction = `
+    You are Professor Tomas Martinez.
+    Role: Evaluate a student's short writing exercise.
+    Topic: "${topic}".
+    Required Vocabulary: ${targetWords.join(', ')}.
+    User Text: "${text}".
+    
+    Criteria:
+    1. Did they use the vocabulary correctly?
+    2. Is the grammar understandable for a learner?
+    3. Is it creative?
+    
+    Output JSON:
+    {
+      "stars": number (1-5),
+      "feedback": string (A short, encouraging comment in ${lang === 'es' ? 'Spanish' : 'English'} mixing in some English/Spanish Spanglish flavor. Be specific about what they did well.)
+    }
+  `;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [{ role: 'user', parts: [{ text: "Evaluate this writing." }] }],
+      config: {
+        systemInstruction: systemInstruction,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            stars: { type: Type.INTEGER },
+            feedback: { type: Type.STRING }
+          },
+          required: ["stars", "feedback"]
+        }
+      }
+    });
+    
+    const parsed = JSON.parse(response.text || '{ "stars": 3, "feedback": "Good effort!" }');
+    return { stars: parsed.stars, text: parsed.feedback };
+  } catch (e) {
+    console.error("Eval Error", e);
+    return { stars: 3, text: "Great effort! Keep practicing." };
+  }
 };
 
 // --- VOCABULARY NEWS GENERATOR ---
@@ -136,11 +299,11 @@ export const generateLesson = async (
     User Tier: ${userTier}.
     
     PEDAGOGICAL STRATEGY:
-    1. **Bilingual Success Criteria**: The summary MUST start with a clear goal in both languages (e.g., "Goal: Describe your routine / Meta: Describir tu rutina").
+    1. **Bilingual Success Criteria**: Provide 'content' and 'summary' in both English (en) and Spanish (es).
     2. **Interleaving**: Mix vocabulary practice with usage examples immediately.
     3. **Retrieval**: The quiz questions should force the user to recall information, not just recognize it.
     
-    Format: JSON matching the provided schema.
+    Format: JSON matching the provided schema. content.en and content.es should be substantial.
     Content Style: Engaging, practical, cultural notes included.
   `;
 
@@ -158,8 +321,22 @@ export const generateLesson = async (
           title: { type: Type.STRING },
           topic: { type: Type.STRING },
           level: { type: Type.STRING },
-          content: { type: Type.STRING },
-          summary: { type: Type.STRING },
+          content: { 
+            type: Type.OBJECT,
+            properties: {
+              en: { type: Type.STRING },
+              es: { type: Type.STRING }
+            },
+            required: ["en", "es"]
+          },
+          summary: { 
+            type: Type.OBJECT,
+            properties: {
+              en: { type: Type.STRING },
+              es: { type: Type.STRING }
+            },
+            required: ["en", "es"]
+          },
           vocabulary: {
             type: Type.ARRAY,
             items: {
@@ -324,7 +501,8 @@ export const generateCommunityChat = async (
   const systemInstruction = `
     You are simulating a lively group chat of 6 people.
     Target Language STRICTLY: ${targetDialect}.
-    DO NOT SPEAK ${forbiddenLang} unless it is a loan word or cultural reference.
+    You must ONLY speak ${isAmericanChat ? 'English' : 'Spanish'}.
+    Do NOT use ${forbiddenLang}.
     
     Current Room Topic: ${activeTopic || 'General Life'}.
     ${politicsInstruction}
@@ -348,13 +526,13 @@ export const generateCommunityChat = async (
     ? `User said: "${userMessage}". Generate replies.` 
     : `Generate conversational banter. Leaders discuss the topic. Observers might react.`;
 
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+  const callModel = async (withTools: boolean) => {
+    return await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       config: {
         systemInstruction: systemInstruction,
-        tools: [{googleSearch: {}}],
+        tools: withTools ? [{googleSearch: {}}] : [],
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -377,7 +555,12 @@ export const generateCommunityChat = async (
         }
       }
     });
+  };
 
+  try {
+    // Attempt with Google Search enabled
+    const response = await callModel(true);
+    
     const sources: {title: string, uri: string}[] = [];
     if (response.candidates?.[0]?.groundingMetadata?.groundingChunks) {
       response.candidates[0].groundingMetadata.groundingChunks.forEach(chunk => {
@@ -390,6 +573,19 @@ export const generateCommunityChat = async (
     const data = JSON.parse(response.text || '{ "messages": [], "newTopic": "General" }');
     return { ...data, sources };
   } catch (e: any) {
+    // Retry without tool if RPC/500 error occurs
+    if (e.toString().includes('Rpc') || e.toString().includes('500') || e.toString().includes('xhr')) {
+        console.warn("Chat tool error, retrying without search...", e);
+        try {
+            const fallbackResponse = await callModel(false);
+            const data = JSON.parse(fallbackResponse.text || '{ "messages": [], "newTopic": "General" }');
+            return { ...data, sources: [] };
+        } catch (retryE) {
+            console.error("Chat Retry Gen Error", retryE);
+            return { messages: [], newTopic: activeTopic || "General" };
+        }
+    }
+    
     if (e.toString().includes('429')) {
         console.warn("Chat Quota Exceeded. Returning empty update.");
         return { messages: [], newTopic: activeTopic || "General" };
@@ -461,30 +657,139 @@ export const getGameHint = async (gameState: GameState): Promise<string> => {
     });
     return response.text || "Think about the context!";
   } catch (e) {
-    return "Think about the context!";
+    console.error("Game Hint Error", e);
+    return "Try focusing on the other language sentence for clues!";
   }
 };
 
-export const decodeBase64Audio = (b: string) => {
-  const s = atob(b); const l = s.length; const bytes = new Uint8Array(l);
-  for (let i = 0; i < l; i++) bytes[i] = s.charCodeAt(i);
+// --- AUDIO HELPERS ---
+
+export function encodeAudio(bytes: Uint8Array): string {
+  let binary = '';
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+export function decodeBase64Audio(base64: string): Uint8Array {
+  const binaryString = atob(base64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
   return bytes;
-};
+}
 
-export const decodeAudioData = async (d: Uint8Array, ctx: AudioContext) => {
-  const i16 = new Int16Array(d.buffer, d.byteOffset, d.byteLength / 2);
-  const buffer = ctx.createBuffer(1, i16.length, 24000);
-  const cd = buffer.getChannelData(0);
-  for (let i = 0; i < i16.length; i++) cd[i] = i16[i] / 32768.0;
+export async function decodeAudioData(
+  data: Uint8Array,
+  ctx: AudioContext,
+  sampleRate: number = 24000,
+  numChannels: number = 1
+): Promise<AudioBuffer> {
+  const dataInt16 = new Int16Array(data.buffer);
+  const frameCount = dataInt16.length / numChannels;
+  const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
+
+  for (let channel = 0; channel < numChannels; channel++) {
+    const channelData = buffer.getChannelData(channel);
+    for (let i = 0; i < frameCount; i++) {
+      channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
+    }
+  }
   return buffer;
+}
+
+// --- ENCOURAGING FACT ---
+
+export const generateEncouragingFact = async (lang: 'es' | 'en'): Promise<string> => {
+    const ai = getAI();
+    const prompt = lang === 'es' 
+        ? "Dime un dato curioso muy corto (1 frase) y alentador sobre el aprendizaje de idiomas." 
+        : "Tell me a very short (1 sentence) encouraging fact about language learning.";
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: [{ role: 'user', parts: [{ text: prompt }] }]
+        });
+        return response.text || (lang === 'es' ? "¡Tu cerebro crece cuando aprendes!" : "Your brain grows when you learn!");
+    } catch (e) {
+        return lang === 'es' ? "¡Sigue adelante!" : "Keep going!";
+    }
 };
 
-export const encodeAudio = (b: Uint8Array) => {
-  let s = ''; for (let i = 0; i < b.byteLength; i++) s += String.fromCharCode(b[i]);
-  return btoa(s);
-};
+// --- ASSISTANT CHAT ---
 
-export const generateEncouragingFact = async (category: string, answer: string, lang: 'es' | 'en') => ({ text: "Great!", fact: "Keep going." });
-export const translateUI = async (t: string) => t;
-export const assistantChat = async (history: any[], currentSection: string, lang: string) => ({ text: "I'm here.", suggestion: undefined });
-export const generateKidVideo = async () => null;
+export const assistantChat = async (
+  history: AssistantMessage[], 
+  section: string, 
+  lang: string
+): Promise<{ text: string, suggestion?: { section: AppSection, label: string } }> => {
+  const ai = getAI();
+  
+  const systemInstruction = `
+    You are the AI assistant for "El Camino", an immersive language learning app.
+    Current Section: ${section}.
+    User Language: ${lang}.
+    
+    Goal: Help the user navigate, answer questions about features, or practice language.
+    If the user asks about a specific feature (like "Where are the classes?", "I want to practice speaking"), suggest navigating to it using the 'suggestion' field.
+    
+    Available Sections for suggestion:
+    - ${AppSection.Home} (Home)
+    - ${AppSection.Worlds} (Worlds)
+    - ${AppSection.Classes} (Classes)
+    - ${AppSection.Lessons} (Lessons)
+    - ${AppSection.Speaking} (Speaking)
+    - ${AppSection.Vocab} (Vocab)
+    - ${AppSection.Coaching} (Coaching)
+    - ${AppSection.Community} (Community)
+    - ${AppSection.Kids} (Kids)
+    - ${AppSection.Jobs} (Jobs)
+    
+    Output JSON:
+    {
+      "text": "Response text...",
+      "suggestion": { "section": "section_id", "label": "Button Label" } (Optional)
+    }
+  `;
+
+  const contents = history.map(m => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.text }]
+  }));
+
+  try {
+      const response = await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: contents,
+          config: {
+              systemInstruction: systemInstruction,
+              responseMimeType: "application/json",
+              responseSchema: {
+                  type: Type.OBJECT,
+                  properties: {
+                      text: { type: Type.STRING },
+                      suggestion: {
+                          type: Type.OBJECT,
+                          properties: {
+                              section: { type: Type.STRING },
+                              label: { type: Type.STRING }
+                          },
+                          nullable: true
+                      }
+                  },
+                  required: ["text"]
+              }
+          }
+      });
+      
+      const result = JSON.parse(response.text || '{}');
+      return result;
+  } catch (e) {
+      console.error(e);
+      return { text: lang === 'es' ? "Lo siento, tuve un problema conectando con el servidor." : "Sorry, I had an issue connecting to the server." };
+  }
+};

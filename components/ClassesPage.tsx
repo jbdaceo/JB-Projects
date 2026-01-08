@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Language } from '../types';
 import { fetchClassInfo } from '../services/api';
+import YouTubeLive from './YouTubeLive';
 
 interface ClassesPageProps {
   lang: Language;
@@ -44,21 +45,9 @@ const ClassesPage: React.FC<ClassesPageProps> = ({ lang }) => {
     return () => { mounted = false; };
   }, [lang]);
 
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
-        <div className="w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-slate-400 font-bold animate-pulse">{text.loading}</p>
-      </div>
-    );
-  }
-
-  // EN: Embed Strategy: Use standard youtube.com.
-  // ES: Estrategia de incrustación: Usar youtube.com estándar.
-  const videoId = 'qKG4YMp9z34';
-  
-  // EN: Simplified embed URL to avoid origin/policy network errors.
-  const embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&controls=1&playsinline=1&rel=0`;
+  // ID of the video/channel we want to show
+  const videoId = 'qKG4YMp9z34'; 
+  // const channelId = 'UC_x5XG1OV2P6uZZ5FSM9Ttw'; // Optional: Use channel ID for generic live stream
 
   return (
     <div className="space-y-8 pb-24">
@@ -79,18 +68,13 @@ const ClassesPage: React.FC<ClassesPageProps> = ({ lang }) => {
         {/* Video Player Area */}
         <div className="lg:col-span-2 bg-black rounded-[32px] overflow-hidden shadow-2xl relative group border border-white/10">
           <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
-             <iframe 
-               width="100%" 
-               height="100%" 
-               src={embedUrl}
-               title="YouTube video player" 
-               frameBorder="0" 
-               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
-               referrerPolicy="strict-origin-when-cross-origin"
-               allowFullScreen
-               loading="eager"
-               className="w-full h-full"
-             ></iframe>
+             <YouTubeLive 
+                videoId={videoId} 
+                autoplay={true}
+                muted={true}
+                title={text.title}
+                className="w-full h-full" 
+             />
           </div>
           
           <div className="absolute bottom-4 left-4 z-10 px-3 py-1 bg-black/60 backdrop-blur-md rounded-lg border border-white/10 pointer-events-none">
@@ -137,4 +121,3 @@ const ClassesPage: React.FC<ClassesPageProps> = ({ lang }) => {
 };
 
 export default ClassesPage;
-    
