@@ -4,7 +4,7 @@ import { generateLesson, getPronunciation, decodeBase64Audio, decodeAudioData } 
 import { SavedLesson, Language } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
-import { BookOpen, Star, CheckCircle, PenTool, Lightbulb, Globe, AlertTriangle, MessageCircle, Music, Coffee, Plane, Briefcase, Smile, Zap, Plus, ArrowLeft, ArrowRight, Volume2, RotateCcw, Award, Rocket } from 'lucide-react';
+import { BookOpen, Star, CheckCircle, PenTool, Lightbulb, Globe, AlertTriangle, MessageCircle, Music, Coffee, Plane, Briefcase, Smile, Zap, Plus, ArrowLeft, ArrowRight, Volume2, RotateCcw, Award, Rocket, X } from 'lucide-react';
 import { Tooltip } from './Tooltip';
 import { triggerHaptic } from '../utils/performance';
 
@@ -12,14 +12,6 @@ interface LessonGeneratorProps {
   lang: Language;
   userTier?: 'Novice' | 'Semi Pro' | 'Pro';
 }
-
-const TOPICS = [
-  { id: 'travel', label: 'Travel', icon: Plane, bg: 'bg-sky-500' },
-  { id: 'business', label: 'Business', icon: Briefcase, bg: 'bg-slate-600' },
-  { id: 'food', label: 'Food', icon: Coffee, bg: 'bg-orange-500' },
-  { id: 'social', label: 'Social', icon: Smile, bg: 'bg-pink-500' },
-  { id: 'tech', label: 'Tech', icon: Zap, bg: 'bg-blue-600' },
-];
 
 const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang, userTier = 'Novice' }) => {
   const [viewState, setViewState] = useState<'dashboard' | 'create' | 'lesson'>('dashboard');
@@ -40,6 +32,9 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang, userTier = 'Nov
   const [wrongIndices, setWrongIndices] = useState<number[]>([]);
   const [questionsToRetry, setQuestionsToRetry] = useState<number[]>([]);
 
+  // Tutorial State
+  const [showTutorial, setShowTutorial] = useState(false);
+
   useEffect(() => {
     const history = localStorage.getItem('tmc_saved_lessons');
     if (history) {
@@ -56,7 +51,28 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang, userTier = 'Nov
     if (savedDifficulty) {
         setDifficulty(parseInt(savedDifficulty, 10));
     }
+
+    // Check Tutorial Status
+    const seenTutorial = localStorage.getItem('tmc_lesson_tutorial_seen');
+    if (!seenTutorial) {
+        setShowTutorial(true);
+    }
   }, []);
+
+  const closeTutorial = () => {
+      localStorage.setItem('tmc_lesson_tutorial_seen', 'true');
+      setShowTutorial(false);
+  };
+
+  const getTopics = (l: Language) => [
+    { id: 'travel', label: l === 'es' ? 'Viajes' : 'Travel', icon: Plane, bg: 'bg-sky-500' },
+    { id: 'business', label: l === 'es' ? 'Negocios' : 'Business', icon: Briefcase, bg: 'bg-slate-600' },
+    { id: 'food', label: l === 'es' ? 'Comida' : 'Food', icon: Coffee, bg: 'bg-orange-500' },
+    { id: 'social', label: l === 'es' ? 'Social' : 'Social', icon: Smile, bg: 'bg-pink-500' },
+    { id: 'tech', label: l === 'es' ? 'Tecnología' : 'Tech', icon: Zap, bg: 'bg-blue-600' },
+  ];
+
+  const topics = getTopics(lang);
 
   const playAudio = async (text: string) => {
       if (speakingText) return;
@@ -253,6 +269,8 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang, userTier = 'Nov
 
   const text = {
     myLessons: lang === 'es' ? 'Mis Lecciones' : 'My Lessons',
+    inProgress: lang === 'es' ? 'lecciones en progreso' : 'lessons in progress',
+    noActive: lang === 'es' ? 'No hay lecciones activas.' : 'No active lessons.',
     create: lang === 'es' ? 'Crear Nueva' : 'Create New',
     pickTopic: lang === 'es' ? 'Elige un Tema' : 'Pick a Topic',
     customPlaceholder: lang === 'es' ? 'O escribe el tuyo...' : 'Or type your own...',
@@ -271,17 +289,87 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang, userTier = 'Nov
     previouslyFailed: lang === 'es' ? 'Preguntas falladas previamente' : 'Previously failed questions',
     explanation: lang === 'es' ? 'Explicación' : 'Explanation',
     correctAnswer: lang === 'es' ? 'Respuesta Correcta' : 'Correct Answer',
-    yourAnswer: lang === 'es' ? 'Tu Respuesta' : 'Your Answer'
+    yourAnswer: lang === 'es' ? 'Tu Respuesta' : 'Your Answer',
+    back: lang === 'es' ? 'Volver' : 'Back',
+    beginner: lang === 'es' ? 'Principiante' : 'Beginner',
+    native: lang === 'es' ? 'Nativo' : 'Native',
+    study: lang === 'es' ? 'Estudiar' : 'Study',
+    quiz: lang === 'es' ? 'Prueba' : 'Quiz',
+    coreConcept: lang === 'es' ? 'Concepto Clave' : 'Core Concept',
+    scenario: lang === 'es' ? 'Escenario' : 'Scenario',
+    step1: lang === 'es' ? '1. Elige un Tema' : '1. Choose a Topic',
+    step1Desc: lang === 'es' ? 'Selecciona qué quieres aprender hoy.' : 'Select what you want to learn today.',
+    step2: lang === 'es' ? '2. Ajusta tu Nivel' : '2. Adjust Your Level',
+    step2Desc: lang === 'es' ? 'Desde Principiante (1) hasta Experto (100).' : 'From Beginner (1) to Expert (100).',
+    step3: lang === 'es' ? '3. Generar y Aprender' : '3. Generate & Learn',
+    step3Desc: lang === 'es' ? 'La IA creará una clase única para ti.' : 'AI will create a unique class for you.',
+    tutorialTitle: lang === 'es' ? 'Cómo funciona' : 'How it works',
+    gotIt: lang === 'es' ? '¡Entendido!' : 'Got it!',
+    lvl: lang === 'es' ? 'Nvl' : 'Lvl',
+    statusProg: lang === 'es' ? 'En Progreso' : 'In Progress'
   };
 
   // --- Renderers ---
+
+  const renderTutorial = () => (
+      <motion.div 
+        initial={{ opacity: 0 }} 
+        animate={{ opacity: 1 }} 
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+      >
+          <motion.div 
+            initial={{ scale: 0.9, y: 20 }}
+            animate={{ scale: 1, y: 0 }}
+            className="bg-slate-900 border border-white/10 rounded-[32px] p-8 max-w-md w-full shadow-2xl relative overflow-hidden"
+          >
+              <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 to-purple-500"></div>
+              <button onClick={closeTutorial} className="absolute top-4 right-4 text-slate-400 hover:text-white"><X size={24}/></button>
+              
+              <h3 className="text-2xl font-black text-white mb-6 flex items-center gap-2">
+                  <Lightbulb className="text-yellow-400" /> {text.tutorialTitle}
+              </h3>
+              
+              <div className="space-y-6">
+                  <div className="flex gap-4">
+                      <div className="w-10 h-10 rounded-full bg-blue-500/10 text-blue-400 flex items-center justify-center font-black border border-blue-500/20 shrink-0">1</div>
+                      <div>
+                          <h4 className="font-bold text-white">{text.step1}</h4>
+                          <p className="text-slate-400 text-sm">{text.step1Desc}</p>
+                      </div>
+                  </div>
+                  <div className="flex gap-4">
+                      <div className="w-10 h-10 rounded-full bg-purple-500/10 text-purple-400 flex items-center justify-center font-black border border-purple-500/20 shrink-0">2</div>
+                      <div>
+                          <h4 className="font-bold text-white">{text.step2}</h4>
+                          <p className="text-slate-400 text-sm">{text.step2Desc}</p>
+                      </div>
+                  </div>
+                  <div className="flex gap-4">
+                      <div className="w-10 h-10 rounded-full bg-green-500/10 text-green-400 flex items-center justify-center font-black border border-green-500/20 shrink-0">3</div>
+                      <div>
+                          <h4 className="font-bold text-white">{text.step3}</h4>
+                          <p className="text-slate-400 text-sm">{text.step3Desc}</p>
+                      </div>
+                  </div>
+              </div>
+
+              <button 
+                onClick={closeTutorial}
+                className="w-full mt-8 py-4 bg-white text-slate-900 font-black rounded-2xl shadow-lg hover:scale-105 active:scale-95 transition-all"
+              >
+                  {text.gotIt}
+              </button>
+          </motion.div>
+      </motion.div>
+  );
 
   const renderDashboard = () => (
     <div className="max-w-5xl mx-auto pt-6 px-4">
       <div className="flex justify-between items-end mb-8">
         <div>
           <h2 className="text-4xl font-black text-white tracking-tight">{text.myLessons}</h2>
-          <p className="text-slate-400 font-medium mt-1">{savedLessons.length} lessons in progress</p>
+          <p className="text-slate-400 font-medium mt-1">{savedLessons.length} {text.inProgress}</p>
         </div>
         <button 
           onClick={() => setViewState('create')} 
@@ -294,7 +382,7 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang, userTier = 'Nov
       {savedLessons.length === 0 ? (
         <div className="text-center py-20 opacity-40">
           <BookOpen size={64} className="mx-auto mb-4 text-slate-500" />
-          <p className="text-xl font-bold">No active lessons.</p>
+          <p className="text-xl font-bold">{text.noActive}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -315,9 +403,9 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang, userTier = 'Nov
             >
               <div className="flex justify-between items-start mb-4">
                 <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-slate-800 text-slate-400`}>
-                  In Progress
+                  {text.statusProg}
                 </span>
-                <span className="text-xs font-bold text-slate-500">Lvl {l.numericLevel}</span>
+                <span className="text-xs font-bold text-slate-500">{text.lvl} {l.numericLevel}</span>
               </div>
               <h3 className="text-xl font-black text-white mb-2 line-clamp-2 group-hover:text-blue-400 transition-colors">{l.title}</h3>
               <p className="text-slate-400 text-sm line-clamp-2">{l.topic}</p>
@@ -331,7 +419,7 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang, userTier = 'Nov
   const renderCreate = () => (
     <div className="max-w-2xl mx-auto pt-6 px-4 flex flex-col min-h-[80vh] justify-center">
       <button onClick={() => setViewState('dashboard')} className="self-start text-slate-500 font-bold mb-8 hover:text-white flex items-center gap-2">
-        <ArrowLeft size={18} /> Back
+        <ArrowLeft size={18} /> {text.back}
       </button>
 
       {loading ? (
@@ -344,7 +432,7 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang, userTier = 'Nov
           <div>
             <h3 className="text-2xl font-black text-white mb-6 text-center">{text.pickTopic}</h3>
             <div className="flex flex-wrap justify-center gap-4 mb-6">
-              {TOPICS.map(t => (
+              {topics.map(t => (
                 <button
                   key={t.id}
                   onClick={() => { setSelectedTopic(t.label); setCustomTopic(''); }}
@@ -367,8 +455,8 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang, userTier = 'Nov
 
           <div>
             <div className="flex justify-between text-xs font-bold text-slate-500 mb-2 uppercase tracking-widest px-2">
-                <span>Beginner</span>
-                <span>Native</span>
+                <span>{text.beginner}</span>
+                <span>{text.native}</span>
             </div>
             <input 
               type="range" 
@@ -417,13 +505,13 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang, userTier = 'Nov
         <div className="flex justify-between items-center mb-8 sticky top-0 bg-slate-950/90 backdrop-blur p-4 z-20 -mx-4 rounded-b-3xl border-b border-white/5 shadow-xl">
           <button onClick={() => setViewState('dashboard')} className="text-slate-400 font-bold hover:text-white"><ArrowLeft /></button>
           <div className="flex bg-slate-900 rounded-full p-1 border border-white/10">
-            <button onClick={() => setViewMode('study')} className={`px-6 py-2 rounded-full text-xs font-black uppercase tracking-widest transition-all ${viewMode === 'study' ? 'bg-white text-black' : 'text-slate-500'}`}>Study</button>
-            <button onClick={() => setViewMode('quiz')} className={`px-6 py-2 rounded-full text-xs font-black uppercase tracking-widest transition-all ${viewMode === 'quiz' ? 'bg-white text-black' : 'text-slate-500'}`}>Quiz ({activeLesson.quiz.length})</button>
+            <button onClick={() => setViewMode('study')} className={`px-6 py-2 rounded-full text-xs font-black uppercase tracking-widest transition-all ${viewMode === 'study' ? 'bg-white text-black' : 'text-slate-500'}`}>{text.study}</button>
+            <button onClick={() => setViewMode('quiz')} className={`px-6 py-2 rounded-full text-xs font-black uppercase tracking-widest transition-all ${viewMode === 'quiz' ? 'bg-white text-black' : 'text-slate-500'}`}>{text.quiz} ({activeLesson.quiz.length})</button>
           </div>
         </div>
 
         <h1 className="text-4xl font-black text-white text-center mb-2">{activeLesson.title}</h1>
-        <p className="text-center text-slate-500 font-medium mb-12">{activeLesson.topic} • Level {activeLesson.numericLevel}</p>
+        <p className="text-center text-slate-500 font-medium mb-12">{activeLesson.topic} • {text.level} {activeLesson.numericLevel}</p>
 
         <AnimatePresence mode="wait">
           {viewMode === 'study' ? (
@@ -433,7 +521,7 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang, userTier = 'Nov
                 <div className="absolute top-0 left-0 w-2 h-full bg-yellow-500" />
                 <div className="flex justify-between items-start mb-4">
                     <h3 className="text-2xl font-black text-white flex items-center gap-3">
-                    <Lightbulb className="text-yellow-500" /> Core Concept
+                    <Lightbulb className="text-yellow-500" /> {text.coreConcept}
                     </h3>
                     <button onClick={() => playAudio(c.concept.en)} className="p-2 bg-white/5 hover:bg-white/10 rounded-full text-yellow-400 transition-colors">
                         <Volume2 size={20} />
@@ -450,7 +538,7 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang, userTier = 'Nov
                 <div className="absolute top-0 left-0 w-2 h-full bg-blue-500" />
                 <div className="flex justify-between items-start mb-4">
                     <h3 className="text-2xl font-black text-white flex items-center gap-3">
-                    <MessageCircle className="text-blue-500" /> Scenario
+                    <MessageCircle className="text-blue-500" /> {text.scenario}
                     </h3>
                     <button onClick={() => playAudio(c.scenario.en)} className="p-2 bg-white/5 hover:bg-white/10 rounded-full text-blue-400 transition-colors">
                         <Volume2 size={20} />
@@ -626,7 +714,10 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang, userTier = 'Nov
   };
 
   return (
-    <div className="h-full overflow-y-auto hide-scrollbar bg-slate-950 font-sans">
+    <div className="h-full overflow-y-auto hide-scrollbar bg-slate-950 font-sans relative">
+      <AnimatePresence>
+        {showTutorial && renderTutorial()}
+      </AnimatePresence>
       {viewState === 'dashboard' && renderDashboard()}
       {viewState === 'create' && renderCreate()}
       {viewState === 'lesson' && renderLesson()}

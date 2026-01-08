@@ -25,11 +25,11 @@ const Sidebar: React.FC<SidebarProps> = React.memo(({
   const [isHovered, setIsHovered] = useState(false);
   const controls = useAnimation();
 
-  // Auto-collapse timer
+  // Auto-collapse timer (Updated to 35 seconds)
   useEffect(() => {
     const timer = setTimeout(() => {
       setIsInitialOpen(false);
-    }, 5000);
+    }, 35000); // 35 seconds
     return () => clearTimeout(timer);
   }, []);
 
@@ -44,6 +44,12 @@ const Sidebar: React.FC<SidebarProps> = React.memo(({
       x: "calc(-100% + 24px)", // 24px visible strip
       transition: { type: "spring", stiffness: 300, damping: 30 }
     }
+  };
+
+  // Content opacity variants to ensure nothing is visible when closed
+  const contentVariants: Variants = {
+    open: { opacity: 1, pointerEvents: "auto" as const, transition: { delay: 0.1, duration: 0.2 } },
+    closed: { opacity: 0, pointerEvents: "none" as const, transition: { duration: 0.1 } }
   };
 
   // Memoize text objects
@@ -113,7 +119,11 @@ const Sidebar: React.FC<SidebarProps> = React.memo(({
          <div className="w-1 h-1 bg-white/30 rounded-full" />
       </div>
 
-      <div className="p-6 flex flex-col gap-6 relative flex-1 min-w-[18rem]">
+      <motion.div 
+        className="p-6 flex flex-col gap-6 relative flex-1 min-w-[18rem]"
+        animate={isOpen ? "open" : "closed"}
+        variants={contentVariants}
+      >
         <div className="flex items-center gap-4 h-16">
             <motion.div whileHover={{ rotate: 15, scale: 1.1 }} className={`w-12 h-12 rounded-2xl ${lang === 'es' ? 'colombia-gradient' : 'usa-gradient'} flex items-center justify-center text-white font-bold text-2xl shrink-0 shadow-xl shadow-brand-500/20 font-display gpu-accelerated`}>C</motion.div>
             <div className="flex flex-col whitespace-nowrap">
@@ -183,7 +193,7 @@ const Sidebar: React.FC<SidebarProps> = React.memo(({
               </motion.button>
             </Tooltip>
         </div>
-      </div>
+      </motion.div>
     </motion.aside>
   );
 }, (prev, next) => prev.activeSection === next.activeSection && prev.lang === next.lang && prev.tmcLevel === next.tmcLevel && prev.levelProgress === next.levelProgress);
