@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -26,6 +27,40 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
+/* Shimmer / Skeleton Animation */
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+.animate-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.animate-shimmer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0,
+    rgba(255, 255, 255, 0.05) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: shimmer 2s infinite;
+}
+
+/* Playful Kid Animations */
+@keyframes wiggle {
+  0%, 100% { transform: rotate(-3deg); }
+  50% { transform: rotate(3deg); }
+}
+.hover-wiggle:hover {
+  animation: wiggle 0.3s ease-in-out infinite;
+}
+
 /* 3D Depth & Avatar Effects */
 .avatar-3d-depth {
   transform: perspective(1000px) rotateX(4deg);
@@ -45,29 +80,13 @@ body {
   color: #f1f5f9;
   overscroll-behavior-y: none;
   -webkit-tap-highlight-color: transparent;
-  /* Fix height issues on mobile Safari */
   min-height: -webkit-fill-available;
 }
 
-/* Mobile Scroll Fixes */
 .scroll-container {
   height: 100%;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-}
-
-/* Camera Mirroring */
-.mirror {
-  transform: scaleX(-1);
-}
-
-/* Animation Keyframes */
-@keyframes spin-slow {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-.animate-spin-slow {
-  animation: spin-slow 12s linear infinite;
 }
 
 .hide-scrollbar::-webkit-scrollbar { display: none; }

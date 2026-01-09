@@ -1,12 +1,11 @@
-
-import React, { Component, useState, useEffect, Suspense, ReactNode, ErrorInfo } from 'react';
-import { AppSection, Language } from './types';
+import React, { useState, useEffect, Suspense, ReactNode, ErrorInfo, Component, useCallback } from 'react';
+import { AppSection, Language, User, PassportStamp } from './types';
 import Sidebar from './components/Sidebar';
 import MobileNav from './components/MobileNav';
 import Home from './components/Home'; 
 import AuthModal from './components/AuthModal';
 import LevelRequirementsModal from './components/LevelRequirementsModal';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAudioInitialization } from './hooks/useAudioInitialization';
 import { triggerHaptic } from './utils/performance';
@@ -25,24 +24,26 @@ const WorldPage = React.lazy(() => import('./components/WorldPage'));
 const LiveClassroom = React.lazy(() => import('./components/LiveClassroom'));
 const JobsBoard = React.lazy(() => import('./components/JobsBoard'));
 const AIAssistant = React.lazy(() => import('./components/AIAssistant'));
+const Passport = React.lazy(() => import('./components/Passport'));
 
 interface ErrorBoundaryProps { children?: ReactNode; }
 interface ErrorBoundaryState { hasError: boolean; }
 
-// Fix Error: Property 'props' does not exist on type 'ErrorBoundary'
-// Explicitly extending React.Component ensures that TypeScript recognizes inherited members like 'props' and 'state'
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+// Fix: Use the imported Component class directly to ensure proper type resolution of this.props and this.state
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  // Fix: Correct state initialization for Component
   public state: ErrorBoundaryState = { hasError: false };
 
-  static getDerivedStateFromError(_: Error): ErrorBoundaryState {
-    return { hasError: true };
+  public static getDerivedStateFromError(_: Error): ErrorBoundaryState { 
+    return { hasError: true }; 
   }
 
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error("Uncaught error:", error, errorInfo);
+  public componentDidCatch(error: Error, errorInfo: ErrorInfo) { 
+    console.error("Uncaught error:", error, errorInfo); 
   }
 
-  render() {
+  public render() {
+    // Fix: state property is now properly resolved through Component inheritance
     if (this.state.hasError) {
       return (
         <div className="p-10 text-center h-screen flex flex-col items-center justify-center bg-slate-950 text-white font-sans">
@@ -52,13 +53,14 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
         </div>
       );
     }
-    // Return children or null if undefined to satisfy React expectations
+    // Fix: props property is now properly resolved through Component inheritance
     return this.props.children || null;
   }
 }
 
 const AppContent: React.FC = () => {
   useAudioInitialization();
+  const { user } = useAuth();
   const [activeSection, setActiveSection] = useState<AppSection>(AppSection.Home);
   const [historyStack, setHistoryStack] = useState<AppSection[]>([AppSection.Home]);
   const [lang, setLang] = useState<Language>('es');
@@ -67,19 +69,37 @@ const AppContent: React.FC = () => {
   const [levelProgress, setLevelProgress] = useState(10);
   const [showLevelModal, setShowLevelModal] = useState(false);
   const [showAiAssistant, setShowAiAssistant] = useState(false);
+  const [stamps, setStamps] = useState<PassportStamp[]>([]);
   
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
 
   useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < 640);
-    };
+    const handleResize = () => setIsMobile(window.innerWidth < 1024);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  const refreshProgress = useCallback(() => {
+    const savedStamps = JSON.parse(localStorage.getItem('tmc_passport_stamps') || '[]');
+    setStamps(savedStamps);
+    
+    const xp = savedStamps.reduce((acc: number, s: PassportStamp) => acc + s.points, 0);
+    const calculatedLevel = Math.min(100, (xp / 5000) * 100);
+    setLevelProgress(calculatedLevel);
+    
+    if (xp > 3000) setTmcLevel('Pro');
+    else if (xp > 1000) setTmcLevel('Semi Pro');
+    else setTmcLevel('Novice');
+  }, []);
+
+  useEffect(() => {
+    refreshProgress();
+    window.addEventListener('tmc-progress-update', refreshProgress);
+    return () => window.removeEventListener('tmc-progress-update', refreshProgress);
+  }, [refreshProgress]);
+
   const handleNavigate = (section: AppSection) => {
-    if (section === activeSection) return;
+    if (section === activeSection && section !== AppSection.Community) return;
     setHistoryStack(prev => [...prev, section]);
     setActiveSection(section);
     triggerHaptic('light');
@@ -98,6 +118,11 @@ const AppContent: React.FC = () => {
     triggerHaptic('medium');
   };
 
+  const handleLangToggle = () => {
+    setLang(l => l === 'es' ? 'en' : 'es');
+    triggerHaptic('medium');
+  };
+
   const renderContent = () => {
     switch (activeSection) {
       case AppSection.Home: return <Home onNavigate={handleNavigate} lang={lang} />;
@@ -112,26 +137,14 @@ const AppContent: React.FC = () => {
       case AppSection.Community: return <Community lang={lang} onNavigate={handleNavigate} />;
       case AppSection.Kids: return <KidsZone lang={lang} />;
       case AppSection.Jobs: return <JobsBoard lang={lang} onNavigate={handleNavigate} />;
+      case AppSection.Passport: return user ? <Passport lang={lang} user={user} stamps={stamps} /> : null;
       default: return <Home onNavigate={handleNavigate} lang={lang} />;
     }
   };
 
-  const sectionTitles: Record<AppSection, string> = {
-    [AppSection.Home]: 'Dashboard',
-    [AppSection.Worlds]: lang === 'es' ? 'Mundos' : 'Worlds',
-    [AppSection.WorldHub]: lang === 'es' ? 'Portal' : 'Portal',
-    [AppSection.Chat]: 'Global Pulse',
-    [AppSection.Classes]: 'ILS TV',
-    [AppSection.Lessons]: lang === 'es' ? 'Lecciones' : 'Lessons',
-    [AppSection.Speaking]: lang === 'es' ? 'Voz' : 'Voice',
-    [AppSection.Vocab]: 'Vocab Pro',
-    [AppSection.Coaching]: lang === 'es' ? 'Tutoría' : 'Coaching',
-    [AppSection.Community]: 'Community',
-    [AppSection.Kids]: 'Kids Zone',
-    [AppSection.LiveClassroom]: 'Studio',
-    [AppSection.Jobs]: 'Careers',
-    [AppSection.Breakout]: 'Breakout'
-  };
+  // Condition to hide global back button if component has its own internal navigation or immersive flow
+  // Added AppSection.Passport and AppSection.Kids to hide global back since they handle it internally or want no overlap
+  const hideGlobalBack = activeSection === AppSection.Home || activeSection === AppSection.Speaking || activeSection === AppSection.Community || activeSection === AppSection.Kids;
 
   return (
     <div className={`absolute inset-0 bg-slate-950 text-slate-100 font-sans selection:bg-brand-500/30 flex overflow-hidden gpu-layer ${isMobile ? 'flex-col' : 'flex-row'}`}>
@@ -144,7 +157,7 @@ const AppContent: React.FC = () => {
             activeSection={activeSection} 
             onNavigate={handleNavigate} 
             lang={lang} 
-            onLangToggle={() => setLang(l => l === 'es' ? 'en' : 'es')} 
+            onLangToggle={handleLangToggle} 
             tmcLevel={tmcLevel} 
             levelProgress={levelProgress} 
             onOpenLevelInfo={() => setShowLevelModal(true)} 
@@ -153,22 +166,16 @@ const AppContent: React.FC = () => {
         </div>
       )}
 
-      {isMobile && (
-        <div className="fixed top-0 left-0 right-0 h-[calc(60px+env(safe-area-inset-top))] glass-header z-[60] flex items-end justify-center px-6 pb-3">
-          <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">{sectionTitles[activeSection]}</span>
-        </div>
-      )}
-
-      <main className={`flex-1 relative h-full overflow-hidden flex flex-col w-full`}>
+      <main className="flex-1 relative h-full overflow-hidden flex flex-col w-full">
         <AnimatePresence>
-          {activeSection !== AppSection.Home && (
+          {!hideGlobalBack && (
             <motion.button 
               initial={{ opacity: 0, scale: 0.8, x: -20 }}
               animate={{ opacity: 1, scale: 1, x: 0 }}
               exit={{ opacity: 0, scale: 0.8, x: -20 }}
               onClick={handleBack} 
-              className={`fixed z-[200] facetime-glass p-3 rounded-2xl text-white shadow-2xl active:scale-90 transition-all flex items-center justify-center
-                ${isMobile ? 'top-[calc(14px+env(safe-area-inset-top))] left-4' : 'top-8 left-8 sm:left-[304px]'}`}
+              className={`fixed z-[200] facetime-glass p-4 rounded-[24px] text-white shadow-2xl active:scale-90 transition-all flex items-center justify-center
+                ${isMobile ? 'top-[calc(12px+env(safe-area-inset-top))] left-4' : 'top-8 left-8 sm:left-[304px]'}`}
             >
               <ChevronLeft size={24} strokeWidth={2.5} />
             </motion.button>
@@ -176,24 +183,12 @@ const AppContent: React.FC = () => {
         </AnimatePresence>
 
         <div className={`flex-1 overflow-y-auto hide-scrollbar scroll-smooth w-full 
-          ${isMobile ? 'pt-[calc(80px+env(safe-area-inset-top))] pb-[calc(100px+env(safe-area-inset-bottom))] px-4' : 'lg:pt-10 lg:pb-10 lg:px-10 px-6 pt-10'}`}>
-          
-          <div className="max-w-7xl mx-auto min-h-full flex flex-col">
+          ${isMobile ? 'pt-[calc(20px+env(safe-area-inset-top))] pb-[calc(100px+env(safe-area-inset-bottom))] px-4' : (activeSection === AppSection.Kids ? 'pt-0' : 'lg:pt-10 lg:pb-10 lg:px-10 px-6 pt-10')}`}>
+          <div className={`${activeSection === AppSection.Kids ? 'max-w-none' : 'max-w-7xl'} mx-auto min-h-full flex flex-col`}>
             <AnimatePresence mode="wait">
-              <motion.div 
-                key={activeSection} 
-                initial={{ opacity: 0, scale: 0.98, y: 10 }} 
-                animate={{ opacity: 1, scale: 1, y: 0 }} 
-                exit={{ opacity: 0, scale: 1.02, y: -10 }} 
-                transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-                className="h-full flex flex-col"
-              >
+              <motion.div key={activeSection} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.35 }} className="h-full flex flex-col">
                 <ErrorBoundary>
-                  <Suspense fallback={
-                    <div className="flex items-center justify-center h-full">
-                      <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }} className="w-10 h-10 border-4 border-brand-500 border-t-transparent rounded-full" />
-                    </div>
-                  }>
+                  <Suspense fallback={<div className="flex items-center justify-center h-full"><motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }} className="w-10 h-10 border-4 border-brand-500 border-t-transparent rounded-full" /></div>}>
                     {renderContent()}
                   </Suspense>
                 </ErrorBoundary>

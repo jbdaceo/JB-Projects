@@ -90,13 +90,6 @@ const BreakoutRoom: React.FC<BreakoutRoomProps> = ({ lang, onNavigate }) => {
   if (!activeRoomId) {
       return (
           <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-12 relative">
-              <button 
-                onClick={() => onNavigate?.(AppSection.Home)} 
-                className="absolute top-0 left-0 text-slate-400 hover:text-white font-bold flex items-center gap-2"
-              >
-                  <ArrowLeft size={18} /> {lang === 'es' ? 'Volver' : 'Back'}
-              </button>
-
               <div className="text-center space-y-4 pt-10">
                   <h2 className="text-4xl font-black text-white">{lang === 'es' ? 'Salas de Ruptura' : 'Breakout Rooms'}</h2>
                   <p className="text-slate-400 max-w-md mx-auto">{lang === 'es' ? 'Crea una sala privada o únete a un amigo para un desafío bilingüe.' : 'Create a private room or join a friend for a bilingual challenge.'}</p>
@@ -157,10 +150,6 @@ const BreakoutRoom: React.FC<BreakoutRoomProps> = ({ lang, onNavigate }) => {
   // --- GAME VIEW ---
   if (!room) return <div className="text-center text-slate-500 mt-20 animate-pulse">Connecting to Room {activeRoomId}...</div>;
 
-  // LOGIC: 
-  // User (EN Learning ES) -> Sees 'sentenceEn' (Spanish sent with blank). Types Spanish word.
-  // User (ES Learning EN) -> Sees 'sentenceEs' (English sent with blank). Types English word.
-  
   const isEnToEs = user.learningTrack === 'EN_TO_ES';
   const sentenceDisplay = isEnToEs ? room.gameState.sentenceEs : room.gameState.sentenceEn;
   const targetLanguageName = isEnToEs ? "Spanish" : "English";
@@ -170,9 +159,6 @@ const BreakoutRoom: React.FC<BreakoutRoomProps> = ({ lang, onNavigate }) => {
   return (
     <div className="flex flex-col items-center justify-center h-full max-w-2xl mx-auto space-y-8 pb-20">
       <div className="w-full flex justify-between items-center">
-        <button onClick={() => setActiveRoomId(null)} className="text-slate-500 hover:text-white font-bold text-xs uppercase tracking-widest flex items-center gap-2">
-            <ArrowLeft size={14} /> Leave
-        </button>
         <div className="flex gap-4 text-xs font-black uppercase tracking-widest text-slate-500">
             <span>Room: {activeRoomId}</span>
             <span>Level {room.currentLevel}</span>

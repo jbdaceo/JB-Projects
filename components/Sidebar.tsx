@@ -3,8 +3,9 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { AppSection, Language } from '../types';
 import { motion, Variants, AnimatePresence } from 'framer-motion';
 import { 
-  Home, Gamepad2, Globe, BookOpen, Mic, Languages, Sparkles, Briefcase, Bot
+  Home, Gamepad2, Globe, BookOpen, Mic, Languages, Sparkles, Briefcase, Bot, Award
 } from 'lucide-react';
+import { triggerHaptic } from '../utils/performance';
 
 interface SidebarProps {
   activeSection: AppSection;
@@ -48,8 +49,10 @@ const Sidebar: React.FC<SidebarProps> = React.memo(({
     jobs: lang === 'es' ? 'Trabajos' : 'Jobs',
     assistant: lang === 'es' ? 'Asistente' : 'Assistant',
     levelStatus: lang === 'es' ? 'Nivel' : 'Level',
+    passport: lang === 'es' ? 'Pasaporte' : 'Passport',
   }), [lang]);
 
+  // Removed Passport from standard items as requested
   const items = [
     { id: AppSection.Home, label: text.welcome, icon: Home },
     { id: AppSection.Worlds, label: text.worlds, icon: Globe },
@@ -60,6 +63,11 @@ const Sidebar: React.FC<SidebarProps> = React.memo(({
     { id: AppSection.Kids, label: text.kids, icon: Gamepad2 },
     { id: AppSection.Jobs, label: text.jobs, icon: Briefcase },
   ];
+
+  const handleBrandClick = () => {
+    triggerHaptic('heavy');
+    onNavigate(AppSection.Passport);
+  };
 
   return (
     <motion.aside 
@@ -74,9 +82,12 @@ const Sidebar: React.FC<SidebarProps> = React.memo(({
       <div className="absolute right-0 top-0 bottom-0 w-1 bg-white/5" />
 
       <div className="p-5 flex flex-col gap-8 h-full">
-        {/* Brand */}
-        <div className="flex items-center gap-4 h-16 shrink-0 overflow-hidden">
-            <div className={`w-12 h-12 rounded-2xl ${lang === 'es' ? 'colombia-gradient' : 'usa-gradient'} flex items-center justify-center text-white font-bold text-2xl shadow-xl shrink-0`}>C</div>
+        {/* Brand - Clickable for Passport */}
+        <button 
+          onClick={handleBrandClick}
+          className="flex items-center gap-4 h-16 shrink-0 overflow-hidden text-left hover:opacity-80 transition-opacity outline-none"
+        >
+            <div className={`w-12 h-12 rounded-2xl ${lang === 'es' ? 'colombia-gradient' : 'usa-gradient'} flex items-center justify-center text-white font-bold text-2xl shadow-xl shrink-0 border border-white/20 active:scale-95 transition-transform`}>C</div>
             <AnimatePresence>
               {isOpen && (
                 <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} className="flex flex-col whitespace-nowrap">
@@ -85,10 +96,10 @@ const Sidebar: React.FC<SidebarProps> = React.memo(({
                 </motion.div>
               )}
             </AnimatePresence>
-        </div>
+        </button>
 
         {/* Lang Toggle */}
-        <div onClick={onLangToggle} className="relative w-full h-10 bg-slate-900 rounded-xl border border-white/5 cursor-pointer p-1 flex items-center shadow-inner overflow-hidden shrink-0">
+        <div onClick={onLangToggle} className="relative w-full h-11 bg-slate-900 rounded-xl border border-white/5 cursor-pointer p-1 flex items-center shadow-inner overflow-hidden shrink-0">
           {isOpen ? (
             <>
               <motion.div 
@@ -96,13 +107,15 @@ const Sidebar: React.FC<SidebarProps> = React.memo(({
                 animate={{ left: lang === 'es' ? '4px' : '50%' }} 
                 transition={{ type: "spring", stiffness: 400, damping: 30 }}
               />
-              <div className="flex w-full justify-between px-3 text-[10px] font-black z-20 pointer-events-none relative select-none uppercase tracking-wider">
-                <span className={`flex-1 text-center transition-colors ${lang === 'es' ? 'text-white' : 'text-slate-600'}`}>ES</span>
-                <span className={`flex-1 text-center transition-colors ${lang === 'en' ? 'text-white' : 'text-slate-600'}`}>EN</span>
+              <div className="flex w-full justify-between px-1 text-[8px] font-black z-20 pointer-events-none relative select-none uppercase tracking-wider">
+                <span className={`flex-1 text-center transition-colors ${lang === 'es' ? 'text-white' : 'text-slate-600'}`}>Spanish</span>
+                <span className={`flex-1 text-center transition-colors ${lang === 'en' ? 'text-white' : 'text-slate-600'}`}>English</span>
               </div>
             </>
           ) : (
-            <div className="w-full text-center text-[10px] font-black text-brand-500 uppercase">{lang.toUpperCase()}</div>
+            <div className="w-full text-center text-[9px] font-black text-brand-500 uppercase tracking-tight">
+              {lang === 'es' ? 'Spanish' : 'English'}
+            </div>
           )}
         </div>
 

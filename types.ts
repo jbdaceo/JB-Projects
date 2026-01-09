@@ -7,8 +7,8 @@ export interface ContentBlock {
 export interface Lesson {
   title: string;
   topic: string;
-  level: string; // The academic grade string (e.g. "Grade 10")
-  numericLevel?: number; // Internal numeric tracker
+  level: string;
+  numericLevel?: number;
   content: ContentBlock | string;
   summary: ContentBlock | string;
   vocabulary: { word: string; translation: string; example: string }[];
@@ -19,8 +19,7 @@ export interface SavedLesson extends Lesson {
   id: string;
   dateSaved: number;
   numericLevel?: number;
-  // Progress Tracking
-  progress: number; // 0 to 100
+  progress: number;
   completed: boolean;
   quizScore?: number;
   masteryFeedback?: {
@@ -35,10 +34,10 @@ export type SpecializationTrack = 'General' | 'Medical' | 'Legal' | 'Academic' |
 
 export enum AppSection {
   Home = 'home',
-  Worlds = 'worlds', // Zen Portal
-  WorldHub = 'world_hub', // Interactive Hub
-  Chat = 'chat', // Restored Global Chat
-  Classes = 'classes', // Live YouTube Classes
+  Worlds = 'worlds',
+  WorldHub = 'world_hub',
+  Chat = 'chat',
+  Classes = 'classes',
   Lessons = 'lessons',
   Speaking = 'speaking',
   Vocab = 'vocab',
@@ -47,7 +46,8 @@ export enum AppSection {
   Kids = 'kids',
   Breakout = 'breakout',
   LiveClassroom = 'live_classroom',
-  Jobs = 'jobs' // New Jobs Board
+  Jobs = 'jobs',
+  Passport = 'passport'
 }
 
 export interface User {
@@ -59,7 +59,164 @@ export interface User {
   learningTrack: 'EN_TO_ES' | 'ES_TO_EN';
   preferredUiLanguage: Language;
   provider?: 'google' | 'apple' | 'facebook';
+  isChild?: boolean;
 }
+
+// --- Kids Zone Types ---
+export interface KidsLand {
+  id: string;
+  name: ContentBlock;
+  icon: string;
+  color: string;
+  description: ContentBlock;
+  locked?: boolean;
+}
+
+export interface KidsStats {
+  xp: {
+    vocabulary: number;
+    listening: number;
+    speaking: number;
+    reading: number;
+  };
+  gold: number;
+  stars: number;
+  streak: number;
+  level: number;
+}
+
+// --- Passport System ---
+export interface PassportStamp {
+  id: string;
+  category: 'topic' | 'skill' | 'streak' | 'event';
+  title: ContentBlock;
+  dateEarned: number;
+  iconKid: string; // Emoji or asset for kids
+  iconAdult: string; // Clean icon for adults
+  points: number;
+}
+
+// --- Multi-Agent Community Types ---
+
+export interface AIAgent {
+  id: string;
+  name: string;
+  persona: string;
+  country: 'US' | 'CO';
+  city: string;
+  talkativeness: number; // 0-1
+  specialties: string[];
+  voiceProfileId: string;
+  avatarImage: string;
+  lastSpokeAt: number;
+}
+
+export interface CityData {
+  name: string;
+  country: 'US' | 'CO';
+  skylineImageUrl: string;
+  landmarkImageUrls: string[];
+}
+
+export interface GameState {
+  sentenceEn: string;
+  sentenceEs: string;
+  missingWordEn: string;
+  missingWordEs: string;
+  submittedAnswers: Record<string, string>;
+  feedback?: string;
+}
+
+export interface ChatMsg {
+  id: string;
+  userId: string;
+  user: string;
+  state: string;
+  text: string;
+  time: string;
+  isUser: boolean;
+  replyTo?: string;
+  type?: 'human' | 'ai';
+  personaId?: string;
+  shouldSpeakAloud?: boolean;
+  learningTrack?: string;
+}
+
+export interface RoomState {
+  id: string;
+  activeAgents?: AIAgent[];
+  activeCity?: CityData;
+  languageMode?: Language;
+  history?: ChatMsg[];
+  modality?: 'voice' | 'text';
+  activeTopics?: string[];
+  roomId?: string;
+  participants?: User[];
+  currentLevel?: number;
+  roundNumber?: number;
+  helpUsedThisCycle?: boolean;
+  gameState?: GameState;
+}
+
+// --- Mission-Based Tutor Types ---
+
+export interface Professor {
+  id: string;
+  name: string;
+  avatar: string;
+  voice: string;
+  description: { en: string; es: string };
+}
+
+export interface SpeakingPhrase {
+  id: string;
+  target: string;
+  translation: string;
+  tip: { en: string; es: string };
+  difficulty: 'Easy' | 'Medium' | 'Hard';
+}
+
+export interface SpeakingMission {
+  id: string;
+  tier: number;
+  orderIndex: number;
+  title: { en: string; es: string };
+  intro: { en: string; es: string };
+  phrases: SpeakingPhrase[];
+}
+
+export interface MissionStats {
+  attempts: number;
+  bestScore: number;
+  lastAttemptAt: number;
+}
+
+export interface SpeakingUserProgress {
+  currentMissionId: string;
+  highestCompletedId: string;
+  missionStats: Record<string, MissionStats>;
+  streak: {
+    daysActive: number;
+    completedToday: number;
+    lastDate: number;
+  };
+}
+
+// --- Mascot Upgraded Types ---
+
+export interface MascotConfig {
+  id: string;
+  name: string;
+  icon: string;
+  archetype: string;
+  color: string;
+  glow: string;
+  specialty: string;
+  voice: string;
+  description: { en: string; es: string };
+}
+
+// --- Assistant / Tutor Types ---
 
 export interface AssistantMessage {
   id: string;
@@ -71,6 +228,7 @@ export interface AssistantMessage {
     label: string;
   };
   type?: 'explanation' | 'correction' | 'encouragement';
+  audioData?: string;
 }
 
 export interface ChatSession {
@@ -92,20 +250,7 @@ export interface Persona {
   slang: string[];
   vibe: string;
   topics: string[];
-  voice?: string; // Voice name for TTS
-}
-
-export interface ChatMsg {
-  id: string;
-  userId: string;
-  user: string;
-  state: string;
-  text: string;
-  time: string;
-  isUser: boolean;
-  replyTo?: string;
-  type?: 'human' | 'ai';
-  learningTrack?: 'EN_TO_ES' | 'ES_TO_EN';
+  voice?: string;
 }
 
 export interface WorldData {
@@ -120,8 +265,6 @@ export interface WorldData {
   icon: string;
 }
 
-// --- Game & Room Types ---
-
 export interface Invite {
   fromUser: User;
   toUserId: string;
@@ -129,33 +272,14 @@ export interface Invite {
   timestamp: number;
 }
 
-export interface RoomState {
-  roomId: string;
-  participants: User[];
-  currentLevel: number;
-  roundNumber: number;
-  helpUsedThisCycle: boolean;
-  gameState: GameState;
-}
-
-export interface GameState {
-  sentenceEn: string;
-  sentenceEs: string;
-  missingWordEn: string;
-  missingWordEs: string;
-  submittedAnswers: Record<string, string>; // userId -> answer
-  feedback?: string;
-}
-
-// --- SRS Types ---
 export interface SRSItem {
   id: string;
-  term: string; // The word or chunk
+  term: string;
   translation: string;
   context: string;
   level: CEFRLevel;
-  nextReview: number; // timestamp
-  interval: number; // days
+  nextReview: number;
+  interval: number;
   repetition: number;
   easeFactor: number;
 }

@@ -15,6 +15,7 @@ class MockSocketService {
     // Seed chat history
     this.chatHistory = [
       { id: '1', userId: 'ai_tomas', user: 'Profe Tomas', state: 'AI', text: '¡Hola a todos! Welcome to the global chat.', time: '10:00', isUser: false, type: 'ai' },
+      // Fix Error: ChatMsg now includes optional learningTrack property
       { id: '2', userId: 'u1', user: 'Maria', state: 'CO', text: 'Hello! I am ready to learn.', time: '10:05', isUser: false, type: 'human', learningTrack: 'ES_TO_EN' }
     ];
   }
@@ -153,7 +154,9 @@ class MockSocketService {
 
   private handleRoomJoin(roomId: string, user: User) {
     if (!this.rooms[roomId]) {
+      // Fix Error: Updated object literal to match RoomState interface with required 'id'
       this.rooms[roomId] = {
+        id: roomId,
         roomId,
         participants: [],
         currentLevel: 1,
@@ -164,7 +167,7 @@ class MockSocketService {
     }
     
     const room = this.rooms[roomId];
-    if (!room.participants.find(p => p.id === user.id)) {
+    if (room.participants && !room.participants.find(p => p.id === user.id)) {
       room.participants.push(user);
     }
     
@@ -173,11 +176,11 @@ class MockSocketService {
 
   private handleGameAnswer(roomId: string, userId: string, answer: string) {
     const room = this.rooms[roomId];
-    if (!room) return;
+    if (!room || !room.gameState) return;
 
     room.gameState.submittedAnswers[userId] = answer;
 
-    const participant = room.participants.find(p => p.id === userId);
+    const participant = room.participants?.find(p => p.id === userId);
     if (!participant) return;
 
     // Logic:
@@ -197,19 +200,21 @@ class MockSocketService {
   }
 
   private advanceLevel(room: RoomState) {
-    room.currentLevel++;
-    room.roundNumber++;
-    if (room.roundNumber % 2 !== 0) room.helpUsedThisCycle = false;
+    if (room.currentLevel !== undefined) room.currentLevel++;
+    if (room.roundNumber !== undefined) room.roundNumber++;
+    if (room.roundNumber !== undefined && room.roundNumber % 2 !== 0) room.helpUsedThisCycle = false;
     
-    room.gameState = this.generateLevelData(room.currentLevel);
-    room.gameState.feedback = ""; // clear feedback
+    if (room.currentLevel !== undefined) {
+      room.gameState = this.generateLevelData(room.currentLevel);
+    }
+    if (room.gameState) room.gameState.feedback = ""; // clear feedback
     this.broadcast(`room:${room.roomId}:update`, room);
     this.broadcast(`game:${room.roomId}:success`, { level: room.currentLevel });
   }
 
   private async handleGameHelp(roomId: string) {
     const room = this.rooms[roomId];
-    if (!room) return;
+    if (!room || room.roundNumber === undefined || room.gameState === undefined) return;
     
     // Help Rule: Every 2 rounds
     if (room.roundNumber % 2 === 0 && !room.helpUsedThisCycle) {
@@ -224,7 +229,7 @@ class MockSocketService {
       // In a real app, this would notify the other user to help.
       // Here we simulate it by showing the answer as a "hint from partner"
       const room = this.rooms[roomId];
-      if (!room || room.helpUsedThisCycle) return;
+      if (!room || room.helpUsedThisCycle || !room.gameState || !room.participants) return;
       
       room.helpUsedThisCycle = true;
       const user = room.participants.find(p => p.id === userId);

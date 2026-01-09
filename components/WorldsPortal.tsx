@@ -3,6 +3,8 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AppSection, Language, WorldData } from '../types';
 import { fetchWorlds } from '../services/api';
+// Fixing missing import for ChevronRight
+import { ChevronRight } from 'lucide-react';
 
 interface WorldsPortalProps {
   lang: Language;
@@ -24,10 +26,10 @@ const WorldsPortal: React.FC<WorldsPortalProps> = ({ lang, onNavigate }) => {
   }, []);
 
   const text = {
-    title: lang === 'es' ? 'Explora Mundos' : 'Explore Worlds',
-    subtitle: lang === 'es' ? 'Elige tu entorno de aprendizaje inmersivo.' : 'Choose your immersive learning environment.',
+    title: lang === 'es' ? 'Explora Sectores' : 'Explore Sectors',
+    subtitle: lang === 'es' ? 'Elige tu entorno de inmersión total.' : 'Choose your total immersion environment.',
     active: lang === 'es' ? 'activos' : 'active',
-    enter: lang === 'es' ? 'Entrar' : 'Enter'
+    enter: lang === 'es' ? 'Iniciar' : 'Initiate'
   };
 
   const container = {
@@ -55,42 +57,22 @@ const WorldsPortal: React.FC<WorldsPortalProps> = ({ lang, onNavigate }) => {
     );
   }
 
-  // Routing Logic
-  const handleNavigation = (world: WorldData) => {
-      if (world.id === 'city') {
-          // City -> Global Chat (Original World Chat)
-          onNavigate(AppSection.Chat);
-      } else if (world.id === 'game') {
-          // Game -> Kids Zone
-          onNavigate(AppSection.Kids);
-      } else if (world.id === 'sky') {
-          // Sky -> TV / Classes
-          onNavigate(AppSection.Classes);
-      } else if (world.id === 'mountain') {
-          // Mountain -> Live Classroom (Professor)
-          onNavigate(AppSection.LiveClassroom);
-      } else {
-          // Default fallback to assigned targetSection
-          onNavigate(world.targetSection);
-      }
-  };
-
   return (
     <div className="min-h-full pb-24 relative overflow-hidden">
       {/* Ambient Background Particles */}
       <div className="absolute inset-0 pointer-events-none">
-         {[...Array(20)].map((_, i) => (
+         {[...Array(15)].map((_, i) => (
             <motion.div
                key={i}
-               className="absolute rounded-full bg-white/5 blur-xl"
+               className="absolute rounded-full bg-white/5 blur-3xl"
                initial={{ 
                    x: Math.random() * 100 + "%", 
                    y: Math.random() * 100 + "%", 
                    scale: Math.random() * 0.5 + 0.5,
-                   opacity: Math.random() * 0.3 
+                   opacity: Math.random() * 0.2 
                }}
                animate={{ 
-                   y: [null, Math.random() * -100],
+                   y: [null, Math.random() * -200],
                    opacity: [null, 0]
                }}
                transition={{ 
@@ -98,7 +80,7 @@ const WorldsPortal: React.FC<WorldsPortalProps> = ({ lang, onNavigate }) => {
                    repeat: Infinity, 
                    ease: "linear" 
                }}
-               style={{ width: Math.random() * 300 + "px", height: Math.random() * 300 + "px" }}
+               style={{ width: Math.random() * 400 + "px", height: Math.random() * 400 + "px" }}
             />
          ))}
       </div>
@@ -107,7 +89,7 @@ const WorldsPortal: React.FC<WorldsPortalProps> = ({ lang, onNavigate }) => {
         <motion.h2 
             initial={{ opacity: 0, x: -20 }} 
             animate={{ opacity: 1, x: 0 }} 
-            className="text-4xl md:text-6xl font-black text-white tracking-tighter drop-shadow-lg"
+            className="text-4xl md:text-6xl font-black text-white tracking-tighter drop-shadow-lg uppercase italic"
         >
             {text.title}
         </motion.h2>
@@ -115,7 +97,7 @@ const WorldsPortal: React.FC<WorldsPortalProps> = ({ lang, onNavigate }) => {
             initial={{ opacity: 0, x: -20 }} 
             animate={{ opacity: 1, x: 0 }} 
             transition={{ delay: 0.2 }}
-            className="text-slate-400 mt-2 text-lg font-medium"
+            className="text-slate-500 mt-2 text-lg font-bold uppercase tracking-[0.3em]"
         >
             {text.subtitle}
         </motion.p>
@@ -125,7 +107,7 @@ const WorldsPortal: React.FC<WorldsPortalProps> = ({ lang, onNavigate }) => {
         variants={container}
         initial="hidden"
         animate="show"
-        className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 relative z-10"
+        className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 relative z-10"
       >
         {worlds.map((world) => (
           <motion.div
@@ -133,41 +115,41 @@ const WorldsPortal: React.FC<WorldsPortalProps> = ({ lang, onNavigate }) => {
             variants={item}
             onHoverStart={() => setHoveredWorld(world.id)}
             onHoverEnd={() => setHoveredWorld(null)}
-            onClick={() => handleNavigation(world)}
-            className="group relative h-80 rounded-[40px] overflow-hidden cursor-pointer active:scale-95 transition-transform"
+            onClick={() => onNavigate(world.targetSection)}
+            className="group relative h-96 rounded-[56px] overflow-hidden cursor-pointer active:scale-95 transition-all shadow-2xl"
           >
-            {/* Card Background with Gradient */}
-            <div className={`absolute inset-0 bg-gradient-to-br ${world.themeColor} opacity-20 group-hover:opacity-30 transition-opacity duration-500`} />
-            <div className="absolute inset-0 backdrop-blur-sm bg-slate-950/40 border border-white/10 rounded-[40px] group-hover:border-white/20 transition-colors" />
+            <div className={`absolute inset-0 bg-gradient-to-br ${world.themeColor} opacity-20 group-hover:opacity-40 transition-opacity duration-700`} />
+            <div className="absolute inset-0 backdrop-blur-2xl bg-slate-950/60 border border-white/10 rounded-[56px] group-hover:border-white/30 transition-all" />
             
-            {/* Floating Orb Effect */}
             <motion.div 
-               className={`absolute -right-20 -top-20 w-60 h-60 bg-gradient-to-br ${world.themeColor} rounded-full blur-[80px] opacity-40 group-hover:opacity-60 transition-opacity duration-500`}
-               animate={{ scale: hoveredWorld === world.id ? 1.2 : 1 }}
+               className={`absolute -right-20 -top-20 w-80 h-80 bg-gradient-to-br ${world.themeColor} rounded-full blur-[100px] opacity-30 group-hover:opacity-60 transition-all duration-700`}
+               animate={{ scale: hoveredWorld === world.id ? 1.3 : 1 }}
             />
 
-            <div className="absolute inset-0 p-8 flex flex-col justify-between">
+            <div className="absolute inset-0 p-10 flex flex-col justify-between">
                <div className="flex justify-between items-start">
-                  <div className="w-16 h-16 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center text-4xl shadow-inner border border-white/10 group-hover:scale-110 transition-transform duration-500">
+                  <div className="w-20 h-20 rounded-3xl bg-white/10 backdrop-blur-md flex items-center justify-center text-5xl shadow-2xl border border-white/10 group-hover:scale-110 group-hover:rotate-6 transition-all duration-500">
                      {world.icon}
                   </div>
-                  <div className="flex items-center gap-2 px-3 py-1 bg-black/40 rounded-full border border-white/5 backdrop-blur-sm">
-                     <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                     <span className="text-[10px] font-black text-white/80 uppercase tracking-wider">{world.activeUsers} {text.active}</span>
+                  <div className="flex items-center gap-2 px-4 py-2 bg-black/60 rounded-full border border-white/10 backdrop-blur-xl shadow-xl">
+                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_#10b981]" />
+                     <span className="text-[10px] font-black text-white/80 uppercase tracking-[0.2em]">{world.activeUsers} {text.active}</span>
                   </div>
                </div>
 
-               <div>
-                  <h3 className="text-3xl font-black text-white mb-2 leading-tight group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-white group-hover:to-slate-300 transition-all">
-                     {lang === 'es' ? world.nameEs : world.nameEn}
-                  </h3>
-                  <p className="text-slate-400 text-sm font-medium leading-relaxed mb-6 group-hover:text-slate-300 transition-colors">
-                     {lang === 'es' ? world.descEs : world.descEn}
-                  </p>
+               <div className="space-y-4">
+                  <div>
+                    <h3 className="text-4xl font-black text-white mb-2 tracking-tighter uppercase italic group-hover:text-brand-400 transition-colors">
+                      {lang === 'es' ? world.nameEs : world.nameEn}
+                    </h3>
+                    <p className="text-slate-400 text-sm font-medium leading-relaxed group-hover:text-slate-200 transition-colors">
+                      {lang === 'es' ? world.descEs : world.descEn}
+                    </p>
+                  </div>
                   
-                  <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-white/50 group-hover:text-white transition-colors">
+                  <div className="flex items-center gap-3 text-[10px] font-black uppercase tracking-[0.4em] text-white/40 group-hover:text-white transition-all pt-4">
                      <span>{text.enter}</span>
-                     <span className="group-hover:translate-x-1 transition-transform">→</span>
+                     <ChevronRight size={16} className="group-hover:translate-x-2 transition-transform duration-500" />
                   </div>
                </div>
             </div>
