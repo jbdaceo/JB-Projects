@@ -2,6 +2,7 @@
   "name": "Immersive Learning Systems: English for Empowerment",
   "description": "An interactive learning platform led by Professor Tomas Martinez, designed to empower Colombian students to master English and unlock global opportunities.",
   "requestFramePermissions": [
-    "microphone"
+    "microphone",
+    "camera"
   ]
 }

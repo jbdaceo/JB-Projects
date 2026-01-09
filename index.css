@@ -1,154 +1,84 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ==================== NATIVE OS OPTIMIZATIONS ==================== */
-
 :root {
   --brand-hue: 220;
   --brand-sat: 90%;
-  /* iOS Safe Area Variables */
-  --sat: env(safe-area-inset-top);
-  --sab: env(safe-area-inset-bottom);
-  --sal: env(safe-area-inset-left);
-  --sar: env(safe-area-inset-right);
+  --ease-snappy: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* Premium Apple-Style Glass */
+.facetime-glass {
+  background: rgba(15, 23, 42, 0.3);
+  backdrop-filter: blur(25px) saturate(180%);
+  -webkit-backdrop-filter: blur(25px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 
+    0 4px 24px -1px rgba(0, 0, 0, 0.2),
+    inset 0 1px 1px rgba(255, 255, 255, 0.05);
+}
+
+.glass-header {
+  background: rgba(2, 6, 23, 0.6);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* 3D Depth & Avatar Effects */
+.avatar-3d-depth {
+  transform: perspective(1000px) rotateX(4deg);
+  box-shadow: 
+    0 25px 60px -12px rgba(0, 0, 0, 0.6),
+    inset 0 1px 1px rgba(255, 255, 255, 0.1);
+}
+
+.avatar-glow {
+  filter: drop-shadow(0 0 30px rgba(59, 130, 246, 0.5));
+}
+
+/* Native App Resets */
 body {
-  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   background-color: #020617;
   color: #f1f5f9;
-  margin: 0;
-  padding: 0;
-  /* Font Rendering Upscale */
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
-  /* Native scrolling feel */
-  -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: none;
-  /* Prevent tap highlight on mobile */
   -webkit-tap-highlight-color: transparent;
+  /* Fix height issues on mobile Safari */
+  min-height: -webkit-fill-available;
 }
 
-/* ==================== PERFORMANCE LAYERS ==================== */
+/* Mobile Scroll Fixes */
+.scroll-container {
+  height: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
 
-/* Force GPU acceleration to offload Main Thread */
+/* Camera Mirroring */
+.mirror {
+  transform: scaleX(-1);
+}
+
+/* Animation Keyframes */
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.animate-spin-slow {
+  animation: spin-slow 12s linear infinite;
+}
+
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
 .gpu-layer {
-  transform: translate3d(0, 0, 0);
+  transform: translateZ(0);
   backface-visibility: hidden;
-  perspective: 1000px;
-  will-change: transform, opacity;
 }
 
-.motion-safe {
-  @apply will-change-transform;
-}
-
-/* ==================== INTERACTION FEEL ==================== */
-
-/* Remove selection on UI elements */
-button, a, .interactive {
-  user-select: none;
-  touch-action: manipulation; /* Removes 300ms tap delay */
-}
-
-/* Allow text selection only on content */
-p, h1, h2, h3, h4, h5, h6, input, textarea, .selectable {
-  user-select: text;
-}
-
-/* ==================== SCROLLBARS ==================== */
-
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.hide-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-
-.hide-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-/* ==================== ANIMATIONS & UTILS ==================== */
-
-@keyframes shimmer {
-  0% { background-position: -1000px 0; }
-  100% { background-position: 1000px 0; }
-}
-
-.skeleton-shimmer {
-  background: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0.03) 0%,
-    rgba(255, 255, 255, 0.08) 50%,
-    rgba(255, 255, 255, 0.03) 100%
-  );
-  background-size: 1000px 100%;
-  animation: shimmer 2s infinite linear;
-}
-
-.glass-morphism {
-  background: rgba(15, 23, 42, 0.65);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%); /* Safari support */
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.native-glass {
-  background: rgba(2, 6, 23, 0.85); /* Darker for better contrast */
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-/* Hardware accelerated active state */
-.active-scale {
-  transition: transform 0.1s cubic-bezier(0.2, 0, 0, 1);
-}
-.active-scale:active {
-  transform: scale(0.96);
-}
-
-/* Lip Sync Smoothness */
-.lip-sync-path {
-  transition: d 0.08s ease-out;
-  will-change: d;
-}
-
-/* ==================== GRADIENTS ==================== */
-
-.colombia-gradient {
-  background: linear-gradient(135deg, #FCD116 0%, #003893 50%, #CE1126 100%);
-}
-
-.usa-gradient {
-  background: linear-gradient(135deg, #B22234 0%, #FFFFFF 50%, #3C3B6E 100%);
-}
-
-.mesh-bg {
-  background-color: #020617;
-  background-image: 
-    radial-gradient(at 0% 0%, hsl(var(--brand-hue), 60%, 8%) 0, transparent 50%), 
-    radial-gradient(at 100% 100%, hsl(calc(var(--brand-hue) + 40), 60%, 8%) 0, transparent 50%);
-  background-attachment: fixed;
-  transition: background-image 0.5s ease;
-}
+/* iOS Safe Area Helpers */
+.pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+.pt-safe { padding-top: env(safe-area-inset-top); }
+.px-safe { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }

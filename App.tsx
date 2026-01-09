@@ -1,220 +1,216 @@
-import React, { useState, useEffect, Suspense, ReactNode, ErrorInfo, Component } from 'react';
-import ReactDOM from 'react-dom/client';
+
+import React, { Component, useState, useEffect, Suspense, ReactNode, ErrorInfo } from 'react';
 import { AppSection, Language } from './types';
 import Sidebar from './components/Sidebar';
 import MobileNav from './components/MobileNav';
-import Home from './components/Home'; // Critical Path
+import Home from './components/Home'; 
 import AuthModal from './components/AuthModal';
 import LevelRequirementsModal from './components/LevelRequirementsModal';
 import { AuthProvider } from './contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAudioInitialization } from './hooks/useAudioInitialization';
 import { triggerHaptic } from './utils/performance';
+import { ChevronLeft } from 'lucide-react';
 
-// Lazy load heavy components
 const Mascot = React.lazy(() => import('./components/Mascot'));
 const LessonGenerator = React.lazy(() => import('./components/LessonGenerator'));
 const SpeakingPractice = React.lazy(() => import('./components/SpeakingPractice'));
 const VocabularyTool = React.lazy(() => import('./components/VocabularyTool'));
 const CoachingSessions = React.lazy(() => import('./components/CoachingSessions'));
 const Community = React.lazy(() => import('./components/Community'));
-const KidsZone = React.lazy(() => import('./components/KidsZone'));
-const ClassesPage = React.lazy(() => import('./components/ClassesPage'));
-const WorldsPortal = React.lazy(() => import('./components/WorldsPortal'));
 const ChatPage = React.lazy(() => import('./components/ChatPage'));
+const KidsZone = React.lazy(() => import('./components/KidsZone'));
+const WorldsPortal = React.lazy(() => import('./components/WorldsPortal'));
 const WorldPage = React.lazy(() => import('./components/WorldPage'));
-const BreakoutRoom = React.lazy(() => import('./components/BreakoutRoom'));
 const LiveClassroom = React.lazy(() => import('./components/LiveClassroom'));
 const JobsBoard = React.lazy(() => import('./components/JobsBoard'));
 const AIAssistant = React.lazy(() => import('./components/AIAssistant'));
 
-const THEME_CONFIG: Record<AppSection, { hue: number, sat: number }> = {
-  [AppSection.Home]: { hue: 220, sat: 90 },
-  [AppSection.Worlds]: { hue: 200, sat: 85 },
-  [AppSection.WorldHub]: { hue: 170, sat: 80 },
-  [AppSection.Chat]: { hue: 280, sat: 85 },
-  [AppSection.Classes]: { hue: 0, sat: 95 },
-  [AppSection.Lessons]: { hue: 260, sat: 85 },
-  [AppSection.Speaking]: { hue: 190, sat: 95 },
-  [AppSection.Vocab]: { hue: 160, sat: 80 },
-  [AppSection.Coaching]: { hue: 25, sat: 95 },
-  [AppSection.Community]: { hue: 290, sat: 85 },
-  [AppSection.Kids]: { hue: 330, sat: 90 },
-  [AppSection.Breakout]: { hue: 50, sat: 95 },
-  [AppSection.LiveClassroom]: { hue: 10, sat: 90 },
-  [AppSection.Jobs]: { hue: 210, sat: 90 },
-};
-
 interface ErrorBoundaryProps { children?: ReactNode; }
 interface ErrorBoundaryState { hasError: boolean; }
 
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  state: ErrorBoundaryState = { hasError: false };
+// Fix Error: Property 'props' does not exist on type 'ErrorBoundary'
+// Explicitly extending React.Component ensures that TypeScript recognizes inherited members like 'props' and 'state'
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  public state: ErrorBoundaryState = { hasError: false };
 
-  static getDerivedStateFromError(error: any): ErrorBoundaryState { return { hasError: true }; }
-  
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) { console.error("ErrorBoundary caught error", error, errorInfo); }
-  
+  static getDerivedStateFromError(_: Error): ErrorBoundaryState {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error("Uncaught error:", error, errorInfo);
+  }
+
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex flex-col items-center justify-center h-full w-full text-center p-6 space-y-4 bg-slate-950 text-white fixed inset-0 z-[9999]">
-          <div className="w-24 h-24 bg-red-500/10 rounded-full flex items-center justify-center text-5xl mb-2">⚠️</div>
-          <h2 className="text-3xl font-black">Something went wrong</h2>
-          <button onClick={() => { this.setState({ hasError: false }); window.location.reload(); }} className="px-8 py-4 bg-brand-600 text-white rounded-xl font-bold shadow-lg hover:bg-brand-500 transition-colors mt-4">Reload Application</button>
+        <div className="p-10 text-center h-screen flex flex-col items-center justify-center bg-slate-950 text-white font-sans">
+          <div className="w-20 h-20 bg-red-500/20 rounded-3xl flex items-center justify-center mb-6">⚠️</div>
+          <h2 className="text-2xl font-black mb-4 uppercase italic">Neural Sync Failed</h2>
+          <button onClick={() => window.location.reload()} className="px-10 py-4 bg-brand-500 rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl active:scale-95 transition-all">Reload Pipeline</button>
         </div>
       );
     }
-    return this.props.children;
+    // Return children or null if undefined to satisfy React expectations
+    return this.props.children || null;
   }
 }
 
 const AppContent: React.FC = () => {
-  // Initialize audio context on first interaction
   useAudioInitialization();
-
   const [activeSection, setActiveSection] = useState<AppSection>(AppSection.Home);
+  const [historyStack, setHistoryStack] = useState<AppSection[]>([AppSection.Home]);
   const [lang, setLang] = useState<Language>('es');
   const [showAuthModal, setShowAuthModal] = useState(true);
   const [tmcLevel, setTmcLevel] = useState<'Novice' | 'Semi Pro' | 'Pro'>('Novice');
   const [levelProgress, setLevelProgress] = useState(10);
   const [showLevelModal, setShowLevelModal] = useState(false);
   const [showAiAssistant, setShowAiAssistant] = useState(false);
+  
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
 
   useEffect(() => {
-    // Optimized theme switching without layout thrashing
-    requestAnimationFrame(() => {
-        const base = THEME_CONFIG[activeSection];
-        const langHueShift = lang === 'en' ? 180 : 0;
-        const randomHueShift = Math.floor(Math.random() * 30) - 15;
-        const randomSatShift = Math.floor(Math.random() * 10) - 5;
-        const finalHue = (base.hue + langHueShift + randomHueShift) % 360;
-        const finalSat = Math.max(50, Math.min(100, base.sat + randomSatShift));
-        document.documentElement.style.setProperty('--brand-hue', finalHue.toString());
-        document.documentElement.style.setProperty('--brand-sat', `${finalSat}%`);
-    });
-  }, [activeSection, lang]);
-
-  const checkLevel = () => {
-    try {
-      const mastery = parseInt(localStorage.getItem('tmc_mastery_level') || '1');
-      const speaking = parseInt(localStorage.getItem('tmc_speaking_level') || '1');
-      const games = ['voice_voyager', 'trivia_titan', 'match_master', 'word_wizard', 'sonic_scout'];
-      const gameScoreTotal = games.reduce((acc, g) => acc + parseInt(localStorage.getItem(`tmc_game_score_${g}`) || '0'), 0);
-      let p = 5 + (gameScoreTotal * 0.05) + ((mastery - 1) * 2) + ((speaking - 1) * 3);
-      if (p > 100) p = 100;
-      const hasPaid = localStorage.getItem('tmc_pro_status_v2') === 'true';
-      if (hasPaid) p = 100;
-      setLevelProgress(p);
-      const allGamesPassed = games.every(g => parseInt(localStorage.getItem(`tmc_game_score_${g}`) || '0') >= 100);
-      if (hasPaid) setTmcLevel('Pro');
-      else if (allGamesPassed) setTmcLevel('Semi Pro');
-      else setTmcLevel('Novice');
-    } catch (e) { setLevelProgress(10); setTmcLevel('Novice'); }
-  };
-
-  useEffect(() => {
-    checkLevel();
-    window.addEventListener('tmc-level-update', checkLevel);
-    return () => window.removeEventListener('tmc-level-update', checkLevel);
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 640);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const handleNavigate = (section: AppSection) => {
-      setActiveSection(section);
-      // Trigger haptic on major section changes if on mobile
-      if (window.innerWidth < 1024) triggerHaptic('light'); 
+    if (section === activeSection) return;
+    setHistoryStack(prev => [...prev, section]);
+    setActiveSection(section);
+    triggerHaptic('light');
   };
 
-  const handleLangToggle = () => {
-      triggerHaptic('medium');
-      setLang(l => l === 'es' ? 'en' : 'es');
+  const handleBack = () => {
+    if (historyStack.length <= 1) {
+      setActiveSection(AppSection.Home);
+      return;
+    }
+    const newStack = [...historyStack];
+    newStack.pop(); 
+    const prevSection = newStack[newStack.length - 1];
+    setHistoryStack(newStack);
+    setActiveSection(prevSection);
+    triggerHaptic('medium');
   };
 
   const renderContent = () => {
     switch (activeSection) {
-      case AppSection.Home: return <Home onStart={() => handleNavigate(AppSection.Worlds)} onNavigate={handleNavigate} lang={lang} />;
+      case AppSection.Home: return <Home onNavigate={handleNavigate} lang={lang} />;
       case AppSection.Worlds: return <WorldPage lang={lang} onNavigate={handleNavigate} />;
       case AppSection.WorldHub: return <WorldsPortal lang={lang} onNavigate={handleNavigate} />;
       case AppSection.Chat: return <ChatPage lang={lang} />;
-      case AppSection.Breakout: return <BreakoutRoom lang={lang} />;
       case AppSection.LiveClassroom: return <LiveClassroom lang={lang} />;
-      case AppSection.Classes: return <ClassesPage lang={lang} />;
       case AppSection.Lessons: return <LessonGenerator lang={lang} userTier={tmcLevel} />;
-      case AppSection.Speaking: return <SpeakingPractice lang={lang} userTier={tmcLevel} />;
+      case AppSection.Speaking: return <SpeakingPractice lang={lang} onExit={handleBack} />;
       case AppSection.Vocab: return <VocabularyTool lang={lang} />;
       case AppSection.Coaching: return <CoachingSessions lang={lang} />;
       case AppSection.Community: return <Community lang={lang} onNavigate={handleNavigate} />;
       case AppSection.Kids: return <KidsZone lang={lang} />;
       case AppSection.Jobs: return <JobsBoard lang={lang} onNavigate={handleNavigate} />;
-      default: return <Home onStart={() => handleNavigate(AppSection.Worlds)} onNavigate={handleNavigate} lang={lang} />;
+      default: return <Home onNavigate={handleNavigate} lang={lang} />;
     }
   };
 
+  const sectionTitles: Record<AppSection, string> = {
+    [AppSection.Home]: 'Dashboard',
+    [AppSection.Worlds]: lang === 'es' ? 'Mundos' : 'Worlds',
+    [AppSection.WorldHub]: lang === 'es' ? 'Portal' : 'Portal',
+    [AppSection.Chat]: 'Global Pulse',
+    [AppSection.Classes]: 'ILS TV',
+    [AppSection.Lessons]: lang === 'es' ? 'Lecciones' : 'Lessons',
+    [AppSection.Speaking]: lang === 'es' ? 'Voz' : 'Voice',
+    [AppSection.Vocab]: 'Vocab Pro',
+    [AppSection.Coaching]: lang === 'es' ? 'Tutoría' : 'Coaching',
+    [AppSection.Community]: 'Community',
+    [AppSection.Kids]: 'Kids Zone',
+    [AppSection.LiveClassroom]: 'Studio',
+    [AppSection.Jobs]: 'Careers',
+    [AppSection.Breakout]: 'Breakout'
+  };
+
   return (
-    <div className="absolute inset-0 bg-slate-950 text-slate-100 font-sans selection:bg-brand-500/30 flex lg:flex-row flex-col overflow-hidden">
+    <div className={`absolute inset-0 bg-slate-950 text-slate-100 font-sans selection:bg-brand-500/30 flex overflow-hidden gpu-layer ${isMobile ? 'flex-col' : 'flex-row'}`}>
       <AuthModal isOpen={showAuthModal} onLogin={() => setShowAuthModal(false)} onGuest={() => setShowAuthModal(false)} lang={lang} />
       <LevelRequirementsModal isOpen={showLevelModal} onClose={() => setShowLevelModal(false)} lang={lang} currentLevel={tmcLevel} />
 
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-40 h-[calc(60px+env(safe-area-inset-top))] pt-safe-top native-glass flex items-center justify-between px-4 transition-all border-b border-white/5 gpu-layer">
-        <button onClick={handleLangToggle} className="h-8 px-3 bg-white/5 rounded-full flex items-center gap-2 active-scale border border-white/10">
-           <div className="flex gap-1"><div className={`w-1.5 h-1.5 rounded-full ${lang === 'es' ? 'bg-brand-500' : 'bg-slate-600'}`}></div><div className={`w-1.5 h-1.5 rounded-full ${lang === 'en' ? 'bg-brand-500' : 'bg-slate-600'}`}></div></div>
-          <span className="text-[10px] font-black uppercase text-slate-300 tracking-wider">{lang === 'es' ? 'Spanish' : 'English'}</span>
-        </button>
-        <button onClick={() => { triggerHaptic('light'); setShowLevelModal(true); }} className="h-8 bg-white/5 rounded-full flex items-center justify-center px-4 active-scale relative overflow-hidden border border-white/10">
-          <div className="absolute inset-0 bg-brand-500/20" style={{ width: `${Math.min(100, Math.max(0, levelProgress))}%` }}></div>
-          <span className={`relative z-10 text-[10px] font-black uppercase tracking-widest ${tmcLevel === 'Pro' ? 'text-amber-400' : tmcLevel === 'Semi Pro' ? 'text-cyan-400' : 'text-slate-400'}`}>{lang === 'es' ? 'Nivel' : 'Level'}: {tmcLevel} {tmcLevel === 'Pro' ? '⚡' : tmcLevel === 'Semi Pro' ? '🚀' : '🌱'}</span>
-        </button>
-      </div>
+      {!isMobile && (
+        <div className="h-full relative z-[50] shrink-0">
+          <Sidebar 
+            activeSection={activeSection} 
+            onNavigate={handleNavigate} 
+            lang={lang} 
+            onLangToggle={() => setLang(l => l === 'es' ? 'en' : 'es')} 
+            tmcLevel={tmcLevel} 
+            levelProgress={levelProgress} 
+            onOpenLevelInfo={() => setShowLevelModal(true)} 
+            onOpenAiAssistant={() => setShowAiAssistant(true)} 
+          />
+        </div>
+      )}
 
-      <div className="hidden lg:block h-full relative z-50">
-        <Sidebar activeSection={activeSection} onNavigate={handleNavigate} lang={lang} onLangToggle={handleLangToggle} tmcLevel={tmcLevel} levelProgress={levelProgress} onOpenLevelInfo={() => setShowLevelModal(true)} onOpenAiAssistant={() => setShowAiAssistant(true)} />
-      </div>
+      {isMobile && (
+        <div className="fixed top-0 left-0 right-0 h-[calc(60px+env(safe-area-inset-top))] glass-header z-[60] flex items-end justify-center px-6 pb-3">
+          <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">{sectionTitles[activeSection]}</span>
+        </div>
+      )}
 
-      <main className="flex-1 relative h-full overflow-y-auto overflow-x-hidden scroll-smooth w-full pt-[calc(70px+env(safe-area-inset-top))] pb-[calc(100px+env(safe-area-inset-bottom))] lg:pt-8 lg:pb-8 lg:px-8 px-4" style={{ WebkitOverflowScrolling: 'touch' }}>
-        <div className="max-w-7xl mx-auto min-h-full flex flex-col">
-          <AnimatePresence mode="wait">
-            <motion.div 
-                key={activeSection} 
-                initial={{ opacity: 0, y: 10, scale: 0.99 }} 
-                animate={{ opacity: 1, y: 0, scale: 1 }} 
-                exit={{ opacity: 0, scale: 0.99 }} 
-                transition={{ duration: 0.25, ease: "easeOut" }} 
-                className="flex-1 gpu-layer"
+      <main className={`flex-1 relative h-full overflow-hidden flex flex-col w-full`}>
+        <AnimatePresence>
+          {activeSection !== AppSection.Home && (
+            <motion.button 
+              initial={{ opacity: 0, scale: 0.8, x: -20 }}
+              animate={{ opacity: 1, scale: 1, x: 0 }}
+              exit={{ opacity: 0, scale: 0.8, x: -20 }}
+              onClick={handleBack} 
+              className={`fixed z-[200] facetime-glass p-3 rounded-2xl text-white shadow-2xl active:scale-90 transition-all flex items-center justify-center
+                ${isMobile ? 'top-[calc(14px+env(safe-area-inset-top))] left-4' : 'top-8 left-8 sm:left-[304px]'}`}
             >
-              <ErrorBoundary>
-                <Suspense fallback={
-                  <div className="flex items-center justify-center h-96 w-full">
-                    <div className="flex flex-col items-center gap-4">
-                      <div className="w-10 h-10 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
-                      <p className="text-xs font-black text-brand-500 uppercase tracking-widest animate-pulse">Loading...</p>
+              <ChevronLeft size={24} strokeWidth={2.5} />
+            </motion.button>
+          )}
+        </AnimatePresence>
+
+        <div className={`flex-1 overflow-y-auto hide-scrollbar scroll-smooth w-full 
+          ${isMobile ? 'pt-[calc(80px+env(safe-area-inset-top))] pb-[calc(100px+env(safe-area-inset-bottom))] px-4' : 'lg:pt-10 lg:pb-10 lg:px-10 px-6 pt-10'}`}>
+          
+          <div className="max-w-7xl mx-auto min-h-full flex flex-col">
+            <AnimatePresence mode="wait">
+              <motion.div 
+                key={activeSection} 
+                initial={{ opacity: 0, scale: 0.98, y: 10 }} 
+                animate={{ opacity: 1, scale: 1, y: 0 }} 
+                exit={{ opacity: 0, scale: 1.02, y: -10 }} 
+                transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+                className="h-full flex flex-col"
+              >
+                <ErrorBoundary>
+                  <Suspense fallback={
+                    <div className="flex items-center justify-center h-full">
+                      <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }} className="w-10 h-10 border-4 border-brand-500 border-t-transparent rounded-full" />
                     </div>
-                  </div>
-                }>
-                  {renderContent()}
-                </Suspense>
-              </ErrorBoundary>
-            </motion.div>
-          </AnimatePresence>
+                  }>
+                    {renderContent()}
+                  </Suspense>
+                </ErrorBoundary>
+              </motion.div>
+            </AnimatePresence>
+          </div>
         </div>
       </main>
       
-      {/* Lazy loaded Assistant Overlay */}
-      <Suspense fallback={null}>
-        <AIAssistant 
-            isOpen={showAiAssistant} 
-            onClose={() => setShowAiAssistant(false)} 
-            lang={lang} 
-            currentSection={activeSection} 
-            onNavigate={handleNavigate} 
-        />
-      </Suspense>
-
-      {/* Lazy loaded Mascot */}
-      <Suspense fallback={null}>
-        <Mascot activeSection={activeSection} lang={lang} />
-      </Suspense>
+      <Suspense fallback={null}><AIAssistant isOpen={showAiAssistant} onClose={() => setShowAiAssistant(false)} lang={lang} currentSection={activeSection} onNavigate={handleNavigate} /></Suspense>
+      <Suspense fallback={null}><Mascot lang={lang} /></Suspense>
       
-      <div className="lg:hidden"><MobileNav activeSection={activeSection} onNavigate={handleNavigate} lang={lang} /></div>
+      {isMobile && (
+        <div className="fixed bottom-0 left-0 right-0 z-[100] pb-safe">
+          <MobileNav activeSection={activeSection} onNavigate={handleNavigate} lang={lang} />
+        </div>
+      )}
     </div>
   );
 };

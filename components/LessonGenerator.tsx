@@ -1,10 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
 import { generateLesson, getPronunciation, decodeBase64Audio, decodeAudioData } from '../services/gemini';
 import { SavedLesson, Language } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
-import { BookOpen, Star, CheckCircle, PenTool, Lightbulb, Globe, AlertTriangle, MessageCircle, Music, Coffee, Plane, Briefcase, Smile, Zap, Plus, ArrowLeft, ArrowRight, Volume2, RotateCcw, Award, Rocket, X } from 'lucide-react';
+import { BookOpen, Star, CheckCircle, PenTool, Lightbulb, Globe, AlertTriangle, MessageCircle, Music, Coffee, Plane, Briefcase, Smile, Zap, Plus, ArrowLeft, ArrowRight, Volume2, RotateCcw, Award, Rocket, X, Trash2 } from 'lucide-react';
 import { Tooltip } from './Tooltip';
 import { triggerHaptic } from '../utils/performance';
 
@@ -19,20 +18,15 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang, userTier = 'Nov
   const [selectedTopic, setSelectedTopic] = useState('');
   const [customTopic, setCustomTopic] = useState('');
   const [difficulty, setDifficulty] = useState<number>(10);
-  
   const [savedLessons, setSavedLessons] = useState<SavedLesson[]>([]);
   const [activeLesson, setActiveLesson] = useState<SavedLesson | null>(null);
   const [viewMode, setViewMode] = useState<'study' | 'quiz'>('study');
   const [quizAnswers, setQuizAnswers] = useState<Record<number, string>>({});
   const [speakingText, setSpeakingText] = useState<string | null>(null);
-
-  // Quiz State
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [retryMode, setRetryMode] = useState(false);
   const [wrongIndices, setWrongIndices] = useState<number[]>([]);
   const [questionsToRetry, setQuestionsToRetry] = useState<number[]>([]);
-
-  // Tutorial State
   const [showTutorial, setShowTutorial] = useState(false);
 
   useEffect(() => {
@@ -40,23 +34,12 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang, userTier = 'Nov
     if (history) {
         try { 
             const parsed = JSON.parse(history);
-            // Only load lessons that are NOT completed (in-progress only)
-            const activeOnly = parsed.filter((l: SavedLesson) => !l.completed);
-            setSavedLessons(activeOnly); 
+            setSavedLessons(parsed); 
         } catch (e) {}
     }
-    
-    // Load persisted difficulty
     const savedDifficulty = localStorage.getItem('tmc_lesson_difficulty');
-    if (savedDifficulty) {
-        setDifficulty(parseInt(savedDifficulty, 10));
-    }
-
-    // Check Tutorial Status
-    const seenTutorial = localStorage.getItem('tmc_lesson_tutorial_seen');
-    if (!seenTutorial) {
-        setShowTutorial(true);
-    }
+    if (savedDifficulty) setDifficulty(parseInt(savedDifficulty, 10));
+    if (!localStorage.getItem('tmc_lesson_tutorial_seen')) setShowTutorial(true);
   }, []);
 
   const closeTutorial = () => {
@@ -87,108 +70,53 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang, userTier = 'Nov
               source.connect(audioCtx.destination);
               source.start();
               source.onended = () => setSpeakingText(null);
-          } else {
-              setSpeakingText(null);
-          }
-      } catch (e) {
-          console.error(e);
-          setSpeakingText(null);
-      }
+          } else { setSpeakingText(null); }
+      } catch (e) { setSpeakingText(null); }
+  };
+
+  const handleDeleteLesson = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updated = savedLessons.filter(l => l.id !== id);
+    setSavedLessons(updated);
+    localStorage.setItem('tmc_saved_lessons', JSON.stringify(updated));
+    triggerHaptic('medium');
   };
 
   const handleGenerate = async () => {
     const finalTopic = customTopic.trim() || selectedTopic;
     if (!finalTopic) return;
-    
     setLoading(true);
     try {
       const result = await generateLesson(finalTopic, difficulty, lang, userTier as any);
-      const newLesson: SavedLesson = {
-        ...result,
-        id: Date.now().toString(),
-        dateSaved: Date.now(),
-        numericLevel: difficulty,
-        progress: 0,
-        completed: false
-      };
-      
+      const newLesson: SavedLesson = { ...result, id: Date.now().toString(), dateSaved: Date.now(), numericLevel: difficulty, progress: 0, completed: false };
       const updated = [newLesson, ...savedLessons];
       setSavedLessons(updated);
       localStorage.setItem('tmc_saved_lessons', JSON.stringify(updated));
       setActiveLesson(newLesson);
-      
-      // Reset quiz state
-      setQuizAnswers({});
-      setQuizSubmitted(false);
-      setRetryMode(false);
-      setWrongIndices([]);
-      setQuestionsToRetry([]);
+      setQuizAnswers({}); setQuizSubmitted(false); setRetryMode(false); setWrongIndices([]); setQuestionsToRetry([]);
       setViewState('lesson');
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const triggerMoneyRain = () => {
-    const duration = 2500;
-    const end = Date.now() + duration;
-
-    (function frame() {
-      confetti({
-        particleCount: 5,
-        angle: 60,
-        spread: 55,
-        origin: { x: 0, y: 0.5 },
-        colors: ['#FFD700', '#DAA520', '#10B981'], // Gold and Green
-        shapes: ['square'],
-        scalar: 2
-      });
-      confetti({
-        particleCount: 5,
-        angle: 120,
-        spread: 55,
-        origin: { x: 1, y: 0.5 },
-        colors: ['#FFD700', '#DAA520', '#10B981'],
-        shapes: ['square'],
-        scalar: 2
-      });
-
-      if (Date.now() < end) {
-        requestAnimationFrame(frame);
-      }
-    }());
+    } catch (e) { console.error(e); } finally { setLoading(false); }
   };
 
   const handleSubmitQuiz = () => {
     if (!activeLesson) return;
-    
     const wrongs: number[] = [];
     activeLesson.quiz.forEach((q, idx) => {
-        // Skip indices that aren't part of the current retry set if we are in retry mode
         if (retryMode && !questionsToRetry.includes(idx)) return;
-
-        const userAnswer = quizAnswers[idx];
-        if (userAnswer !== q.answer) {
-            wrongs.push(idx);
-        }
+        if (quizAnswers[idx] !== q.answer) wrongs.push(idx);
     });
-
     setWrongIndices(wrongs);
     setQuizSubmitted(true);
     triggerHaptic(wrongs.length === 0 ? 'success' : 'medium');
-    
     if (wrongs.length === 0) {
-        triggerMoneyRain();
+        confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
     }
   };
 
   const handleRetryMissed = () => {
-      setQuestionsToRetry([...wrongIndices]); // Snapshot wrongs for retry mode
+      setQuestionsToRetry([...wrongIndices]);
       setRetryMode(true);
       setQuizSubmitted(false);
-      // Clear wrong ones to force re-selection
       const newAnswers = { ...quizAnswers };
       wrongIndices.forEach(idx => delete newAnswers[idx]);
       setQuizAnswers(newAnswers);
@@ -196,87 +124,36 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang, userTier = 'Nov
 
   const handleNextLevel = async () => {
     if (!activeLesson) return;
-
-    // 1. Remove current completed lesson from list (Do not save completed ones)
     const lessonsWithoutCurrent = savedLessons.filter(l => l.id !== activeLesson.id);
-    
-    // 2. Increase Level stats
     const currentScore = parseInt(localStorage.getItem('tmc_mastery_level') || '1');
     localStorage.setItem('tmc_mastery_level', (currentScore + 1).toString());
     window.dispatchEvent(new Event('tmc-level-update'));
-
-    // 3. Increase Difficulty
     const newDifficulty = Math.min(100, difficulty + 1);
     setDifficulty(newDifficulty);
     localStorage.setItem('tmc_lesson_difficulty', newDifficulty.toString());
-
-    // 4. Generate Next Lesson (Cycle)
     const nextTopic = activeLesson.topic;
-    
     setLoading(true);
     try {
-        // Scroll to top
-        const main = document.querySelector('main');
-        if(main) main.scrollTo({ top: 0, behavior: 'smooth' });
-
         const result = await generateLesson(nextTopic, newDifficulty, lang, userTier as any);
-        const newLesson: SavedLesson = {
-            ...result,
-            id: Date.now().toString(),
-            dateSaved: Date.now(),
-            numericLevel: newDifficulty,
-            progress: 0,
-            completed: false
-        };
-        
-        // Add new lesson to the list (old one is gone)
-        const newHistory = [newLesson, ...lessonsWithoutCurrent];
-        setSavedLessons(newHistory);
-        localStorage.setItem('tmc_saved_lessons', JSON.stringify(newHistory));
-        
+        const newLesson: SavedLesson = { ...result, id: Date.now().toString(), dateSaved: Date.now(), numericLevel: newDifficulty, progress: 0, completed: false };
+        const updatedAll = [newLesson, ...lessonsWithoutCurrent];
+        setSavedLessons(updatedAll);
+        localStorage.setItem('tmc_saved_lessons', JSON.stringify(updatedAll));
         setActiveLesson(newLesson);
-        
-        // Reset UI
-        setQuizAnswers({});
-        setQuizSubmitted(false);
-        setRetryMode(false);
-        setWrongIndices([]);
-        setQuestionsToRetry([]);
-        setViewMode('study'); // Back to study mode for the new lesson
-        
-    } catch(e) {
-        console.error(e);
-        // If error, just go back to dashboard, ensuring old one is removed if we consider it done
-        setSavedLessons(lessonsWithoutCurrent);
-        localStorage.setItem('tmc_saved_lessons', JSON.stringify(lessonsWithoutCurrent));
-        setViewState('dashboard');
-    } finally {
-        setLoading(false);
-    }
-  };
-
-  const handleFinishLesson = () => {
-      // Manual exit to dashboard
-      setViewState('dashboard');
-      setActiveLesson(null);
-      setQuizAnswers({});
-      setViewMode('study');
-      setQuizSubmitted(false);
-      setRetryMode(false);
-      setWrongIndices([]);
-      setQuestionsToRetry([]);
+        setQuizAnswers({}); setQuizSubmitted(false); setRetryMode(false); setWrongIndices([]); setQuestionsToRetry([]); setViewMode('study');
+    } catch(e) { setViewState('dashboard'); } finally { setLoading(false); }
   };
 
   const text = {
     myLessons: lang === 'es' ? 'Mis Lecciones' : 'My Lessons',
-    inProgress: lang === 'es' ? 'lecciones en progreso' : 'lessons in progress',
+    inProgress: lang === 'es' ? 'activas' : 'active',
     noActive: lang === 'es' ? 'No hay lecciones activas.' : 'No active lessons.',
     create: lang === 'es' ? 'Crear Nueva' : 'Create New',
     pickTopic: lang === 'es' ? 'Elige un Tema' : 'Pick a Topic',
     customPlaceholder: lang === 'es' ? 'O escribe el tuyo...' : 'Or type your own...',
-    level: lang === 'es' ? 'Nivel de Dificultad' : 'Difficulty Level',
+    level: lang === 'es' ? 'Nivel' : 'Level',
     generate: lang === 'es' ? 'Generar Clase' : 'Generate Class',
-    generating: lang === 'es' ? 'El Profesor está escribiendo...' : 'Professor is writing...',
+    generating: lang === 'es' ? 'Escribiendo...' : 'Writing...',
     readyForQuiz: lang === 'es' ? '¿Listo para el Quiz?' : 'Ready for Quiz?',
     submit: lang === 'es' ? 'Enviar Respuestas' : 'Submit Answers',
     results: lang === 'es' ? 'Resultados' : 'Results',
@@ -288,8 +165,8 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang, userTier = 'Nov
     secondChance: lang === 'es' ? 'Segunda Oportunidad' : 'Second Opportunity',
     previouslyFailed: lang === 'es' ? 'Preguntas falladas previamente' : 'Previously failed questions',
     explanation: lang === 'es' ? 'Explicación' : 'Explanation',
-    correctAnswer: lang === 'es' ? 'Respuesta Correcta' : 'Correct Answer',
-    yourAnswer: lang === 'es' ? 'Tu Respuesta' : 'Your Answer',
+    correctAnswer: lang === 'es' ? 'Correcta' : 'Correct',
+    yourAnswer: lang === 'es' ? 'Tuya' : 'Yours',
     back: lang === 'es' ? 'Volver' : 'Back',
     beginner: lang === 'es' ? 'Principiante' : 'Beginner',
     native: lang === 'es' ? 'Nativo' : 'Native',
@@ -297,118 +174,81 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang, userTier = 'Nov
     quiz: lang === 'es' ? 'Prueba' : 'Quiz',
     coreConcept: lang === 'es' ? 'Concepto Clave' : 'Core Concept',
     scenario: lang === 'es' ? 'Escenario' : 'Scenario',
-    step1: lang === 'es' ? '1. Elige un Tema' : '1. Choose a Topic',
-    step1Desc: lang === 'es' ? 'Selecciona qué quieres aprender hoy.' : 'Select what you want to learn today.',
-    step2: lang === 'es' ? '2. Ajusta tu Nivel' : '2. Adjust Your Level',
-    step2Desc: lang === 'es' ? 'Desde Principiante (1) hasta Experto (100).' : 'From Beginner (1) to Expert (100).',
-    step3: lang === 'es' ? '3. Generar y Aprender' : '3. Generate & Learn',
-    step3Desc: lang === 'es' ? 'La IA creará una clase única para ti.' : 'AI will create a unique class for you.',
-    tutorialTitle: lang === 'es' ? 'Cómo funciona' : 'How it works',
     gotIt: lang === 'es' ? '¡Entendido!' : 'Got it!',
-    lvl: lang === 'es' ? 'Nvl' : 'Lvl',
     statusProg: lang === 'es' ? 'En Progreso' : 'In Progress'
   };
 
-  // --- Renderers ---
-
-  const renderTutorial = () => (
-      <motion.div 
-        initial={{ opacity: 0 }} 
-        animate={{ opacity: 1 }} 
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
-      >
-          <motion.div 
-            initial={{ scale: 0.9, y: 20 }}
-            animate={{ scale: 1, y: 0 }}
-            className="bg-slate-900 border border-white/10 rounded-[32px] p-8 max-w-md w-full shadow-2xl relative overflow-hidden"
-          >
-              <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 to-purple-500"></div>
-              <button onClick={closeTutorial} className="absolute top-4 right-4 text-slate-400 hover:text-white"><X size={24}/></button>
-              
-              <h3 className="text-2xl font-black text-white mb-6 flex items-center gap-2">
-                  <Lightbulb className="text-yellow-400" /> {text.tutorialTitle}
-              </h3>
-              
-              <div className="space-y-6">
-                  <div className="flex gap-4">
-                      <div className="w-10 h-10 rounded-full bg-blue-500/10 text-blue-400 flex items-center justify-center font-black border border-blue-500/20 shrink-0">1</div>
-                      <div>
-                          <h4 className="font-bold text-white">{text.step1}</h4>
-                          <p className="text-slate-400 text-sm">{text.step1Desc}</p>
-                      </div>
-                  </div>
-                  <div className="flex gap-4">
-                      <div className="w-10 h-10 rounded-full bg-purple-500/10 text-purple-400 flex items-center justify-center font-black border border-purple-500/20 shrink-0">2</div>
-                      <div>
-                          <h4 className="font-bold text-white">{text.step2}</h4>
-                          <p className="text-slate-400 text-sm">{text.step2Desc}</p>
-                      </div>
-                  </div>
-                  <div className="flex gap-4">
-                      <div className="w-10 h-10 rounded-full bg-green-500/10 text-green-400 flex items-center justify-center font-black border border-green-500/20 shrink-0">3</div>
-                      <div>
-                          <h4 className="font-bold text-white">{text.step3}</h4>
-                          <p className="text-slate-400 text-sm">{text.step3Desc}</p>
-                      </div>
-                  </div>
-              </div>
-
-              <button 
-                onClick={closeTutorial}
-                className="w-full mt-8 py-4 bg-white text-slate-900 font-black rounded-2xl shadow-lg hover:scale-105 active:scale-95 transition-all"
-              >
-                  {text.gotIt}
-              </button>
-          </motion.div>
-      </motion.div>
+  const renderLessonHelpModal = () => (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-slate-900 border border-white/10 rounded-[32px] p-8 max-w-md w-full shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 to-purple-500"></div>
+            <button onClick={closeTutorial} className="absolute top-4 right-4 text-slate-400 hover:text-white"><X size={24}/></button>
+            <h3 className="text-2xl font-black text-white mb-6 flex items-center gap-2"><BookOpen className="text-blue-400" /> {lang === 'es' ? 'Cómo Usar Lecciones' : 'How to Use Lessons'}</h3>
+            <div className="space-y-6">
+                <div className="flex gap-4"><div className="w-10 h-10 rounded-full bg-blue-500/10 text-blue-400 flex items-center justify-center font-black border border-blue-500/20 shrink-0">1</div>
+                    <div><h4 className="font-bold text-white">{lang === 'es' ? 'Lee el Concepto' : 'Read the Concept'}</h4><p className="text-slate-400 text-sm">{lang === 'es' ? 'Aprende el tema principal. Toca el altavoz para escuchar.' : 'Learn the main topic. Tap the speaker to hear.'}</p></div>
+                </div>
+                <div className="flex gap-4"><div className="w-10 h-10 rounded-full bg-purple-500/10 text-purple-400 flex items-center justify-center font-black border border-purple-500/20 shrink-0">2</div>
+                    <div><h4 className="font-bold text-white">{lang === 'es' ? 'Estudia el Escenario' : 'Study the Scenario'}</h4><p className="text-slate-400 text-sm">{lang === 'es' ? 'Mira cómo se usa en la vida real.' : 'See how it is used in real life.'}</p></div>
+                </div>
+                <div className="flex gap-4"><div className="w-10 h-10 rounded-full bg-green-500/10 text-green-400 flex items-center justify-center font-black border border-green-500/20 shrink-0">3</div>
+                    <div><h4 className="font-bold text-white">{lang === 'es' ? 'Pasa el Quiz' : 'Pass the Quiz'}</h4><p className="text-slate-400 text-sm">{lang === 'es' ? 'Domina el tema para subir de nivel.' : 'Master the topic to level up.'}</p></div>
+                </div>
+            </div>
+            <button onClick={closeTutorial} className="w-full mt-8 py-4 bg-white text-slate-900 font-black rounded-2xl shadow-lg hover:scale-105 active:scale-95 transition-all">{text.gotIt}</button>
+        </motion.div>
+    </motion.div>
   );
 
   const renderDashboard = () => (
-    <div className="max-w-5xl mx-auto pt-6 px-4">
-      <div className="flex justify-between items-end mb-8">
+    <div className="max-w-6xl mx-auto pt-6 px-4">
+      <div className="flex flex-wrap justify-between items-end mb-12 gap-6">
         <div>
-          <h2 className="text-4xl font-black text-white tracking-tight">{text.myLessons}</h2>
-          <p className="text-slate-400 font-medium mt-1">{savedLessons.length} {text.inProgress}</p>
+          <h2 className="text-6xl font-black text-white tracking-tighter italic">Linguistic Vault</h2>
+          <p className="text-slate-400 font-bold uppercase tracking-[0.3em] text-[10px] mt-2">{savedLessons.length} Neural Lessons Engaged</p>
         </div>
-        <button 
-          onClick={() => setViewState('create')} 
-          className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-2xl font-bold shadow-lg transition-transform active:scale-95 flex items-center gap-2"
+        <motion.button 
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setViewState('create')} 
+            className="bg-brand-500 hover:bg-brand-400 text-white px-10 py-5 rounded-[24px] font-black uppercase tracking-widest text-xs shadow-2xl transition-all flex items-center gap-3 shadow-brand-500/30"
         >
-          <Plus size={20} /> {text.create}
-        </button>
+            <Plus size={20} strokeWidth={3} /> {text.create}
+        </motion.button>
       </div>
 
       {savedLessons.length === 0 ? (
-        <div className="text-center py-20 opacity-40">
-          <BookOpen size={64} className="mx-auto mb-4 text-slate-500" />
-          <p className="text-xl font-bold">{text.noActive}</p>
+        <div className="text-center py-40 opacity-30 flex flex-col items-center">
+            <div className="w-24 h-24 bg-slate-800 rounded-full flex items-center justify-center mb-6"><BookOpen size={48} className="text-slate-500" /></div>
+            <p className="text-3xl font-black text-white italic tracking-tighter">{text.noActive}</p>
+            <p className="text-sm font-bold uppercase tracking-widest mt-4">Generate your first immersive session above.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {savedLessons.map(l => (
             <motion.div 
-              key={l.id}
-              onClick={() => { 
-                  setActiveLesson(l); 
-                  setViewState('lesson'); 
-                  setQuizAnswers({});
-                  setQuizSubmitted(false);
-                  setRetryMode(false);
-                  setWrongIndices([]);
-                  setQuestionsToRetry([]);
-              }}
-              whileHover={{ y: -5 }}
-              className="bg-slate-900 border border-white/5 p-6 rounded-[32px] cursor-pointer hover:border-blue-500/50 transition-all group"
+                key={l.id} 
+                onClick={() => { setActiveLesson(l); setViewState('lesson'); setQuizAnswers({}); setQuizSubmitted(false); setRetryMode(false); setWrongIndices([]); setQuestionsToRetry([]); }} 
+                whileHover={{ y: -12, scale: 1.02 }} 
+                className="bg-slate-900/40 border border-white/5 p-8 rounded-[48px] cursor-pointer hover:border-brand-500/40 transition-all group relative overflow-hidden glass-panel shadow-2xl"
             >
-              <div className="flex justify-between items-start mb-4">
-                <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-slate-800 text-slate-400`}>
-                  {text.statusProg}
-                </span>
-                <span className="text-xs font-bold text-slate-500">{text.lvl} {l.numericLevel}</span>
+              <div className="flex justify-between items-start mb-8">
+                <span className="px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-brand-500/10 text-brand-400 border border-brand-500/20">{text.statusProg}</span>
+                <motion.button 
+                    whileHover={{ scale: 1.2, color: '#ef4444' }}
+                    onClick={(e) => handleDeleteLesson(l.id, e)}
+                    className="w-10 h-10 rounded-2xl bg-white/5 text-slate-500 flex items-center justify-center hover:bg-red-500/10 transition-all opacity-0 group-hover:opacity-100"
+                >
+                    <Trash2 size={18}/>
+                </motion.button>
               </div>
-              <h3 className="text-xl font-black text-white mb-2 line-clamp-2 group-hover:text-blue-400 transition-colors">{l.title}</h3>
-              <p className="text-slate-400 text-sm line-clamp-2">{l.topic}</p>
+              <h3 className="text-3xl font-black text-white mb-4 leading-[1.1] italic tracking-tighter group-hover:text-brand-400 transition-colors line-clamp-2">{l.title}</h3>
+              <p className="text-slate-500 text-[11px] font-black uppercase tracking-[0.2em]">{l.topic} • LVL {l.numericLevel}</p>
+              
+              <div className="mt-10 flex items-center gap-2 text-[11px] font-black text-brand-500 uppercase tracking-[0.3em]">
+                <span>Neural Engage</span>
+                <ArrowRight size={16} className="group-hover:translate-x-2 transition-transform" />
+              </div>
             </motion.div>
           ))}
         </div>
@@ -418,291 +258,248 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang, userTier = 'Nov
 
   const renderCreate = () => (
     <div className="max-w-2xl mx-auto pt-6 px-4 flex flex-col min-h-[80vh] justify-center">
-      <button onClick={() => setViewState('dashboard')} className="self-start text-slate-500 font-bold mb-8 hover:text-white flex items-center gap-2">
-        <ArrowLeft size={18} /> {text.back}
-      </button>
-
+      <button onClick={() => setViewState('dashboard')} className="self-start text-slate-500 font-black uppercase text-[10px] tracking-[0.4em] mb-16 hover:text-white flex items-center gap-3 transition-colors"><ArrowLeft size={18} strokeWidth={3} /> {text.back}</button>
       {loading ? (
-        <div className="text-center">
-          <div className="text-6xl mb-6 animate-bounce">👨‍🏫</div>
-          <h3 className="text-2xl font-black text-white animate-pulse">{text.generating}</h3>
+        <div className="text-center flex flex-col items-center scale-110">
+            <div className="w-28 h-28 bg-brand-500/20 rounded-[40px] flex items-center justify-center mb-10 shadow-2xl shadow-brand-500/10">
+                <Zap size={56} className="text-brand-500 animate-pulse" />
+            </div>
+            <h3 className="text-4xl font-black text-white italic tracking-tighter animate-pulse">{text.generating}</h3>
+            <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.4em] mt-4">Synthesizing personalized immersion pipeline...</p>
         </div>
       ) : (
-        <div className="space-y-10">
-          <div>
-            <h3 className="text-2xl font-black text-white mb-6 text-center">{text.pickTopic}</h3>
-            <div className="flex flex-wrap justify-center gap-4 mb-6">
+        <div className="space-y-16">
+          <div className="text-center space-y-6">
+            <h3 className="text-5xl font-black text-white italic tracking-tighter">{text.pickTopic}</h3>
+            <p className="text-slate-500 text-[11px] font-black uppercase tracking-[0.5em] opacity-60">Design the vector of your next mission</p>
+            
+            <div className="flex flex-wrap justify-center gap-5 py-6">
               {topics.map(t => (
-                <button
-                  key={t.id}
-                  onClick={() => { setSelectedTopic(t.label); setCustomTopic(''); }}
-                  className={`p-6 rounded-3xl flex flex-col items-center gap-3 transition-all w-32 ${selectedTopic === t.label ? `${t.bg} text-white shadow-xl scale-105` : 'bg-slate-900 text-slate-400 hover:bg-slate-800'}`}
+                <motion.button 
+                    key={t.id} 
+                    whileHover={{ scale: 1.08 }}
+                    onClick={() => { setSelectedTopic(t.label); setCustomTopic(''); }} 
+                    className={`p-8 rounded-[40px] border-2 flex flex-col items-center gap-5 transition-all w-36 ${selectedTopic === t.label ? `${t.bg} text-white shadow-[0_20px_40px_rgba(0,0,0,0.4)] border-white/20 scale-110` : 'bg-slate-900/50 border-white/5 text-slate-600 hover:border-white/10'}`}
                 >
-                  <t.icon size={32} />
-                  <span className="text-xs font-black uppercase tracking-wide">{t.label}</span>
-                </button>
+                    <t.icon size={40} className={selectedTopic === t.label ? 'animate-bounce' : ''} />
+                    <span className="text-[10px] font-black uppercase tracking-widest">{t.label}</span>
+                </motion.button>
               ))}
             </div>
+            
             <input 
-              type="text" 
-              placeholder={text.customPlaceholder}
-              value={customTopic}
-              onChange={e => { setCustomTopic(e.target.value); setSelectedTopic(''); }}
-              onKeyDown={e => e.key === 'Enter' && (selectedTopic || customTopic) && handleGenerate()}
-              className="w-full bg-slate-900 border-2 border-slate-800 rounded-2xl p-5 text-white text-center font-bold focus:border-blue-500 outline-none transition-colors"
+                type="text" 
+                placeholder={text.customPlaceholder} 
+                value={customTopic} 
+                onChange={e => { setCustomTopic(e.target.value); setSelectedTopic(''); }} 
+                className="w-full bg-slate-900/50 border-2 border-white/5 rounded-[32px] p-8 text-white text-center font-black text-2xl italic tracking-tighter focus:border-brand-500 outline-none transition-all placeholder:text-slate-800 shadow-inner" 
             />
           </div>
 
-          <div>
-            <div className="flex justify-between text-xs font-bold text-slate-500 mb-2 uppercase tracking-widest px-2">
+          <div className="bg-slate-900/50 p-12 rounded-[56px] border border-white/5 space-y-10 glass-panel shadow-2xl">
+            <div className="flex justify-between text-[11px] font-black text-slate-500 uppercase tracking-[0.5em] px-4 opacity-50">
                 <span>{text.beginner}</span>
                 <span>{text.native}</span>
             </div>
-            <input 
-              type="range" 
-              min="1" max="100" 
-              value={difficulty} 
-              onChange={e => setDifficulty(parseInt(e.target.value))}
-              className="w-full h-4 bg-slate-800 rounded-full appearance-none cursor-pointer accent-blue-500"
-            />
-            <div className="text-center mt-2 font-black text-blue-400 text-xl">
-                {difficulty}
-                <span className="text-xs text-slate-500 ml-2 uppercase font-bold tracking-wider">
-                    {difficulty < 20 ? 'Novice' : difficulty < 60 ? 'Intermediate' : 'Advanced'}
-                </span>
+            <div className="relative px-2">
+                <input 
+                    type="range" min="1" max="100" value={difficulty} 
+                    onChange={e => setDifficulty(parseInt(e.target.value))} 
+                    className="w-full h-4 bg-slate-800 rounded-full appearance-none cursor-pointer accent-brand-500" 
+                />
+                <motion.div 
+                    layoutId="levelBadge"
+                    className="absolute -top-14 left-1/2 -translate-x-1/2 bg-brand-500 text-white px-6 py-2 rounded-2xl text-sm font-black shadow-xl shadow-brand-500/20 italic"
+                >
+                    LVL {difficulty}
+                </motion.div>
             </div>
           </div>
 
-          <button 
-            onClick={handleGenerate}
-            disabled={!selectedTopic && !customTopic}
-            className="w-full py-5 bg-white text-slate-900 font-black rounded-[24px] text-xl uppercase tracking-widest shadow-2xl hover:scale-105 transition-transform disabled:opacity-50 disabled:scale-100"
+          <motion.button 
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={handleGenerate} 
+            disabled={!selectedTopic && !customTopic} 
+            className="w-full py-10 bg-white text-slate-950 rounded-[40px] font-black text-3xl uppercase tracking-tighter shadow-[0_30px_60px_rgba(255,255,255,0.1)] transition-all disabled:opacity-20 disabled:hover:scale-100"
           >
             {text.generate}
-          </button>
+          </motion.button>
         </div>
       )}
     </div>
   );
 
   const renderLesson = () => {
-    if (loading) {
-       return (
-        <div className="flex items-center justify-center h-full">
-          <div className="text-center">
-            <div className="text-6xl mb-6 animate-bounce">🚀</div>
-            <h3 className="text-2xl font-black text-white animate-pulse">{text.generating}</h3>
-          </div>
-        </div>
-       );
-    }
-
     if (!activeLesson) return null;
     const c = activeLesson.content as any;
-
     return (
-      <div className="max-w-3xl mx-auto pb-24 pt-6 px-4">
-        <div className="flex justify-between items-center mb-8 sticky top-0 bg-slate-950/90 backdrop-blur p-4 z-20 -mx-4 rounded-b-3xl border-b border-white/5 shadow-xl">
-          <button onClick={() => setViewState('dashboard')} className="text-slate-400 font-bold hover:text-white"><ArrowLeft /></button>
-          <div className="flex bg-slate-900 rounded-full p-1 border border-white/10">
-            <button onClick={() => setViewMode('study')} className={`px-6 py-2 rounded-full text-xs font-black uppercase tracking-widest transition-all ${viewMode === 'study' ? 'bg-white text-black' : 'text-slate-500'}`}>{text.study}</button>
-            <button onClick={() => setViewMode('quiz')} className={`px-6 py-2 rounded-full text-xs font-black uppercase tracking-widest transition-all ${viewMode === 'quiz' ? 'bg-white text-black' : 'text-slate-500'}`}>{text.quiz} ({activeLesson.quiz.length})</button>
+      <div className="max-w-5xl mx-auto pb-40 pt-10 px-4">
+        <div className="flex justify-between items-center mb-16 sticky top-6 z-[50] bg-slate-950/80 backdrop-blur-3xl p-5 rounded-[40px] border border-white/10 shadow-2xl">
+          <button onClick={() => setViewState('dashboard')} className="p-4 bg-white/5 hover:bg-white/10 rounded-2xl text-slate-400 transition-all active:scale-90"><ArrowLeft size={24}/></button>
+          <div className="flex bg-slate-900 rounded-[24px] p-2 border border-white/5 shadow-inner">
+            <button onClick={() => setViewMode('study')} className={`px-12 py-4 rounded-[18px] text-[11px] font-black uppercase tracking-widest transition-all ${viewMode === 'study' ? 'bg-white text-slate-950 shadow-xl' : 'text-slate-500 hover:text-slate-300'}`}>{text.study}</button>
+            <button onClick={() => setViewMode('quiz')} className={`px-12 py-4 rounded-[18px] text-[11px] font-black uppercase tracking-widest transition-all ${viewMode === 'quiz' ? 'bg-white text-slate-950 shadow-xl' : 'text-slate-500 hover:text-slate-300'}`}>{text.quiz}</button>
+          </div>
+          <div className="w-14 h-14 flex items-center justify-center bg-brand-500/20 rounded-[20px] text-brand-400 font-black italic text-xl shadow-lg border border-brand-500/10">
+            {activeLesson.numericLevel}
           </div>
         </div>
 
-        <h1 className="text-4xl font-black text-white text-center mb-2">{activeLesson.title}</h1>
-        <p className="text-center text-slate-500 font-medium mb-12">{activeLesson.topic} • {text.level} {activeLesson.numericLevel}</p>
+        <div className="text-center mb-20 space-y-4">
+            <h1 className="text-6xl md:text-8xl font-black text-white italic tracking-tighter leading-[0.9]">{activeLesson.title}</h1>
+            <div className="flex items-center justify-center gap-3">
+                <div className="h-[1px] w-12 bg-slate-800" />
+                <p className="text-slate-500 font-black uppercase tracking-[0.5em] text-[10px]">{activeLesson.topic}</p>
+                <div className="h-[1px] w-12 bg-slate-800" />
+            </div>
+        </div>
 
         <AnimatePresence mode="wait">
           {viewMode === 'study' ? (
-            <motion.div key="study" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-8">
-              {/* Concept Card */}
-              <div className="bg-slate-900/50 border border-white/10 p-8 rounded-[40px] relative overflow-hidden backdrop-blur-sm group hover:border-yellow-500/30 transition-colors">
-                <div className="absolute top-0 left-0 w-2 h-full bg-yellow-500" />
-                <div className="flex justify-between items-start mb-4">
-                    <h3 className="text-2xl font-black text-white flex items-center gap-3">
-                    <Lightbulb className="text-yellow-500" /> {text.coreConcept}
-                    </h3>
-                    <button onClick={() => playAudio(c.concept.en)} className="p-2 bg-white/5 hover:bg-white/10 rounded-full text-yellow-400 transition-colors">
-                        <Volume2 size={20} />
-                    </button>
-                </div>
-                <p className="text-lg text-slate-200 leading-relaxed mb-6">{c.concept.en}</p>
-                <div className="bg-black/30 p-4 rounded-2xl border border-white/5">
-                  <p className="text-slate-400 italic text-sm">{c.concept.es}</p>
-                </div>
-              </div>
-
-              {/* Scenario Card */}
-              <div className="bg-slate-900/50 border border-white/10 p-8 rounded-[40px] relative overflow-hidden backdrop-blur-sm group hover:border-blue-500/30 transition-colors">
-                <div className="absolute top-0 left-0 w-2 h-full bg-blue-500" />
-                <div className="flex justify-between items-start mb-4">
-                    <h3 className="text-2xl font-black text-white flex items-center gap-3">
-                    <MessageCircle className="text-blue-500" /> {text.scenario}
-                    </h3>
-                    <button onClick={() => playAudio(c.scenario.en)} className="p-2 bg-white/5 hover:bg-white/10 rounded-full text-blue-400 transition-colors">
-                        <Volume2 size={20} />
-                    </button>
-                </div>
-                <p className="text-lg text-slate-200 leading-relaxed font-serif italic mb-4">"{c.scenario.en}"</p>
-                <p className="text-sm text-slate-500 leading-relaxed font-serif italic mt-2">"{c.scenario.es}"</p>
-              </div>
-
-              {/* Vocab Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {activeLesson.vocabulary.map((v, i) => (
-                  <div key={i} className="bg-slate-900 p-5 rounded-[24px] border border-white/5 hover:border-white/20 transition-colors flex justify-between items-center group">
-                    <div>
-                        <p className="font-black text-white text-xl">{v.word}</p>
-                        <p className="text-purple-400 text-sm font-bold uppercase tracking-wider mt-1">{v.translation}</p>
+            <motion.div key="study" initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -30 }} className="space-y-16">
+              {/* Core Concept - High Impact */}
+              <div className="bg-slate-900/40 border border-white/5 p-16 rounded-[64px] relative overflow-hidden glass-panel group shadow-2xl">
+                <div className="absolute top-0 left-0 w-3 h-full bg-brand-500 group-hover:w-6 transition-all duration-700" />
+                <div className="flex flex-col md:flex-row justify-between items-start gap-10 mb-10">
+                    <div className="space-y-4">
+                        <h3 className="text-[12px] font-black text-brand-400 uppercase tracking-[0.5em]">{text.coreConcept}</h3>
+                        <p className="text-3xl md:text-4xl font-bold text-white leading-[1.3]">{lang === 'es' ? c.concept.es : c.concept.en}</p>
                     </div>
-                    <button onClick={() => playAudio(v.word)} className="p-2 bg-white/5 hover:bg-white/10 rounded-full text-slate-400 hover:text-white opacity-0 group-hover:opacity-100 transition-all">
-                        <Volume2 size={16} />
-                    </button>
-                  </div>
+                    <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => playAudio(lang === 'es' ? c.concept.es : c.concept.en)} className="p-8 bg-brand-500 text-white rounded-[32px] shadow-[0_20px_40px_rgba(59,130,246,0.3)] shrink-0 self-center md:self-start"><Volume2 size={32} /></motion.button>
+                </div>
+                <div className="mt-10 pt-10 border-t border-white/5 opacity-60">
+                    <p className="text-slate-400 font-medium italic leading-relaxed text-xl">"{lang === 'es' ? c.concept.en : c.concept.es}"</p>
+                </div>
+              </div>
+
+              {/* Real World Scenario */}
+              <div className="bg-slate-900/40 border border-white/5 p-16 rounded-[64px] relative overflow-hidden glass-panel group shadow-2xl">
+                <div className="absolute top-0 left-0 w-3 h-full bg-indigo-500 group-hover:w-6 transition-all duration-700" />
+                <div className="flex flex-col md:flex-row justify-between items-start gap-10 mb-10">
+                    <div className="space-y-4">
+                        <h3 className="text-[12px] font-black text-indigo-400 uppercase tracking-[0.5em]">{text.scenario}</h3>
+                        <p className="text-3xl font-serif italic text-slate-100 leading-[1.5]">"{lang === 'es' ? c.scenario.es : c.scenario.en}"</p>
+                    </div>
+                    <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => playAudio(lang === 'es' ? c.scenario.es : c.scenario.en)} className="p-8 bg-indigo-500 text-white rounded-[32px] shadow-[0_20px_40px_rgba(99,102,241,0.3)] shrink-0 self-center md:self-start"><Volume2 size={32} /></motion.button>
+                </div>
+                <p className="text-slate-500 font-serif italic leading-relaxed text-xl opacity-50 mt-4">"{lang === 'es' ? c.scenario.en : c.scenario.es}"</p>
+              </div>
+
+              {/* Vocabulary Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                {activeLesson.vocabulary.map((v, i) => (
+                  <motion.div key={i} whileHover={{ y: -8 }} className="bg-slate-900/50 p-10 rounded-[56px] border border-white/5 hover:border-brand-500/30 transition-all flex justify-between items-center group glass-panel shadow-xl">
+                    <div className="space-y-2">
+                        <p className="text-3xl font-black text-white italic tracking-tighter">{v.word}</p>
+                        <p className="text-brand-500 text-[11px] font-black uppercase tracking-[0.3em]">{v.translation}</p>
+                    </div>
+                    <motion.button whileHover={{ scale: 1.1 }} onClick={() => playAudio(v.word)} className="p-5 bg-white/5 hover:bg-brand-500/10 rounded-2xl text-slate-500 hover:text-brand-400 opacity-0 group-hover:opacity-100 transition-all"><Volume2 size={24} /></motion.button>
+                  </motion.div>
                 ))}
               </div>
 
-              {/* Ready to Quiz Button */}
-              <div className="mt-8 text-center pb-8">
-                <button 
-                  onClick={() => setViewMode('quiz')}
-                  className="bg-brand-600 text-white px-10 py-4 rounded-full font-black text-lg shadow-xl hover:scale-105 transition-transform flex items-center gap-2 mx-auto active:scale-95 shadow-brand-500/20"
-                >
-                  {text.readyForQuiz} <ArrowRight size={20} />
-                </button>
+              <div className="text-center pt-20">
+                  <motion.button 
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setViewMode('quiz')} 
+                    className="px-20 py-10 bg-brand-500 text-white rounded-[48px] font-black text-3xl uppercase tracking-tighter shadow-[0_40px_80px_rgba(59,130,246,0.4)] flex items-center gap-6 mx-auto group"
+                  >
+                    {text.readyForQuiz} <ArrowRight size={36} className="group-hover:translate-x-4 transition-transform duration-500" />
+                  </motion.button>
               </div>
             </motion.div>
           ) : (
-            <motion.div key="quiz" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-8">
-              
-              {/* RESULTS VIEW */}
+            <motion.div key="quiz" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} className="space-y-16">
               {quizSubmitted ? (
-                  <div className="space-y-8">
-                      <div className="bg-slate-900 border border-white/10 rounded-[32px] p-8 text-center">
-                          <h2 className="text-3xl font-black text-white mb-2">{text.results}</h2>
-                          
-                          {/* Score Display */}
-                          <div className="text-5xl font-black mb-4">
-                              <span className="text-green-400">
-                                  {activeLesson.quiz.length - wrongIndices.length}
-                              </span>
-                              <span className="text-slate-600"> / </span>
-                              <span className="text-white">
-                                  {activeLesson.quiz.length}
-                              </span>
+                  <div className="space-y-16 pb-40">
+                      <div className="bg-slate-900/50 border border-white/10 rounded-[64px] p-20 text-center glass-panel shadow-[0_50px_100px_rgba(0,0,0,0.5)]">
+                          <h2 className="text-6xl font-black text-white italic tracking-tighter mb-6">{text.results}</h2>
+                          <div className="text-[180px] font-black mb-10 italic tracking-tighter leading-none flex items-center justify-center">
+                              <span className="text-brand-400 drop-shadow-[0_0_50px_rgba(59,130,246,0.3)]">{activeLesson.quiz.length - wrongIndices.length}</span>
+                              <span className="text-slate-800 mx-4">/</span>
+                              <span className="text-white">{activeLesson.quiz.length}</span>
                           </div>
-
-                          <div className="flex justify-center gap-4">
-                              {/* Show Retry ONLY if there are wrongs AND we are not already in retry mode */}
+                          <div className="flex flex-wrap justify-center gap-6">
                               {wrongIndices.length > 0 && !retryMode ? (
-                                  <button onClick={handleRetryMissed} className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-3 rounded-xl font-bold transition-colors flex items-center gap-2">
-                                      <RotateCcw size={18} /> {text.retry}
-                                  </button>
+                                  <motion.button whileHover={{ scale: 1.05 }} onClick={handleRetryMissed} className="bg-amber-500 hover:bg-amber-400 text-white px-12 py-6 rounded-[32px] font-black uppercase tracking-widest text-xs transition-all flex items-center gap-3 shadow-2xl shadow-amber-500/30"><RotateCcw size={20} /> {text.retry}</motion.button>
                               ) : (
-                                  // Success or End of Cycle
-                                  <button onClick={handleNextLevel} className="bg-green-600 hover:bg-green-500 text-white px-8 py-3 rounded-xl font-bold transition-colors flex items-center gap-2 shadow-lg shadow-green-500/20">
-                                      <Rocket size={18} /> {text.nextLevel}
-                                  </button>
+                                  <motion.button whileHover={{ scale: 1.05 }} onClick={handleNextLevel} className="bg-emerald-500 hover:bg-emerald-400 text-white px-16 py-6 rounded-[32px] font-black uppercase tracking-widest text-xs transition-all flex items-center gap-3 shadow-2xl shadow-emerald-500/30"><Award size={20} /> {text.nextLevel}</motion.button>
                               )}
-                              
-                              {/* Exit Option */}
-                              <button onClick={handleFinishLesson} className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-6 py-3 rounded-xl font-bold transition-colors flex items-center gap-2">
-                                  <Award size={18} /> {text.finish}
-                              </button>
+                              <motion.button whileHover={{ scale: 1.05 }} onClick={() => setViewState('dashboard')} className="bg-white/5 hover:bg-white/10 text-slate-300 px-12 py-6 rounded-[32px] font-black uppercase tracking-widest text-xs transition-all flex items-center gap-3 border border-white/10 italic">{text.finish}</motion.button>
                           </div>
                       </div>
-
-                      <div className="space-y-6">
+                      
+                      <div className="space-y-8">
                           {activeLesson.quiz.map((q, idx) => {
                               if (retryMode && !questionsToRetry.includes(idx)) return null;
-
                               const isWrong = wrongIndices.includes(idx);
-                              const userAnswer = quizAnswers[idx];
-                              
                               return (
-                                  <div key={idx} className={`p-6 rounded-3xl border-l-4 ${isWrong ? 'bg-red-500/5 border-red-500' : 'bg-green-500/5 border-green-500'}`}>
-                                      <div className="flex justify-between mb-2">
-                                          <span className="text-sm font-bold text-slate-400">Question {idx + 1}</span>
-                                          <span className={`text-xs font-black uppercase ${isWrong ? 'text-red-400' : 'text-green-400'}`}>
-                                              {isWrong ? text.wrong : text.correct}
-                                          </span>
+                                  <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} key={idx} className={`p-12 rounded-[56px] border-2 flex flex-col md:flex-row gap-10 items-center ${isWrong ? 'bg-red-500/5 border-red-500/30' : 'bg-emerald-500/5 border-emerald-500/30'} glass-panel shadow-xl`}>
+                                      <div className={`w-24 h-24 rounded-[32px] flex items-center justify-center font-black text-3xl shrink-0 shadow-2xl ${isWrong ? 'bg-red-500 text-white' : 'bg-emerald-500 text-white'}`}>
+                                          {isWrong ? <X size={48} strokeWidth={4}/> : <CheckCircle size={48} strokeWidth={4}/>}
                                       </div>
-                                      <p className="font-bold text-white text-lg mb-4">{q.question}</p>
-                                      
-                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mb-4">
-                                          <div className={`p-3 rounded-xl ${isWrong ? 'bg-red-500/10 text-red-200' : 'bg-green-500/10 text-green-200'}`}>
-                                              <span className="block text-[10px] font-bold uppercase opacity-70 mb-1">{text.yourAnswer}</span>
-                                              {userAnswer || 'No answer'}
-                                          </div>
-                                          <div className="p-3 rounded-xl bg-blue-500/10 text-blue-200">
-                                              <span className="block text-[10px] font-bold uppercase opacity-70 mb-1">{text.correctAnswer}</span>
-                                              {q.answer}
+                                      <div className="flex-1 text-center md:text-left space-y-4">
+                                          <p className="text-2xl font-black text-white italic tracking-tighter leading-tight">{q.question}</p>
+                                          <div className="flex flex-wrap gap-8 text-[11px] font-black uppercase tracking-[0.2em]">
+                                              <span className="text-slate-500">{text.yourAnswer}: <span className={isWrong ? 'text-red-400' : 'text-emerald-400'}>{quizAnswers[idx] || '---'}</span></span>
+                                              <span className="text-brand-400">{text.correctAnswer}: {q.answer}</span>
                                           </div>
                                       </div>
-                                      
-                                      {q.explanation && (
-                                          <div className="pt-4 border-t border-white/5 text-slate-300 text-sm italic flex gap-3">
-                                              <Lightbulb size={18} className="text-yellow-500 shrink-0 mt-0.5" />
-                                              <div>
-                                                  <span className="font-bold text-yellow-500 block text-xs uppercase mb-1">{text.explanation}</span>
-                                                  {q.explanation}
-                                              </div>
-                                          </div>
-                                      )}
-                                  </div>
+                                  </motion.div>
                               );
                           })}
                       </div>
                   </div>
               ) : (
                   <>
-                    {retryMode && (
-                        <div className="bg-amber-500/10 border border-amber-500/50 p-4 rounded-2xl flex items-center gap-3 text-amber-200 mb-6 animate-pulse">
-                            <AlertTriangle size={24} />
-                            <div>
-                                <p className="font-black text-sm uppercase tracking-wide">{text.secondChance}</p>
-                                <p className="text-xs">{text.previouslyFailed}</p>
-                            </div>
-                        </div>
-                    )}
-
-                    {activeLesson.quiz.map((q, idx) => {
-                        if (retryMode && !questionsToRetry.includes(idx)) return null;
-
-                        return (
-                            <div key={idx} className={`bg-slate-900/80 p-8 rounded-[40px] border backdrop-blur-md transition-colors ${retryMode ? 'border-amber-500/30' : 'border-white/10'}`}>
-                            <div className="flex items-center gap-4 mb-6">
-                                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-white border ${retryMode ? 'bg-amber-900 border-amber-500' : 'bg-slate-800 border-white/5'}`}>
-                                    {idx + 1}
-                                </div>
-                                <p className="font-bold text-white text-lg leading-tight">{q.question}</p>
-                            </div>
-                            <div className="grid gap-3 pl-14">
-                                {q.options.map(opt => (
-                                <button
-                                    key={opt}
-                                    onClick={() => setQuizAnswers({...quizAnswers, [idx]: opt})}
-                                    className={`p-4 rounded-2xl text-left font-medium border-2 transition-all active:scale-[0.99] ${
-                                    quizAnswers[idx] === opt 
-                                        ? 'bg-blue-600 border-blue-500 text-white shadow-lg' 
-                                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-600 hover:bg-slate-900'
-                                    }`}
+                    {retryMode && (<motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-amber-500/10 border-2 border-amber-500/40 p-10 rounded-[48px] flex items-center gap-6 text-amber-200 mb-16 shadow-2xl"><AlertTriangle size={48} className="animate-pulse" /><div><p className="font-black text-2xl uppercase tracking-tighter italic">{text.secondChance}</p><p className="text-sm font-bold opacity-70 tracking-widest uppercase">{text.previouslyFailed}</p></div></motion.div>)}
+                    
+                    <div className="grid gap-16">
+                        {activeLesson.quiz.map((q, idx) => {
+                            if (retryMode && !questionsToRetry.includes(idx)) return null;
+                            return (
+                                <motion.div 
+                                    key={idx} 
+                                    initial={{ opacity: 0, y: 50 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: idx * 0.1 }}
+                                    className={`bg-slate-900/60 p-16 rounded-[72px] border-2 backdrop-blur-3xl transition-all shadow-[0_40px_80px_rgba(0,0,0,0.4)] relative group ${retryMode ? 'border-amber-500/20' : 'border-white/5'}`}
                                 >
-                                    {opt}
-                                </button>
-                                ))}
-                            </div>
-                            </div>
-                        );
-                    })}
-                    <div className="text-center pt-8 pb-12">
-                        <button 
-                        onClick={handleSubmitQuiz}
-                        className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-12 py-5 rounded-full font-black text-xl shadow-xl hover:scale-105 transition-transform hover:shadow-blue-500/30"
+                                    <div className="flex flex-col md:flex-row items-center gap-10 mb-12">
+                                        <div className={`w-24 h-24 rounded-[36px] flex items-center justify-center font-black text-5xl italic shadow-2xl shrink-0 group-hover:rotate-12 transition-transform duration-500 ${retryMode ? 'bg-amber-500 text-slate-950' : 'bg-brand-500 text-white'}`}>
+                                            {idx + 1}
+                                        </div>
+                                        <p className="font-black text-3xl md:text-4xl text-white leading-[1.2] italic tracking-tighter text-center md:text-left">{q.question}</p>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        {q.options.map(opt => (
+                                            <motion.button 
+                                                key={opt} 
+                                                whileHover={{ scale: 1.03, y: -4 }}
+                                                whileTap={{ scale: 0.97 }}
+                                                onClick={() => { setQuizAnswers({...quizAnswers, [idx]: opt}); triggerHaptic('light'); }} 
+                                                className={`p-8 rounded-[36px] text-center font-black text-xl italic border-2 transition-all shadow-2xl ${quizAnswers[idx] === opt ? 'bg-brand-500 border-white/30 text-white ring-[16px] ring-brand-500/10' : 'bg-slate-950/40 border-white/5 text-slate-500 hover:border-white/20 hover:text-white'}`}
+                                            >
+                                                {opt}
+                                            </motion.button>
+                                        ))}
+                                    </div>
+                                </motion.div>
+                            );
+                        })}
+                    </div>
+                    
+                    <div className="text-center pt-24 pb-40">
+                        <motion.button 
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={handleSubmitQuiz} 
+                            className="bg-gradient-to-br from-brand-400 to-indigo-600 text-white px-24 py-10 rounded-[48px] font-black text-4xl uppercase tracking-tighter shadow-[0_30px_70px_rgba(59,130,246,0.5)] transition-all"
                         >
-                        {text.submit}
-                        </button>
+                            {text.submit}
+                        </motion.button>
                     </div>
                   </>
               )}
@@ -715,9 +512,7 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ lang, userTier = 'Nov
 
   return (
     <div className="h-full overflow-y-auto hide-scrollbar bg-slate-950 font-sans relative">
-      <AnimatePresence>
-        {showTutorial && renderTutorial()}
-      </AnimatePresence>
+      <AnimatePresence>{showTutorial && renderLessonHelpModal()}</AnimatePresence>
       {viewState === 'dashboard' && renderDashboard()}
       {viewState === 'create' && renderCreate()}
       {viewState === 'lesson' && renderLesson()}
