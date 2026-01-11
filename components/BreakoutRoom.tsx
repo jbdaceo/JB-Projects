@@ -4,14 +4,14 @@ import { useAuth } from '../contexts/AuthContext';
 import { socket } from '../services/mockBackend';
 import { RoomState, Language, AppSection } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Target, Zap, ShieldAlert, Users, MessageSquare, Loader2, X } from 'lucide-react';
+import { triggerHaptic } from '../utils/performance';
 
 interface BreakoutRoomProps {
   lang: Language;
   onNavigate?: (section: AppSection) => void;
 }
 
-// NOTE: Added onNavigate prop to fix exit button logic
 const BreakoutRoom: React.FC<BreakoutRoomProps> = ({ lang, onNavigate }) => {
   const { user } = useAuth();
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
@@ -19,13 +19,10 @@ const BreakoutRoom: React.FC<BreakoutRoomProps> = ({ lang, onNavigate }) => {
   const [answer, setAnswer] = useState('');
   const [aiHint, setAiHint] = useState<string | null>(null);
   
-  // Lobby State
   const [joinInput, setJoinInput] = useState('');
   const [isCreating, setIsCreating] = useState(false);
 
-  // Auto-join if ID passed or found in history (mocked)
   useEffect(() => {
-     // Check if we have a pending invite acceptance
      const pendingRoom = localStorage.getItem('tmc_pending_join_room');
      if (pendingRoom) {
          setActiveRoomId(pendingRoom);
@@ -43,7 +40,7 @@ const BreakoutRoom: React.FC<BreakoutRoomProps> = ({ lang, onNavigate }) => {
         setTimeout(() => setAiHint(null), 8000);
     });
     socket.on(`game:${activeRoomId}:success`, () => {
-        window.dispatchEvent(new Event('tmc-level-update')); // Trigger Novice Bar Increase
+        window.dispatchEvent(new Event('tmc-progress-update'));
     });
 
     return () => {
@@ -86,59 +83,59 @@ const BreakoutRoom: React.FC<BreakoutRoomProps> = ({ lang, onNavigate }) => {
 
   if (!user) return <div className="text-center mt-20 text-slate-400">Please log in to play.</div>;
 
-  // --- LOBBY VIEW ---
   if (!activeRoomId) {
       return (
-          <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-12 relative">
+          <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-12 relative pb-32">
               <div className="text-center space-y-4 pt-10">
-                  <h2 className="text-4xl font-black text-white">{lang === 'es' ? 'Salas de Ruptura' : 'Breakout Rooms'}</h2>
-                  <p className="text-slate-400 max-w-md mx-auto">{lang === 'es' ? 'Crea una sala privada o únete a un amigo para un desafío bilingüe.' : 'Create a private room or join a friend for a bilingual challenge.'}</p>
+                  <h2 className="text-6xl font-black text-white italic tracking-tighter uppercase">{lang === 'es' ? 'Salas de Ruptura' : 'Breakout Game'}</h2>
+                  <p className="text-slate-400 max-w-md mx-auto font-medium">{lang === 'es' ? 'Crea una sala privada o únete a un amigo para un desafío bilingüe.' : 'Create a private room or join a friend for a high-speed bilingual challenge.'}</p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-4xl">
-                  {/* Create Card */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-4xl px-4">
                   <motion.div 
-                    whileHover={{ scale: 1.02 }}
-                    className="bg-gradient-to-br from-blue-600 to-indigo-700 p-8 rounded-[40px] shadow-2xl flex flex-col items-center text-center space-y-6 border border-white/10"
+                    whileHover={{ scale: 1.02, y: -5 }}
+                    className="bg-gradient-to-br from-brand-600 to-indigo-700 p-10 rounded-[48px] shadow-2xl flex flex-col items-center text-center space-y-8 border-4 border-white/10 relative overflow-hidden"
                   >
-                      <div className="text-6xl">🚀</div>
+                      <div className="absolute top-0 right-0 p-8 opacity-20"><Zap size={80}/></div>
+                      <div className="text-7xl">🚀</div>
                       <div>
-                          <h3 className="text-2xl font-black text-white mb-2">{lang === 'es' ? 'Crear Sala' : 'Create Room'}</h3>
-                          <p className="text-blue-100/80 text-sm">{lang === 'es' ? 'Inicia un nuevo juego y comparte el ID.' : 'Start a new game and share the ID.'}</p>
+                          <h3 className="text-3xl font-black text-white mb-2 italic uppercase tracking-tighter">{lang === 'es' ? 'Crear' : 'Create'}</h3>
+                          <p className="text-blue-100/70 text-sm font-medium">{lang === 'es' ? 'Inicia un nuevo juego y comparte el ID.' : 'Start a new session and share your unique Room ID.'}</p>
                       </div>
                       <button 
                         onClick={createRoom}
                         disabled={isCreating}
-                        className="w-full py-4 bg-white text-blue-900 font-black rounded-2xl shadow-lg hover:bg-blue-50 transition-colors"
+                        className="w-full py-6 bg-white text-blue-900 font-black rounded-3xl shadow-xl hover:bg-blue-50 transition-all active:scale-95 uppercase tracking-widest text-xs"
                       >
-                          {isCreating ? 'Creating...' : (lang === 'es' ? 'Crear Nueva' : 'Create New')}
+                          {isCreating ? 'Warping...' : (lang === 'es' ? 'Iniciar Nueva' : 'Initiate New')}
                       </button>
                   </motion.div>
 
-                  {/* Join Card */}
                   <motion.div 
-                    whileHover={{ scale: 1.02 }}
-                    className="bg-slate-800 p-8 rounded-[40px] shadow-2xl flex flex-col items-center text-center space-y-6 border border-white/5"
+                    whileHover={{ scale: 1.02, y: -5 }}
+                    className="bg-slate-900 p-10 rounded-[48px] shadow-2xl flex flex-col items-center text-center space-y-8 border-4 border-white/5 relative overflow-hidden"
                   >
-                      <div className="text-6xl">🔑</div>
+                      <div className="absolute top-0 right-0 p-8 opacity-10"><Users size={80}/></div>
+                      <div className="text-7xl">🔑</div>
                       <div>
-                          <h3 className="text-2xl font-black text-white mb-2">{lang === 'es' ? 'Unirse a Sala' : 'Join Room'}</h3>
-                          <p className="text-slate-400 text-sm">{lang === 'es' ? 'Ingresa el ID de la sala de tu amigo.' : 'Enter your friend\'s room ID.'}</p>
+                          <h3 className="text-3xl font-black text-white mb-2 italic uppercase tracking-tighter">{lang === 'es' ? 'Unirse' : 'Join'}</h3>
+                          <p className="text-slate-400 text-sm font-medium">{lang === 'es' ? 'Ingresa el ID de la sala de tu amigo.' : 'Enter a friends shared Room ID to link cohorts.'}</p>
                       </div>
-                      <div className="w-full space-y-3">
+                      <div className="w-full space-y-4">
                           <input 
                             type="text" 
                             placeholder="Room ID (e.g. room_1234)"
                             value={joinInput}
                             onChange={e => setJoinInput(e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-4 py-3 text-white text-center font-bold outline-none focus:border-blue-500"
+                            onKeyDown={e => e.key === 'Enter' && joinRoom()}
+                            className="w-full bg-slate-950 border border-white/10 rounded-3xl px-6 py-5 text-white text-center font-black outline-none focus:border-brand-500 shadow-inner"
                           />
                           <button 
                             onClick={joinRoom}
                             disabled={!joinInput.trim()}
-                            className="w-full py-4 bg-slate-700 text-white font-black rounded-2xl shadow-lg hover:bg-slate-600 transition-colors disabled:opacity-50"
+                            className="w-full py-6 bg-slate-800 text-white font-black rounded-3xl shadow-xl hover:bg-slate-700 transition-all active:scale-95 disabled:opacity-30 uppercase tracking-widest text-xs"
                           >
-                              {lang === 'es' ? 'Unirse' : 'Join'}
+                              {lang === 'es' ? 'Vincular' : 'Link Frequency'}
                           </button>
                       </div>
                   </motion.div>
@@ -147,8 +144,12 @@ const BreakoutRoom: React.FC<BreakoutRoomProps> = ({ lang, onNavigate }) => {
       );
   }
 
-  // --- GAME VIEW ---
-  if (!room) return <div className="text-center text-slate-500 mt-20 animate-pulse">Connecting to Room {activeRoomId}...</div>;
+  if (!room) return (
+     <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8">
+        <Loader2 className="animate-spin text-brand-500" size={64} />
+        <p className="text-white font-black uppercase tracking-[0.4em] text-xs animate-pulse">Synchronizing Cohorts: {activeRoomId}...</p>
+     </div>
+  );
 
   const isEnToEs = user.learningTrack === 'EN_TO_ES';
   const sentenceDisplay = isEnToEs ? room.gameState.sentenceEs : room.gameState.sentenceEn;
@@ -157,84 +158,111 @@ const BreakoutRoom: React.FC<BreakoutRoomProps> = ({ lang, onNavigate }) => {
   const canAskHelp = (room.roundNumber % 2 === 0) && !room.helpUsedThisCycle;
 
   return (
-    <div className="flex flex-col items-center justify-center h-full max-w-2xl mx-auto space-y-8 pb-20">
-      <div className="w-full flex justify-between items-center">
-        <div className="flex gap-4 text-xs font-black uppercase tracking-widest text-slate-500">
-            <span>Room: {activeRoomId}</span>
-            <span>Level {room.currentLevel}</span>
+    <div className="flex flex-col items-center justify-center h-full max-w-2xl mx-auto space-y-8 pb-32">
+      <div className="w-full flex justify-between items-center px-4">
+        <div className="flex gap-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+            <span className="flex items-center gap-2 px-3 py-1 bg-white/5 rounded-lg border border-white/10">Room: <span className="text-brand-400">{activeRoomId}</span></span>
+            <span className="flex items-center gap-2 px-3 py-1 bg-white/5 rounded-lg border border-white/10">Level: <span className="text-brand-400">{room.currentLevel}</span></span>
         </div>
+        <button onClick={() => onNavigate?.(AppSection.Worlds)} className="p-3 bg-white/5 rounded-xl text-slate-500 hover:text-white transition-all"><X size={18}/></button>
       </div>
 
       <motion.div 
         layout
-        className="w-full bg-slate-900/50 border border-white/10 p-12 rounded-[48px] text-center shadow-2xl relative overflow-hidden"
+        className="w-full bg-slate-900/60 border-2 border-white/10 p-12 rounded-[56px] text-center shadow-[0_50px_100px_rgba(0,0,0,0.5)] relative overflow-hidden facetime-glass"
       >
-        <div className="absolute top-0 left-0 w-full h-2 bg-slate-800">
-           <div className="h-full bg-blue-500 transition-all" style={{ width: `${(room.roundNumber % 10) * 10}%` }} />
+        <div className="absolute top-0 left-0 w-full h-1.5 bg-slate-800">
+           <motion.div 
+             className="h-full bg-brand-500 shadow-[0_0_15px_#3b82f6]" 
+             animate={{ width: `${(room.roundNumber % 10) * 10}%` }} 
+             transition={{ type: "spring", stiffness: 100 }}
+           />
+        </div>
+        
+        <div className="flex justify-center mb-8">
+           <div className="w-16 h-16 bg-brand-500/10 rounded-2xl flex items-center justify-center text-brand-400 border border-brand-500/20 shadow-inner">
+              <MessageSquare size={32}/>
+           </div>
         </div>
 
-        <h3 className="text-3xl md:text-4xl font-serif text-white leading-relaxed mb-10">
+        <h3 className="text-3xl md:text-5xl font-serif text-white leading-relaxed mb-12 italic tracking-tight px-4 drop-shadow-xl">
           {sentenceDisplay}
         </h3>
 
-        <div className="flex gap-4">
+        <div className="flex gap-4 max-w-lg mx-auto">
           <input 
             type="text" 
             value={answer}
             onChange={e => setAnswer(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && submitAnswer()}
-            placeholder={`Type missing ${targetLanguageName} word...`}
-            className="flex-1 bg-slate-950 border border-slate-700 rounded-2xl px-6 py-4 text-xl text-center text-white outline-none focus:border-blue-500 transition-all"
+            placeholder={`${targetLanguageName} word...`}
+            className="flex-1 bg-slate-950 border-2 border-white/10 rounded-[28px] px-8 py-6 text-2xl text-center text-white outline-none focus:border-brand-500 shadow-inner transition-all focus:ring-4 focus:ring-brand-500/5 placeholder:opacity-30"
           />
           <button 
-            onClick={submitAnswer}
-            className="bg-blue-600 hover:bg-blue-500 text-white px-8 rounded-2xl font-bold shadow-lg active:scale-95 transition-all"
+            onClick={() => { submitAnswer(); triggerHaptic('medium'); }}
+            className="bg-brand-500 hover:bg-brand-400 text-white px-10 rounded-[28px] font-black uppercase tracking-widest text-xs shadow-xl active:scale-95 transition-all"
           >
             Check
           </button>
         </div>
 
-        <div className="mt-8 h-6 text-sm font-bold text-slate-400">
-           {room.gameState.feedback && <span className="animate-pulse">{room.gameState.feedback}</span>}
+        <div className="mt-10 h-8">
+           <AnimatePresence mode="wait">
+             {room.gameState.feedback && (
+               <motion.span 
+                 key={room.gameState.feedback}
+                 initial={{ opacity: 0, y: 10 }}
+                 animate={{ opacity: 1, y: 0 }}
+                 exit={{ opacity: 0, y: -10 }}
+                 className={`text-sm font-black uppercase tracking-[0.3em] ${room.gameState.feedback.includes('Correct') ? 'text-emerald-400' : 'text-rose-400 animate-shake'}`}
+               >
+                 {room.gameState.feedback}
+               </motion.span>
+             )}
+           </AnimatePresence>
         </div>
         
         <AnimatePresence>
             {aiHint && (
-                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="absolute bottom-4 left-0 right-0 text-center">
-                    <span className="bg-yellow-500/20 text-yellow-200 px-4 py-2 rounded-full text-xs font-bold border border-yellow-500/50">
-                        💡 {aiHint}
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="absolute bottom-6 left-0 right-0 text-center px-8">
+                    <span className="bg-yellow-400 text-slate-950 px-8 py-4 rounded-3xl text-sm font-black border border-yellow-500 shadow-2xl inline-block italic">
+                       {aiHint}
                     </span>
                 </motion.div>
             )}
         </AnimatePresence>
       </motion.div>
 
-      <div className="flex flex-col items-center gap-2">
-        <div className="flex gap-2">
+      <div className="flex flex-col items-center gap-6 w-full">
+        <div className="flex gap-4">
             <button
-                onClick={askHelp}
+                onClick={() => { askHelp(); triggerHaptic('medium'); }}
                 disabled={!canAskHelp}
-                className={`px-6 py-3 rounded-full font-bold text-xs uppercase tracking-widest transition-all ${
+                className={`px-8 py-4 rounded-3xl font-black text-[10px] uppercase tracking-widest transition-all shadow-xl flex items-center gap-3 ${
                     canAskHelp 
-                    ? 'bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 border border-purple-500/50 cursor-pointer' 
-                    : 'bg-slate-900 text-slate-600 cursor-not-allowed border border-slate-800'
+                    ? 'bg-purple-600 hover:bg-purple-500 text-white cursor-pointer active:scale-95' 
+                    : 'bg-white/5 text-slate-600 border border-white/5 cursor-not-allowed'
                 }`}
             >
-                {canAskHelp ? "🤖 AI Help" : "Locked"}
+                <Zap size={14} fill={canAskHelp ? "currentColor" : "none"}/> {canAskHelp ? "AI Frequency" : "Sync Required"}
             </button>
             <button
-                onClick={askPeerHelp}
+                onClick={() => { askPeerHelp(); triggerHaptic('medium'); }}
                 disabled={!canAskHelp}
-                className={`px-6 py-3 rounded-full font-bold text-xs uppercase tracking-widest transition-all ${
+                className={`px-8 py-4 rounded-3xl font-black text-[10px] uppercase tracking-widest transition-all shadow-xl flex items-center gap-3 ${
                     canAskHelp 
-                    ? 'bg-blue-500/20 hover:bg-blue-500/30 text-blue-200 border border-blue-500/50 cursor-pointer' 
-                    : 'bg-slate-900 text-slate-600 cursor-not-allowed border border-slate-800'
+                    ? 'bg-blue-600 hover:bg-blue-500 text-white cursor-pointer active:scale-95' 
+                    : 'bg-white/5 text-slate-600 border border-white/5 cursor-not-allowed'
                 }`}
             >
-                {canAskHelp ? "👥 Peer Help" : "Locked"}
+                <Users size={14}/> {canAskHelp ? "Peer Cohort" : "Link Locked"}
             </button>
         </div>
-        <p className="text-[10px] text-slate-600 uppercase tracking-widest mt-2">Share Room ID: <span className="text-slate-400 font-bold select-all">{activeRoomId}</span></p>
+        
+        <div className="flex flex-col items-center gap-2 opacity-40 hover:opacity-100 transition-opacity">
+           <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.4em]">Node Address</p>
+           <span className="bg-white/5 px-6 py-2 rounded-xl text-brand-400 font-mono text-sm border border-white/5 select-all">{activeRoomId}</span>
+        </div>
       </div>
     </div>
   );

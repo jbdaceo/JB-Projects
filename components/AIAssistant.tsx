@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { assistantChat } from '../services/gemini';
 import { AssistantMessage, ChatSession, AppSection } from '../types';
+import { X, MessageSquare, Compass, Send } from 'lucide-react';
 
 interface AIAssistantProps {
   isOpen: boolean;
@@ -28,6 +29,13 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, lang, curren
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Load from LocalStorage on mount
   useEffect(() => {
@@ -153,6 +161,18 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, lang, curren
 
   const activeChat = chats.find(c => c.id === activeChatId);
 
+  // Mobile Animation: Slide Up from Bottom
+  // Desktop Animation: Slide In from Right
+  const variants = isMobile ? {
+    hidden: { y: '100%' },
+    visible: { y: 0 },
+    exit: { y: '100%' }
+  } : {
+    hidden: { x: '100%' },
+    visible: { x: 0 },
+    exit: { x: '100%' }
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -165,14 +185,19 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, lang, curren
             className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[160]"
           />
           <motion.div
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
+            variants={variants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed right-0 top-0 bottom-0 w-full max-w-md bg-slate-900 border-l border-white/10 z-[170] shadow-2xl flex flex-col overflow-hidden"
+            className={`fixed z-[170] bg-slate-900 border-white/10 shadow-2xl flex flex-col overflow-hidden ${
+                isMobile 
+                ? 'bottom-0 left-0 right-0 h-[85vh] rounded-t-[32px] border-t' 
+                : 'right-0 top-0 bottom-0 w-[400px] border-l'
+            }`}
           >
-            {/* Header with Close and Identity */}
-            <div className="p-4 border-b border-white/10 flex items-center justify-between bg-slate-950/50 backdrop-blur-xl">
+            {/* Header */}
+            <div className="p-4 border-b border-white/10 flex items-center justify-between bg-slate-950/50 backdrop-blur-xl shrink-0">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-xl shadow-lg shadow-blue-500/20">🤖</div>
                 <div>
@@ -180,11 +205,13 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, lang, curren
                   <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Context Aware AI</p>
                 </div>
               </div>
-              <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center text-lg text-slate-400 transition-colors">✕</button>
+              <button onClick={onClose} className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 transition-colors">
+                <X size={18} />
+              </button>
             </div>
 
             {/* Bubble Bar (Navigation) */}
-            <div className="px-4 py-3 border-b border-white/5 bg-slate-900/80 overflow-x-auto hide-scrollbar flex items-center gap-3">
+            <div className="px-4 py-3 border-b border-white/5 bg-slate-900/80 overflow-x-auto hide-scrollbar flex items-center gap-3 shrink-0">
               <button
                 onClick={() => createNewChat()}
                 className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-white/10 transition-all shrink-0 active:scale-95"
@@ -209,7 +236,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, lang, curren
             </div>
 
             {/* Messages Area */}
-            <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 hide-scrollbar bg-slate-900/50">
+            <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 hide-scrollbar bg-slate-900/50 pb-safe">
               {activeChat ? (
                 activeChat.messages.map((m) => (
                   <div key={m.id} className={`flex flex-col gap-2 ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
@@ -224,14 +251,15 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, lang, curren
                         onClick={() => handleSuggestionClick(m.suggestion!)}
                         className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl text-white text-xs font-black uppercase tracking-widest shadow-lg hover:shadow-blue-500/30 transition-all active:scale-95 border border-white/10 self-start"
                       >
-                        <span>🚀</span> {m.suggestion.label}
+                        <Compass size={14} /> {m.suggestion.label}
                       </motion.button>
                     )}
                   </div>
                 ))
               ) : (
-                 <div className="flex justify-center items-center h-full text-slate-500 text-sm">
-                   {lang === 'es' ? 'Inicia una nueva conversación...' : 'Start a new conversation...'}
+                 <div className="flex justify-center items-center h-full text-slate-500 text-sm flex-col gap-4 opacity-50">
+                   <MessageSquare size={48} />
+                   <p>{lang === 'es' ? 'Inicia una nueva conversación...' : 'Start a new conversation...'}</p>
                  </div>
               )}
               
@@ -247,7 +275,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, lang, curren
             </div>
 
             {/* Input Area */}
-            <form onSubmit={handleSend} className="p-4 md:p-6 bg-slate-950/80 border-t border-white/10 flex gap-3 backdrop-blur-md">
+            <form onSubmit={handleSend} className={`p-4 bg-slate-950/80 border-t border-white/10 flex gap-3 backdrop-blur-md ${isMobile ? 'pb-8' : ''}`}>
               <input 
                 type="text" 
                 placeholder={lang === 'es' ? 'Escribe aquí...' : 'Type here...'}
@@ -257,9 +285,10 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, lang, curren
               />
               <button 
                 disabled={loading || !input.trim()}
-                className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center text-xl shadow-lg active:scale-95 disabled:opacity-50 disabled:active:scale-100 transition-all hover:bg-blue-500"
+                className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center text-xl shadow-lg active:scale-95 disabled:opacity-50 disabled:active:scale-100 transition-all hover:bg-blue-500 shrink-0"
               >
-                🚀
+                <Send size={20} className={loading ? 'opacity-0' : 'opacity-100'} />
+                {loading && <div className="absolute inset-0 flex items-center justify-center"><div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /></div>}
               </button>
             </form>
           </motion.div>
@@ -270,4 +299,3 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, lang, curren
 };
 
 export default AIAssistant;
-    

@@ -86,7 +86,8 @@ const WorldPage: React.FC<WorldPageProps> = ({ lang, onNavigate }) => {
       <motion.button 
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
-        onClick={() => onNavigate(AppSection.WorldHub)}
+        // FIX: Change AppSection.WorldHub to AppSection.Worlds
+        onClick={() => onNavigate(AppSection.Worlds)}
         className="px-10 py-5 bg-slate-900 border border-white/10 rounded-full text-slate-400 font-black uppercase tracking-widest text-xs hover:text-white hover:bg-slate-800 transition-all shadow-2xl flex items-center gap-4 relative z-10 active:scale-95"
       >
          <LayoutGrid size={18}/>

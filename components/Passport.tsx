@@ -1,8 +1,9 @@
 
-import React from 'react';
-import { motion } from 'framer-motion';
-import { Language, PassportStamp, User } from '../types';
-import { Award, Star, Globe, ShieldCheck, TrendingUp, History, UserCheck, CheckCircle2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Language, PassportStamp, User, StampTier } from '../types';
+import { ShieldCheck, Globe, Fingerprint, Book, Star, MapPin } from 'lucide-react';
+import { triggerHaptic } from '../utils/performance';
 
 interface PassportProps {
   lang: Language;
@@ -10,230 +11,176 @@ interface PassportProps {
   stamps: PassportStamp[];
 }
 
-const Passport: React.FC<PassportProps> = ({ lang, user, stamps }) => {
-  const isChild = user.isChild ?? (user.role === 'student' && stamps.length < 5);
+const TIER_STYLES: Record<StampTier, string> = {
+  Bronze: 'border-orange-900/50 bg-orange-900/10 text-orange-600',
+  Silver: 'border-slate-400/50 bg-slate-400/10 text-slate-300',
+  Gold: 'border-amber-400/50 bg-amber-500/10 text-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.2)]',
+  Platinum: 'border-cyan-300/50 bg-cyan-400/10 text-cyan-300 shadow-[0_0_15px_rgba(34,211,238,0.2)]',
+  Diamond: 'border-indigo-400/50 bg-indigo-500/10 text-indigo-300',
+  Ruby: 'border-rose-500/50 bg-rose-500/10 text-rose-400',
+  Sapphire: 'border-blue-500/50 bg-blue-500/10 text-blue-400',
+  Emerald: 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400',
+};
+
+const ImmigrationStamp: React.FC<{ stamp: PassportStamp }> = ({ stamp }) => {
+  const tierClass = TIER_STYLES[stamp.tier || 'Bronze'];
   
-  // Theme selection: lang === 'en' -> USA theme, lang === 'es' -> Colombia theme
-  const theme = lang === 'en' 
-    ? {
-        name: 'United States of America',
-        bg: 'bg-[#002868]', // Navy Blue
-        accent: 'text-[#BF913B]', // Gold
-        border: 'border-[#BF913B]/30',
+  return (
+    <motion.div 
+      whileHover={{ scale: 1.1, rotate: 0, zIndex: 10 }}
+      initial={{ rotate: stamp.rotation || 0 }}
+      onClick={() => triggerHaptic('light')}
+      className={`w-24 h-24 rounded-2xl border-2 flex flex-col items-center justify-center text-center relative overflow-hidden backdrop-blur-sm ${tierClass} transition-all duration-300 cursor-pointer`}
+    >
+       <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-30" />
+       <div className="absolute top-1 left-0 right-0 text-[6px] font-black uppercase tracking-widest opacity-70 truncate px-1">{stamp.country || 'Global'}</div>
+       <div className="text-3xl filter drop-shadow-md my-1">{stamp.iconAdult || '✈️'}</div>
+       <div className="text-[7px] font-bold leading-tight line-clamp-2 px-1">{stamp.title?.en || 'Achievement'}</div>
+       <div className="absolute bottom-1 text-[6px] font-mono opacity-50">{new Date(stamp.dateEarned).toLocaleDateString()}</div>
+    </motion.div>
+  );
+};
+
+const Passport: React.FC<PassportProps> = ({ lang, user, stamps }) => {
+  const [activeTab, setActiveTab] = useState<'ID' | 'VISAS'>('ID');
+
+  // THEME LOGIC:
+  // If lang is 'es' (Spanish Interface) -> User is learning English -> Target: USA Passport
+  // If lang is 'en' (English Interface) -> User is learning Spanish -> Target: Colombia Passport
+  const theme = lang === 'es' 
+    ? { 
+        country: 'United States of America', 
+        color: 'bg-[#0a192f]', // Deep Navy Blue
+        accent: 'text-slate-200',
+        gold: 'text-amber-200',
         seal: '🦅',
-        heading: 'THE ULTIMATE PASSPORT'
+        texture: 'bg-[url("https://www.transparenttextures.com/patterns/leather.png")]' // Simulated texture class
       }
-    : {
-        name: 'República de Colombia',
-        bg: 'bg-[#800020]', // Burgundy / Deep Red
-        accent: 'text-[#FCD116]', // Colombia Gold
-        border: 'border-[#FCD116]/30',
-        seal: '🇨🇴',
-        heading: 'EL PASAPORTE DEFINITIVO'
+    : { 
+        country: 'República de Colombia', 
+        color: 'bg-[#3f0a12]', // Deep Burgundy
+        accent: 'text-rose-100',
+        gold: 'text-amber-400',
+        seal: '🇨🇴', // Or Condor icon
+        texture: 'bg-[url("https://www.transparenttextures.com/patterns/leather.png")]'
       };
 
   return (
-    <div className="min-h-full flex items-center justify-center p-4 md:p-12 relative overflow-hidden">
-      {/* Background Decor */}
-      <div className="absolute inset-0 bg-slate-950 pointer-events-none -z-10" />
-      <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] pointer-events-none -z-10" />
-
+    <div className="min-h-full flex items-center justify-center p-4 lg:p-8 pb-32">
+      {/* Passport Cover / Book */}
       <motion.div 
-        initial={{ y: 50, opacity: 0, scale: 0.95 }}
-        animate={{ y: 0, opacity: 1, scale: 1 }}
-        transition={{ type: "spring", damping: 20, stiffness: 100 }}
-        className={`w-full max-w-5xl rounded-[60px] overflow-hidden shadow-[0_50px_100px_rgba(0,0,0,0.8)] border-4 border-white/5 relative flex flex-col lg:flex-row min-h-[700px]`}
+        initial={{ rotateX: 10, scale: 0.95 }}
+        animate={{ rotateX: 0, scale: 1 }}
+        className={`w-full max-w-5xl rounded-[32px] overflow-hidden shadow-[0_50px_100px_rgba(0,0,0,0.5)] border-r-8 border-b-8 border-black/20 relative flex flex-col lg:flex-row min-h-[650px] ${theme.color}`}
       >
-        {/* Passport Cover / Side Panel */}
-        <div className={`w-full lg:w-[380px] ${theme.bg} p-12 flex flex-col items-center justify-between text-center relative overflow-hidden border-r border-white/10`}>
-          {/* Cover Patterns */}
-          <div className="absolute inset-0 opacity-10 pointer-events-none">
-             <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_50%_50%,_rgba(255,255,255,0.1)_0%,_transparent_70%)]" />
-             <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] mix-blend-overlay" />
-          </div>
+         {/* Texture Overlay */}
+         <div className="absolute inset-0 opacity-20 pointer-events-none mix-blend-overlay bg-[url('https://grainy-gradients.vercel.app/noise.svg')]"></div>
+         
+         {/* Gold Foil Accent Line */}
+         <div className="absolute top-8 bottom-8 left-[390px] w-[2px] bg-gradient-to-b from-transparent via-amber-300/50 to-transparent hidden lg:block z-20" />
 
-          <div className="relative z-10 space-y-8 w-full">
-            <div className="flex flex-col items-center gap-2">
-               <h3 className={`text-[10px] font-black uppercase tracking-[0.4em] ${theme.accent} opacity-80`}>{theme.name}</h3>
-               <div className="w-16 h-px bg-current opacity-20" />
-            </div>
+         {/* Left Page: Identity */}
+         <div className="w-full lg:w-[400px] relative flex flex-col p-8 lg:p-12 border-b lg:border-b-0 lg:border-r border-white/5 bg-black/10">
+            <div className="absolute top-6 left-6 text-[10px] font-black text-amber-500/50 uppercase tracking-[0.3em]">Official Document</div>
+            
+            <div className="mt-10 flex flex-col items-center text-center relative z-10">
+               {/* Photo Frame */}
+               <div className="w-48 h-48 rounded-[4px] p-2 bg-white/5 border border-amber-500/30 mb-8 relative shadow-2xl">
+                  <img src={user.photoUrl || "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix"} className="w-full h-full object-cover grayscale contrast-125 sepia-[.2]" />
+                  <div className="absolute -bottom-4 -right-4 w-16 h-16 bg-amber-500/20 rounded-full blur-xl"></div>
+                  <div className="absolute bottom-2 right-2 text-2xl opacity-50 mix-blend-overlay">🛡️</div>
+               </div>
+               
+               <h2 className="text-3xl font-serif font-bold text-white uppercase tracking-wider mb-2">{user.displayName}</h2>
+               <p className="text-xs font-mono text-amber-500/70 tracking-widest mb-8">{user.id.toUpperCase().slice(0, 12)}</p>
 
-            <motion.div 
-              animate={{ rotateY: [0, 360] }}
-              transition={{ repeat: Infinity, duration: 20, ease: "linear" }}
-              className="text-9xl filter drop-shadow-[0_10px_20px_rgba(0,0,0,0.4)]"
-            >
-              {theme.seal}
-            </motion.div>
-
-            <div className="space-y-4">
-              <h1 className="text-4xl font-black text-white italic tracking-tighter leading-none uppercase drop-shadow-lg">
-                {theme.heading}
-              </h1>
-              <div className="flex items-center justify-center gap-2 px-4 py-1.5 bg-black/20 rounded-full border border-white/10 backdrop-blur-md">
-                 <ShieldCheck size={14} className={theme.accent} />
-                 <span className="text-[9px] font-black text-white/80 uppercase tracking-widest">Valid Learning Document</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="relative z-10 w-full pt-12">
-            <div className="bg-black/30 p-6 rounded-[32px] border border-white/10 backdrop-blur-xl space-y-4">
-               <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400">
-                  <span>Bearer</span>
-                  <span className="text-white">{user.displayName}</span>
-               </div>
-               <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400">
-                  <span>Document No.</span>
-                  <span className="text-white">#{user.id.slice(-8).toUpperCase()}</span>
-               </div>
-               <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400">
-                  <span>Status</span>
-                  <span className="text-emerald-400">Verified</span>
-               </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Content Page */}
-        <div className="flex-1 bg-slate-900/50 backdrop-blur-3xl p-8 md:p-12 overflow-y-auto hide-scrollbar space-y-12">
-          {/* Header Data */}
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 border-b border-white/5 pb-8">
-            <div className="space-y-1">
-               <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">Official Records</p>
-               <h2 className="text-4xl font-black text-white italic tracking-tighter uppercase">Vocal & Cognitive Sync</h2>
-            </div>
-            <div className="flex gap-4">
-               <div className="bg-slate-950 p-5 rounded-[28px] border border-white/5 text-center min-w-[120px] shadow-inner">
-                  <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">Proficiency</p>
-                  <p className={`text-3xl font-black ${theme.accent} italic`}>B2+</p>
-               </div>
-               <div className="bg-slate-950 p-5 rounded-[28px] border border-white/5 text-center min-w-[120px] shadow-inner">
-                  <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">Total Stamps</p>
-                  <p className="text-3xl font-black text-white italic">{stamps.length}</p>
-               </div>
-            </div>
-          </div>
-
-          {/* Grid Layout for Analytics & Stamps */}
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-            {/* Skill Heatmap */}
-            <div className="bg-white/5 border border-white/10 rounded-[48px] p-10 space-y-8 relative overflow-hidden group">
-               <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
-                  <TrendingUp size={120} />
-               </div>
-               <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-brand-500/20 rounded-2xl flex items-center justify-center text-brand-400 shadow-lg"><Globe size={20}/></div>
-                  <h3 className="text-sm font-black text-white uppercase tracking-widest">Global Competence</h3>
-               </div>
-
-               <div className="space-y-6">
-                  {[
-                    { label: 'Listening', val: 92, color: 'from-blue-500 to-indigo-600' },
-                    { label: 'Speaking', val: 78, color: 'from-emerald-400 to-teal-600' },
-                    { label: 'Reading', val: 85, color: 'from-amber-400 to-orange-600' },
-                    { label: 'Writing', val: 65, color: 'from-rose-500 to-pink-600' },
-                  ].map((skill) => (
-                    <div key={skill.label} className="space-y-2">
-                       <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
-                          <span className="text-slate-400">{skill.label}</span>
-                          <span className="text-white">{skill.val}%</span>
-                       </div>
-                       <div className="h-3 bg-black/40 rounded-full border border-white/5 p-0.5 overflow-hidden shadow-inner">
-                          <motion.div 
-                             initial={{ width: 0 }}
-                             animate={{ width: `${skill.val}%` }}
-                             transition={{ duration: 1, delay: 0.5 }}
-                             className={`h-full rounded-full bg-gradient-to-r ${skill.color} shadow-lg`}
-                          />
-                       </div>
-                    </div>
-                  ))}
-               </div>
-            </div>
-
-            {/* Verification Timeline */}
-            <div className="bg-white/5 border border-white/10 rounded-[48px] p-10 space-y-8 relative overflow-hidden group">
-               <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
-                  <History size={120} />
-               </div>
-               <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-brand-500/20 rounded-2xl flex items-center justify-center text-brand-400 shadow-lg"><UserCheck size={20}/></div>
-                  <h3 className="text-sm font-black text-white uppercase tracking-widest">Audit History</h3>
-               </div>
-
-               <div className="space-y-4 max-h-[300px] overflow-y-auto pr-4 hide-scrollbar">
-                  {stamps.length === 0 ? (
-                    <div className="text-center py-12 opacity-20">
-                       <Award size={48} className="mx-auto mb-4" />
-                       <p className="font-black uppercase text-[10px] tracking-widest">No entries found in ledger.</p>
-                    </div>
-                  ) : (
-                    stamps.map((stamp, i) => (
-                      <motion.div 
-                        initial={{ x: -20, opacity: 0 }}
-                        animate={{ x: 0, opacity: 1 }}
-                        transition={{ delay: i * 0.1 }}
-                        key={stamp.id} 
-                        className="flex items-center gap-5 p-4 bg-black/20 rounded-3xl border border-white/5 group-hover:border-white/10 transition-all shadow-xl"
-                      >
-                        <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center text-2xl shadow-inner border border-white/5 shrink-0">
-                           {isChild ? stamp.iconKid : stamp.iconAdult}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                           <p className="text-xs font-black text-white truncate uppercase italic">{lang === 'en' ? stamp.title.en : stamp.title.es}</p>
-                           <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mt-1">Verified on {new Date(stamp.dateEarned).toLocaleDateString()}</p>
-                        </div>
-                        <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
-                      </motion.div>
-                    ))
-                  )}
-               </div>
-            </div>
-          </div>
-
-          {/* Stamps Section - Massive Visual Grid */}
-          <div className="space-y-8">
-            <div className="flex items-center gap-4">
-               <div className="w-10 h-10 bg-brand-500/20 rounded-2xl flex items-center justify-center text-brand-400 shadow-lg"><Star size={20}/></div>
-               <h3 className="text-sm font-black text-white uppercase tracking-widest">Seal Collection</h3>
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              {stamps.map((stamp, i) => (
-                <motion.div 
-                  key={stamp.id}
-                  whileHover={{ scale: 1.1, rotate: Math.random() * 6 - 3 }}
-                  className="aspect-square bg-slate-950 border-2 border-dashed border-white/10 rounded-[40px] p-6 flex flex-col items-center justify-center gap-4 relative overflow-hidden group cursor-pointer shadow-2xl"
-                >
-                  <div className={`absolute inset-0 bg-gradient-to-br ${theme.bg} opacity-0 group-hover:opacity-10 transition-opacity`} />
-                  <div className="relative">
-                    <span className="text-6xl filter drop-shadow-[0_10px_20px_rgba(0,0,0,0.6)] group-hover:scale-110 transition-transform">
-                      {isChild ? stamp.iconKid : stamp.iconAdult}
-                    </span>
-                    <motion.div 
-                      animate={{ opacity: [0, 1, 0] }}
-                      transition={{ repeat: Infinity, duration: 3, delay: i * 0.5 }}
-                      className={`absolute -inset-4 border border-current rounded-full blur-md -z-10 ${theme.accent}`} 
-                    />
+               <div className="w-full space-y-4 border-t border-white/10 pt-6">
+                  <div className="flex justify-between">
+                     <span className="text-[9px] font-black text-white/40 uppercase tracking-widest">Nationality</span>
+                     <span className={`text-xs font-bold ${theme.gold}`}>{theme.country}</span>
                   </div>
-                  <span className="text-[8px] font-black text-white uppercase text-center tracking-tighter max-w-[80px] opacity-60 group-hover:opacity-100 transition-opacity leading-none">
-                    {lang === 'en' ? stamp.title.en : stamp.title.es}
-                  </span>
-                </motion.div>
-              ))}
-              {/* Future Slots */}
-              {[...Array(Math.max(0, 8 - stamps.length))].map((_, i) => (
-                <div key={i} className="aspect-square bg-white/5 rounded-[40px] border-2 border-dashed border-white/5 flex items-center justify-center opacity-10">
-                   <Globe size={40} className="text-slate-600" />
-                </div>
-              ))}
+                  <div className="flex justify-between">
+                     <span className="text-[9px] font-black text-white/40 uppercase tracking-widest">Date of Issue</span>
+                     <span className="text-xs font-bold text-white/80">{new Date().toLocaleDateString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                     <span className="text-[9px] font-black text-white/40 uppercase tracking-widest">Authority</span>
+                     <span className="text-xs font-bold text-white/80">ILS Command</span>
+                  </div>
+               </div>
             </div>
-          </div>
-        </div>
 
-        {/* Security / Hologram Strip */}
-        <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-white/20 to-transparent opacity-50 blur-sm pointer-events-none" />
+            <div className="mt-auto pt-8 flex items-center justify-center opacity-30">
+               <div className="text-6xl filter drop-shadow-lg grayscale">{theme.seal}</div>
+            </div>
+         </div>
+
+         {/* Right Page: Content */}
+         <div className="flex-1 flex flex-col relative bg-white/[0.02]">
+            {/* Paper Texture */}
+            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cream-paper.png')] opacity-5 pointer-events-none mix-blend-overlay"></div>
+
+            {/* Tabs */}
+            <div className="p-8 flex gap-6 border-b border-white/5 relative z-10">
+               <button 
+                 onClick={() => setActiveTab('ID')} 
+                 className={`text-xs font-black uppercase tracking-[0.2em] transition-colors pb-2 border-b-2 ${activeTab === 'ID' ? 'text-amber-400 border-amber-400' : 'text-white/30 border-transparent hover:text-white/60'}`}
+               >
+                 Status
+               </button>
+               <button 
+                 onClick={() => setActiveTab('VISAS')} 
+                 className={`text-xs font-black uppercase tracking-[0.2em] transition-colors pb-2 border-b-2 ${activeTab === 'VISAS' ? 'text-amber-400 border-amber-400' : 'text-white/30 border-transparent hover:text-white/60'}`}
+               >
+                 Visas & Stamps
+               </button>
+            </div>
+
+            <div className="flex-1 p-8 lg:p-12 overflow-y-auto hide-scrollbar relative z-10">
+               <AnimatePresence mode="wait">
+                 {activeTab === 'ID' ? (
+                   <motion.div key="id" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-12">
+                      <div className="space-y-4">
+                         <h3 className={`text-xl font-serif italic text-white/90`}>
+                            "The bearer of this document is granted full diplomatic access to the linguistic territories of {theme.country}."
+                         </h3>
+                         <div className="h-px w-24 bg-amber-500/50"></div>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-6">
+                         <div className="p-6 border border-white/10 rounded-xl bg-black/20">
+                            <div className="flex items-center gap-3 mb-2 text-amber-400">
+                               <Star size={18} />
+                               <span className="text-[9px] font-black uppercase tracking-widest">Missions</span>
+                            </div>
+                            <span className="text-3xl font-mono text-white">12</span>
+                         </div>
+                         <div className="p-6 border border-white/10 rounded-xl bg-black/20">
+                            <div className="flex items-center gap-3 mb-2 text-blue-400">
+                               <Globe size={18} />
+                               <span className="text-[9px] font-black uppercase tracking-widest">Global Rank</span>
+                            </div>
+                            <span className="text-3xl font-mono text-white">Top 5%</span>
+                         </div>
+                      </div>
+                   </motion.div>
+                 ) : (
+                   <motion.div key="visas" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-4 auto-rows-min">
+                         {stamps.length > 0 ? stamps.map(s => (
+                            <ImmigrationStamp key={s.id} stamp={s} />
+                         )) : (
+                            <div className="col-span-full py-20 text-center border-2 border-dashed border-white/10 rounded-3xl">
+                               <span className="text-4xl opacity-20 block mb-4">🛂</span>
+                               <p className="text-xs font-black text-white/30 uppercase tracking-widest">No Visas Yet</p>
+                            </div>
+                         )}
+                      </div>
+                   </motion.div>
+                 )}
+               </AnimatePresence>
+            </div>
+         </div>
       </motion.div>
     </div>
   );

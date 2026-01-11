@@ -22,8 +22,8 @@ export const fetchWorlds = async (): Promise<WorldData[]> => {
   return [
     {
       id: 'forest',
-      nameEn: 'Forest of Words',
-      nameEs: 'Bosque de Palabras',
+      nameEn: 'Vocabulary Core',
+      nameEs: 'Núcleo de Vocabulario',
       descEn: 'Grow your vocabulary in a serene environment.',
       descEs: 'Cultiva tu vocabulario en un entorno sereno.',
       activeUsers: 142,
@@ -33,7 +33,7 @@ export const fetchWorlds = async (): Promise<WorldData[]> => {
     },
     {
       id: 'ocean',
-      nameEn: 'Ocean of Fluency',
+      nameEn: 'Fluency Ocean',
       nameEs: 'Océano de Fluidez',
       descEn: 'Dive into deep conversations and speaking practice.',
       descEs: 'Sumérgete en conversaciones profundas y práctica oral.',
@@ -44,7 +44,7 @@ export const fetchWorlds = async (): Promise<WorldData[]> => {
     },
     {
       id: 'mountain',
-      nameEn: 'Mountain of Mastery',
+      nameEn: 'Mastery Mountain',
       nameEs: 'Montaña de Maestría',
       descEn: 'Climb the levels of grammar and structure.',
       descEs: 'Escala los niveles de gramática y estructura.',
@@ -55,7 +55,7 @@ export const fetchWorlds = async (): Promise<WorldData[]> => {
     },
     {
       id: 'city',
-      nameEn: 'City of Conversation',
+      nameEn: 'Conversation City',
       nameEs: 'Ciudad de Conversación',
       descEn: 'Connect with the global community in real-time.',
       descEs: 'Conecta con la comunidad global en tiempo real.',
@@ -65,15 +65,15 @@ export const fetchWorlds = async (): Promise<WorldData[]> => {
       icon: '🏙️'
     },
     {
-      id: 'sky',
-      nameEn: 'Starry Sky Studio',
-      nameEs: 'Estudio Cielo Estrellado',
-      descEn: 'Watch live classes and masterclasses.',
-      descEs: 'Mira clases en vivo y lecciones maestras.',
+      id: 'jobs',
+      nameEn: 'Opportunity Hub',
+      nameEs: 'Centro de Oportunidades',
+      descEn: 'Find your next global career move.',
+      descEs: 'Encuentra tu próximo movimiento profesional global.',
       activeUsers: 56,
-      targetSection: AppSection.Classes,
+      targetSection: AppSection.Jobs,
       themeColor: 'from-amber-400 to-red-900',
-      icon: '✨'
+      icon: '💼'
     },
     {
       id: 'game',

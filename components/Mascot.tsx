@@ -1,365 +1,411 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Language, AssistantMessage, MascotConfig } from '../types';
-import { tutorChat, getPronunciation, decodeBase64Audio, decodeAudioData } from '../services/gemini';
-import { 
-  X, Send, Bot, MessageSquare, ChevronDown, Sparkles, Mic, Volume2, 
-  Settings2, Zap, Brain, ShieldCheck, Globe, HelpCircle 
-} from 'lucide-react';
+import { motion, AnimatePresence, useAnimation } from 'framer-motion';
+import { Language, AssistantMessage } from '../types';
+import { tutorChat } from '../services/gemini';
+import { ChevronDown, Send, Sparkles, Zap, CloudLightning } from 'lucide-react';
 import { triggerHaptic } from '../utils/performance';
 
-const MASCOTS: MascotConfig[] = [
-  { 
-    id: 'neural_1', 
-    name: 'Buddy', 
-    icon: '🐕', 
-    archetype: 'Street Bridge', 
-    color: 'from-blue-500 to-indigo-600',
-    glow: 'rgba(59, 130, 246, 0.5)',
-    specialty: 'Street Nuance & Slang',
-    voice: 'Fenrir',
-    description: {
-      en: 'The ultimate translator between textbook English and street realness.',
-      es: 'El traductor definitivo entre el inglés de libro y la realidad de la calle.'
-    }
-  },
-  { 
-    id: 'neural_2', 
-    name: 'Luna', 
-    icon: '🐈', 
-    archetype: 'Linguistic Strategist', 
-    color: 'from-purple-500 to-rose-600',
-    glow: 'rgba(192, 38, 211, 0.5)',
-    specialty: 'Logic & Connection',
-    voice: 'Aoede',
-    description: {
-      en: 'Specializes in connecting your Colombian heritage to global logic.',
-      es: 'Se especializa en conectar tu herencia colombiana con la lógica global.'
-    }
-  },
-  { 
-    id: 'neural_3', 
-    name: 'Pip', 
-    icon: '🦜', 
-    archetype: 'Hype Mimic', 
-    color: 'from-emerald-400 to-teal-600',
-    glow: 'rgba(16, 185, 129, 0.5)',
-    specialty: 'Accent & Energy',
-    voice: 'Kore',
-    description: {
-      en: 'High energy coach focused on mimicking native speed and flow.',
-      es: 'Coach de alta energía enfocado en imitar la velocidad y el flow nativo.'
-    }
-  }
-];
-
-const QUICK_ACTIONS = [
-  { label: 'Explain "deadass"', query: 'Explain the NYC slang "deadass" to a Colombian.' },
-  { label: 'Street alternative', query: 'Give me a street-smart alternative to "How are you?".' },
-  { label: 'Paisa slang help', query: 'Explain "qué chimba" to an English speaker.' },
-  { label: 'Practice vibe', query: 'Let\'s have a street-level conversation about music.' }
-];
-
 const Mascot: React.FC<{ lang: Language }> = ({ lang }) => {
-  const [activeMascot, setActiveMascot] = useState<MascotConfig>(MASCOTS[0]);
   const [isOpen, setIsOpen] = useState(false);
-  const [isSelecting, setIsSelecting] = useState(false);
   const [history, setHistory] = useState<AssistantMessage[]>([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  
+  const [mood, setMood] = useState<'idle' | 'happy' | 'thinking' | 'excited' | 'talking' | 'shock'>('idle');
+  // New state for variable shock intensity
+  const [shockLevel, setShockLevel] = useState<'none' | 'mild' | 'medium' | 'terror'>('none');
+  const [randomTip, setRandomTip] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const recognitionRef = useRef<any>(null);
 
-  // Initialize Speech Recognition
-  useEffect(() => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.continuous = false;
-      recognitionRef.current.lang = lang === 'en' ? 'en-US' : 'es-CO';
-      recognitionRef.current.onresult = (event: any) => {
-        const transcript = event.results[0][0].transcript;
-        handleSend(null, transcript);
+  // --- PUPPET RIGGING ---
+  const SparkPuppet = ({ state, size = 'md' }: { state: string, size?: 'sm' | 'md' | 'lg' }) => {
+      const controls = useAnimation();
+      
+      // Scale config
+      const scale = size === 'sm' ? 0.6 : size === 'lg' ? 1.4 : 1;
+
+      // Eye Blinking Logic
+      const [blink, setBlink] = useState(false);
+      useEffect(() => {
+          const loop = setInterval(() => {
+              if (Math.random() > 0.8) {
+                  setBlink(true);
+                  setTimeout(() => setBlink(false), 200);
+              }
+          }, 3000);
+          return () => clearInterval(loop);
+      }, []);
+
+      // Mouth Animation for "Talking"
+      const mouthVariant = {
+          idle: { height: 4, width: 10, borderRadius: 10 },
+          happy: { height: 8, width: 14, borderRadius: "0 0 14px 14px" },
+          talking: { height: [4, 10, 4, 8], width: [10, 8, 12, 10], transition: { repeat: Infinity, duration: 0.3 } },
+          thinking: { height: 4, width: 6, borderRadius: 10, x: 2 },
+          excited: { height: 12, width: 16, borderRadius: "0 0 16px 16px" },
+          shock: { height: 20, width: 20, borderRadius: "50%" } // Wide open mouth
       };
-      recognitionRef.current.onend = () => setIsRecording(false);
-    }
-  }, [lang]);
+
+      // Body Physics based on shock level
+      const getShockVariant = () => {
+          if (shockLevel === 'terror') {
+              // Terror: Violent shaking, erratic rotation, massive scaling
+              return {
+                  x: [-30, 30, -20, 40, -10, 10, 0],
+                  y: [-30, 30, -40, 20, 0],
+                  scale: [1, 2.5, 0.4, 3.0, 1],
+                  rotate: [-60, 60, -120, 120, 0],
+                  filter: ["brightness(1)", "brightness(5)", "invert(1)", "brightness(1)"],
+                  transition: { duration: 0.2, repeat: 12 }
+              };
+          } else if (shockLevel === 'medium') {
+              return {
+                  x: [-10, 10, -5, 5, 0],
+                  y: [-5, 5, -5, 5, 0],
+                  scale: [1, 1.3, 0.9, 1.1, 1],
+                  rotate: [-15, 15, -10, 10, 0],
+                  transition: { duration: 0.25, repeat: 4 }
+              };
+          } else {
+              return {
+                  x: [-5, 5, -3, 3, 0],
+                  scale: [1, 1.1, 1],
+                  transition: { duration: 0.15, repeat: 3 }
+              };
+          }
+      };
+
+      const bodyVariant = {
+          idle: { y: [0, -4, 0], transition: { repeat: Infinity, duration: 3, ease: "easeInOut" } },
+          happy: { y: [0, -10, 0], rotate: [0, 5, -5, 0], transition: { repeat: Infinity, duration: 0.8 } },
+          excited: { y: [0, -5, 0], scale: [1, 1.1, 1], transition: { repeat: Infinity, duration: 0.4 } },
+          thinking: { rotate: [0, 5, 0], transition: { repeat: Infinity, duration: 2 } },
+          talking: { y: [0, -2, 0], transition: { repeat: Infinity, duration: 0.5 } },
+          shock: getShockVariant()
+      };
+
+      return (
+          <div className="relative w-24 h-24 flex items-center justify-center select-none pointer-events-none" style={{ transform: `scale(${scale})` }}>
+              {/* Main Body Shape */}
+              <motion.div 
+                variants={bodyVariant}
+                animate={state}
+                className={`relative z-10 w-16 h-16 bg-gradient-to-tr from-yellow-300 to-amber-500 rounded-[24px] shadow-[inset_-4px_-4px_10px_rgba(217,119,6,0.5),0_10px_20px_rgba(0,0,0,0.2)] border-2 border-white/50 flex flex-col items-center justify-center overflow-hidden ${state === 'shock' ? 'brightness-200 contrast-150 border-white' : ''}`}
+              >
+                  {/* Face Container */}
+                  <div className="relative z-20 flex flex-col items-center gap-1.5 mt-2">
+                      {/* Eyes */}
+                      <div className="flex gap-2">
+                          <motion.div 
+                             animate={{ 
+                                 scaleY: blink ? 0.1 : 1, 
+                                 height: state === 'happy' ? 4 : state === 'shock' ? (shockLevel === 'terror' ? 16 : 12) : 10,
+                                 width: state === 'shock' ? (shockLevel === 'terror' ? 16 : 12) : 12 
+                             }}
+                             className={`w-3 rounded-full shadow-sm ${state === 'shock' ? 'bg-white' : 'bg-slate-900'}`}
+                          />
+                          <motion.div 
+                             animate={{ 
+                                 scaleY: blink ? 0.1 : 1, 
+                                 height: state === 'happy' ? 4 : state === 'shock' ? (shockLevel === 'terror' ? 16 : 12) : 10,
+                                 width: state === 'shock' ? (shockLevel === 'terror' ? 16 : 12) : 12 
+                             }}
+                             className={`w-3 rounded-full shadow-sm ${state === 'shock' ? 'bg-white' : 'bg-slate-900'}`}
+                          />
+                      </div>
+                      
+                      {/* Cheeks */}
+                      {(state === 'happy' || state === 'excited') && (
+                          <div className="absolute top-3 w-full flex justify-between px-1 opacity-40">
+                              <div className="w-2 h-1 bg-rose-500 rounded-full blur-[1px]" />
+                              <div className="w-2 h-1 bg-rose-500 rounded-full blur-[1px]" />
+                          </div>
+                      )}
+
+                      {/* Mouth */}
+                      <motion.div 
+                         variants={mouthVariant}
+                         animate={state}
+                         className="bg-slate-900"
+                      />
+                  </div>
+
+                  {/* Reflection/Sheen */}
+                  <div className="absolute top-0 right-0 w-10 h-10 bg-white/20 rounded-full blur-md -mr-2 -mt-2" />
+              </motion.div>
+
+              {/* Floating Bolt Accessory */}
+              <motion.div 
+                animate={{ 
+                    y: state === 'thinking' ? [-5, -10, -5] : [0, -3, 0],
+                    rotate: state === 'excited' ? [0, 15, -15, 0] : [0, 5, 0]
+                }}
+                transition={{ repeat: Infinity, duration: state === 'excited' ? 0.2 : 2 }}
+                className="absolute -top-4 -right-2 z-20 text-3xl drop-shadow-md"
+              >
+                  ⚡
+              </motion.div>
+          </div>
+      );
+  };
+
+  // --- BEHAVIOR LOGIC ---
+  useEffect(() => {
+    // Listen for global shock triggers (e.g., failed quiz)
+    const handleShockEvent = (e: CustomEvent) => {
+        const level = e.detail?.level || 'medium'; // 'mild' | 'medium' | 'terror'
+        setShockLevel(level);
+        setMood('shock');
+        if (level === 'mild') triggerHaptic('light');
+        else if (level === 'medium') triggerHaptic('medium');
+        else triggerHaptic('error');
+
+        setTimeout(() => {
+            setMood('idle');
+            setShockLevel('none');
+        }, level === 'terror' ? 3000 : 1500);
+    };
+
+    window.addEventListener('tmc-mascot-trigger', handleShockEvent as EventListener);
+
+    // Random proactive tips
+    const tipInterval = setInterval(() => {
+        if (!isOpen && Math.random() > 0.85 && mood !== 'shock') {
+            const tips = lang === 'es' 
+                ? ["¡Mantén la racha!", "¿5 minutos más?", "¡Vas genial!", "¡Aprende una palabra!"]
+                : ["Keep the streak!", "5 more mins?", "Doing great!", "Learn a word!"];
+            setRandomTip(tips[Math.floor(Math.random() * tips.length)]);
+            setMood('excited');
+            triggerHaptic('light');
+            setTimeout(() => { setRandomTip(null); setMood('idle'); }, 4000);
+        }
+    }, 15000);
+
+    // Random Electric Shocks - DYNAMIC LEVELS - INCREASED TERROR
+    const shockInterval = setInterval(() => {
+        if (!isOpen && Math.random() > 0.85 && mood !== 'shock') { // Slightly reduced chance
+            // Determine Intensity
+            const rand = Math.random();
+            let level: 'mild' | 'medium' | 'terror' = 'mild';
+            if (rand > 0.90) level = 'terror';      // 10% chance of TERROR (increased)
+            else if (rand > 0.65) level = 'medium';  // 25% chance of Medium
+
+            setShockLevel(level);
+            setMood('shock');
+            
+            // Haptic feedback scales with intensity
+            if (level === 'mild') triggerHaptic('light');
+            else if (level === 'medium') triggerHaptic('medium');
+            else triggerHaptic('error'); // Heavy vibration
+
+            // Duration scales with intensity
+            const duration = level === 'terror' ? 3000 : level === 'medium' ? 1500 : 800;
+            
+            setTimeout(() => {
+                setMood('idle');
+                setShockLevel('none');
+            }, duration);
+        }
+    }, 12000);
+
+    return () => {
+        clearInterval(tipInterval);
+        clearInterval(shockInterval);
+        window.removeEventListener('tmc-mascot-trigger', handleShockEvent as EventListener);
+    };
+  }, [isOpen, lang, mood]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [history, isTyping]);
 
-  const handleSend = async (e: React.FormEvent | null, textOverride?: string) => {
+  const handleSend = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    const finalInput = textOverride || input;
-    if (!finalInput.trim() || isTyping) return;
+    if (!input.trim() || isTyping) return;
     
-    const userMsg: AssistantMessage = { id: Date.now().toString(), role: 'user', text: finalInput, timestamp: Date.now() };
+    const userMsg: AssistantMessage = { id: Date.now().toString(), role: 'user', text: input, timestamp: Date.now() };
     setHistory(prev => [...prev, userMsg]);
     setInput('');
     setIsTyping(true);
+    setMood('thinking');
     triggerHaptic('light');
 
     try {
-      const systemPrompt = `
-        You are ${activeMascot.name}, an upgraded AI Guardian. 
-        Archetype: ${activeMascot.archetype}. 
-        Specialty: ${activeMascot.specialty}.
-        Language Context: ${lang}.
-        Tone: Street-smart, authentic, direct, and energetic. 
-        Mission: Bridge the gap between Colombian street culture and American street vernacular. 
-        If asked about slang, give historical context and a usage example. 
-        Be concise but impactful.
-      `;
+      const systemPrompt = `You are Spark, a hyper-energetic yellow lightning bolt mascot. User Language: ${lang === 'es' ? 'Spanish' : 'English'}. Target: ${lang === 'es' ? 'English' : 'Spanish'}. Be short, punchy, use emojis.`;
       const res = await tutorChat([...history, userMsg], systemPrompt, lang as any);
       const aiMsg: AssistantMessage = { id: (Date.now() + 1).toString(), role: 'assistant', text: res.text, timestamp: Date.now() };
       setHistory(prev => [...prev, aiMsg]);
-      
-      // Auto-speak the response if it's the upgraded mascot
-      speakText(res.text);
       triggerHaptic('medium');
+      setMood('talking');
+      setTimeout(() => setMood('idle'), 3000);
     } catch (e) {
-      console.error(e);
+      setMood('idle');
     } finally {
       setIsTyping(false);
     }
   };
 
-  const speakText = async (text: string) => {
-    setIsSpeaking(true);
-    try {
-      const base64 = await getPronunciation(text, activeMascot.voice);
-      if (base64) {
-        if (!audioContextRef.current) audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-        const ctx = audioContextRef.current;
-        const buffer = await decodeAudioData(decodeBase64Audio(base64), ctx);
-        const source = ctx.createBufferSource();
-        source.buffer = buffer;
-        source.connect(ctx.destination);
-        source.start();
-        source.onended = () => setIsSpeaking(false);
-      } else {
-        setIsSpeaking(false);
-      }
-    } catch (e) {
-      setIsSpeaking(false);
-    }
-  };
-
-  const toggleRecording = () => {
-    if (isRecording) {
-      recognitionRef.current?.stop();
-    } else {
-      setIsRecording(true);
-      triggerHaptic('medium');
-      recognitionRef.current?.start();
-    }
-  };
-
   return (
     <>
+      {/* GLOBAL SCREEN FLICKER & LIGHTNING EFFECTS FOR SHOCK */}
+      <AnimatePresence>
+        {mood === 'shock' && (
+            <motion.div 
+                className="fixed inset-0 z-[9999] pointer-events-none overflow-hidden"
+                initial={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+            >
+                {/* 1. White Flash Overlay (Strobe) */}
+                <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ 
+                        opacity: shockLevel === 'terror' ? [0, 1, 0, 1, 0.5, 1, 0] : [0, 0.6, 0, 0.3, 0] 
+                    }}
+                    transition={{ duration: shockLevel === 'terror' ? 0.8 : 0.5, repeat: shockLevel === 'terror' ? 2 : 0 }}
+                    className="absolute inset-0 bg-white mix-blend-overlay"
+                />
+
+                {/* 2. Invert/Glitch Effect (Terror Only) */}
+                {shockLevel === 'terror' && (
+                    <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: [0, 1, 0, 1, 0] }}
+                        transition={{ duration: 0.2, repeat: 4, repeatType: "mirror" }}
+                        className="absolute inset-0 bg-white mix-blend-difference"
+                    />
+                )}
+
+                {/* 3. SVG Lightning Bolt (Terror Only) */}
+                {shockLevel === 'terror' && (
+                    <motion.svg
+                        viewBox="0 0 100 100"
+                        className="absolute inset-0 w-full h-full text-yellow-300 drop-shadow-[0_0_50px_rgba(253,224,71,1)]"
+                        initial={{ pathLength: 0, opacity: 0 }}
+                        animate={{ pathLength: 1, opacity: [0, 1, 0] }}
+                        transition={{ duration: 0.3, repeat: 3 }}
+                    >
+                        <motion.path
+                            d="M50 0 L60 40 L90 40 L40 100 L50 60 L20 60 Z"
+                            fill="currentColor"
+                            stroke="white"
+                            strokeWidth="2"
+                        />
+                    </motion.svg>
+                )}
+
+                {/* 4. Screen Shake (Container Transform) */}
+                {shockLevel === 'terror' && (
+                    <motion.div 
+                        initial={{ x: 0, y: 0 }}
+                        animate={{ 
+                            x: [-50, 50, -30, 30, -10, 10, 0], 
+                            y: [-50, 50, -30, 30, -10, 10, 0],
+                            rotate: [-5, 5, -3, 3, 0]
+                        }}
+                        transition={{ duration: 0.4, repeat: 2 }}
+                        className="absolute inset-0 border-[40px] border-yellow-500 opacity-50"
+                    />
+                )}
+            </motion.div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence>
         {!isOpen && (
-          <motion.button 
-            initial={{ scale: 0, y: 20 }}
-            animate={{ scale: 1, y: 0 }}
-            whileHover={{ scale: 1.1, rotate: 5 }}
-            whileTap={{ scale: 0.9 }}
-            onClick={() => setIsOpen(true)}
-            className={`fixed bottom-28 right-8 lg:right-12 z-[100] w-20 h-20 bg-gradient-to-br ${activeMascot.color} rounded-[32px] flex items-center justify-center text-4xl shadow-[0_20px_50px_${activeMascot.glow}] border border-white/20 avatar-glow group`}
-          >
-            <div className="relative">
-              {activeMascot.icon}
-              <motion.div 
-                animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.6, 0.3] }}
-                transition={{ repeat: Infinity, duration: 2 }}
-                className="absolute -inset-4 bg-white/20 rounded-full blur-xl -z-10"
-              />
-            </div>
-            <div className="absolute -top-1 -right-1 w-5 h-5 bg-emerald-400 rounded-full border-4 border-slate-950 animate-pulse shadow-[0_0_10px_#10b981]" />
-            <span className="absolute -top-10 right-0 px-3 py-1 bg-slate-900 text-white text-[9px] font-black uppercase tracking-widest rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">Neural Hub</span>
-          </motion.button>
+          // Adjusted bottom position for mobile navigation dock clearance
+          <div className="fixed bottom-24 md:bottom-12 right-6 z-[100] flex flex-col items-end pointer-events-none transition-all duration-300">
+             {/* Random Tip Bubble */}
+             <AnimatePresence>
+                {randomTip && (
+                    <motion.div 
+                        initial={{ opacity: 0, y: 10, scale: 0.8, x: 20 }}
+                        animate={{ opacity: 1, y: 0, scale: 1, x: 0 }}
+                        exit={{ opacity: 0, scale: 0.8 }}
+                        className="bg-white text-slate-900 px-4 py-3 rounded-2xl rounded-br-sm shadow-xl border-2 border-slate-100 font-bold text-xs mb-2 relative max-w-[150px] pointer-events-auto origin-bottom-right text-center"
+                    >
+                        {randomTip}
+                        <div className="absolute -bottom-2 -right-[2px] w-4 h-4 bg-white border-b-2 border-r-2 border-slate-100 transform rotate-45 clip-path-polygon" />
+                    </motion.div>
+                )}
+             </AnimatePresence>
+
+             {/* Trigger Button */}
+             <motion.button 
+                initial={{ scale: 0, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => { setIsOpen(true); setMood('happy'); }}
+                className="relative cursor-pointer group pointer-events-auto"
+             >
+                <SparkPuppet state={mood} />
+                {/* Notification Badge */}
+                <div className="absolute bottom-2 right-2 bg-red-500 w-4 h-4 rounded-full border-2 border-slate-900 animate-ping" />
+             </motion.button>
+          </div>
         )}
 
         {isOpen && (
           <motion.div 
-            initial={{ y: 100, opacity: 0, scale: 0.9, filter: 'blur(10px)' }}
-            animate={{ y: 0, opacity: 1, scale: 1, filter: 'blur(0px)' }}
-            exit={{ y: 100, opacity: 0, scale: 0.9, filter: 'blur(10px)' }}
-            transition={{ type: 'spring', damping: 20, stiffness: 120 }}
-            className="fixed bottom-6 right-6 z-[200] w-[calc(100vw-48px)] md:w-[440px] h-[85vh] max-h-[800px] bg-slate-950/90 border border-white/10 rounded-[56px] shadow-[0_60px_150px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden facetime-glass backdrop-blur-3xl"
+            initial={{ y: 100, opacity: 0, scale: 0.9 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            exit={{ y: 100, opacity: 0, scale: 0.9 }}
+            className="fixed bottom-0 md:bottom-6 right-0 md:right-4 z-[200] w-full md:w-[380px] h-[85vh] md:h-[550px] bg-slate-900 border border-white/10 rounded-t-[32px] md:rounded-[40px] shadow-2xl flex flex-col overflow-hidden backdrop-blur-3xl ring-1 ring-white/10"
           >
-            {/* Header Stage */}
-            <div className="relative p-8 border-b border-white/5 overflow-hidden">
-              <div className={`absolute inset-0 bg-gradient-to-br ${activeMascot.color} opacity-10`} />
-              
-              <div className="relative z-10 flex justify-between items-start">
-                <div className="flex items-center gap-6">
-                  <motion.div 
-                    layoutId="mascot-avatar"
-                    onClick={() => setIsSelecting(!isSelecting)}
-                    className={`w-20 h-20 rounded-[32px] bg-white/5 flex items-center justify-center text-4xl shadow-2xl border border-white/10 cursor-pointer hover:scale-105 transition-transform avatar-glow`}
-                  >
-                    {activeMascot.icon}
-                  </motion.div>
+            {/* Header */}
+            <div className="p-4 flex justify-between items-center bg-gradient-to-r from-amber-400 to-orange-500 relative overflow-hidden shrink-0">
+               <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20" />
+               <div className="flex items-center gap-3 relative z-10">
+                  <div className="bg-white/20 rounded-full p-1"><SparkPuppet state={mood === 'idle' ? 'happy' : mood} size="sm" /></div>
                   <div>
-                    <div className="flex items-center gap-2">
-                       <h4 className="text-xl font-black text-white italic leading-tight uppercase tracking-tighter">{activeMascot.name}</h4>
-                       <span className="px-2 py-0.5 bg-brand-500/10 border border-brand-500/20 text-brand-400 text-[8px] font-black uppercase rounded">{activeMascot.archetype}</span>
-                    </div>
-                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.3em] mt-1 flex items-center gap-2">
-                      <div className={`w-1.5 h-1.5 rounded-full ${isSpeaking ? 'bg-brand-500 animate-ping' : 'bg-emerald-500'}`} />
-                      {isSpeaking ? 'TRANSMITTING...' : 'CONNECTED'}
-                    </p>
+                     <h3 className="font-black text-white text-lg drop-shadow-md leading-none">Spark</h3>
+                     <p className="text-[10px] text-white/90 font-bold uppercase tracking-widest">Level 12 Guide</p>
                   </div>
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={() => setIsSelecting(!isSelecting)} className="p-4 hover:bg-white/10 rounded-2xl text-slate-400 transition-all"><Settings2 size={20}/></button>
-                  <button onClick={() => setIsOpen(false)} className="p-4 hover:bg-white/10 rounded-2xl text-slate-400 transition-all"><ChevronDown size={24}/></button>
-                </div>
-              </div>
-
-              {/* Selector Mode Overlay */}
-              <AnimatePresence>
-                {isSelecting && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                    className="absolute inset-0 z-20 bg-slate-950/95 p-8 flex flex-col justify-center gap-4"
-                  >
-                    <div className="flex justify-between items-center mb-2">
-                       <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Select Personality</h3>
-                       <button onClick={() => setIsSelecting(false)}><X size={16}/></button>
-                    </div>
-                    <div className="grid grid-cols-3 gap-3">
-                      {MASCOTS.map(m => (
-                        <button 
-                          key={m.id} 
-                          onClick={() => { setActiveMascot(m); setIsSelecting(false); triggerHaptic('medium'); }}
-                          className={`flex flex-col items-center gap-2 p-4 rounded-3xl border-2 transition-all ${activeMascot.id === m.id ? 'border-brand-500 bg-brand-500/10' : 'border-white/5 bg-white/5'}`}
-                        >
-                           <span className="text-3xl">{m.icon}</span>
-                           <span className="text-[9px] font-black text-white uppercase">{m.name}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+               </div>
+               <button onClick={() => setIsOpen(false)} className="w-8 h-8 bg-black/20 hover:bg-black/30 rounded-full flex items-center justify-center text-white transition-all relative z-10"><ChevronDown size={20}/></button>
             </div>
 
-            {/* Chat Pipeline */}
-            <div ref={scrollRef} className="flex-1 overflow-y-auto p-8 space-y-6 hide-scrollbar relative">
+            {/* Chat Area */}
+            <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 hide-scrollbar bg-slate-950/50 pb-safe">
                {history.length === 0 && (
-                 <div className="flex flex-col items-center justify-center h-full text-center space-y-10 opacity-60">
-                    <div className="relative">
-                       <motion.div 
-                          animate={{ scale: [1, 1.2, 1], rotate: [0, 10, -10, 0] }}
-                          transition={{ repeat: Infinity, duration: 4 }}
-                          className="w-32 h-32 bg-white/5 rounded-[48px] flex items-center justify-center text-7xl shadow-inner border border-white/5"
-                       >
-                         {activeMascot.icon}
-                       </motion.div>
-                       <Zap size={32} className="absolute -top-4 -right-4 text-brand-400 animate-pulse" />
-                    </div>
-                    <div className="space-y-3">
-                       <h3 className="text-2xl font-black text-white italic tracking-tighter uppercase">{lang === 'es' ? 'Núcleo Listo' : 'Neural Core Ready'}</h3>
-                       <p className="text-slate-400 text-sm font-medium max-w-[200px] mx-auto leading-relaxed">{activeMascot.description[lang]}</p>
-                    </div>
-                    
-                    {/* Nuance Chips */}
-                    <div className="grid grid-cols-2 gap-2 w-full">
-                       {QUICK_ACTIONS.map((action, i) => (
-                         <button 
-                            key={i} 
-                            onClick={() => handleSend(null, action.query)}
-                            className="p-4 bg-white/5 border border-white/10 rounded-2xl text-[9px] font-black text-slate-300 uppercase tracking-widest hover:bg-brand-500/20 hover:border-brand-500 transition-all text-center"
-                         >
-                           {action.label}
-                         </button>
-                       ))}
-                    </div>
-                 </div>
+                  <div className="text-center text-slate-400 text-sm mt-12 space-y-6 flex flex-col items-center">
+                     <SparkPuppet state="happy" size="lg" />
+                     <p className="font-medium px-8 leading-relaxed max-w-xs text-center">
+                        {lang === 'es' ? '¡Hola! Soy Spark. ¿Qué aprendemos hoy?' : 'Hi! I am Spark. What shall we learn today?'}
+                     </p>
+                  </div>
                )}
-
                {history.map(m => (
-                 <motion.div 
-                  key={m.id} 
-                  initial={{ opacity: 0, x: m.role === 'user' ? 20 : -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                 >
-                   <div className="flex flex-col gap-2 max-w-[85%]">
-                      {m.role === 'assistant' && (
-                        <div className="flex items-center gap-2 mb-1">
-                           <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">{activeMascot.name} • {activeMascot.archetype}</span>
-                        </div>
-                      )}
-                      <div className={`p-6 rounded-[32px] text-sm leading-relaxed shadow-2xl relative group ${
-                        m.role === 'user' 
-                         ? 'bg-brand-600 text-white rounded-tr-none border border-white/10' 
-                         : 'facetime-glass text-slate-100 rounded-tl-none border border-white/10'
-                      }`}>
-                         {m.text}
-                         {m.role === 'assistant' && (
-                           <button onClick={() => speakText(m.text)} className="absolute -right-12 top-0 p-2 text-slate-600 hover:text-brand-400 opacity-0 group-hover:opacity-100 transition-all"><Volume2 size={16}/></button>
-                         )}
-                      </div>
-                   </div>
-                 </motion.div>
-               ))}
-               
-               {isTyping && (
-                 <div className="flex justify-start">
-                   <div className="bg-slate-900 p-6 rounded-[28px] rounded-tl-none border border-white/5 flex gap-2 items-center shadow-xl">
-                     <motion.div animate={{ scale: [1, 1.5, 1] }} transition={{ repeat: Infinity, duration: 0.6 }} className="w-1.5 h-1.5 bg-brand-500 rounded-full" />
-                     <motion.div animate={{ scale: [1, 1.5, 1] }} transition={{ repeat: Infinity, duration: 0.6, delay: 0.2 }} className="w-1.5 h-1.5 bg-brand-500 rounded-full" />
-                     <motion.div animate={{ scale: [1, 1.5, 1] }} transition={{ repeat: Infinity, duration: 0.6, delay: 0.4 }} className="w-1.5 h-1.5 bg-brand-500 rounded-full" />
-                   </div>
+                 <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`p-3.5 rounded-[20px] text-sm max-w-[85%] font-medium leading-relaxed shadow-lg ${m.role === 'user' ? 'bg-brand-600 text-white rounded-tr-sm' : 'bg-white text-slate-900 rounded-tl-sm'}`}>
+                       {m.text}
+                    </div>
                  </div>
+               ))}
+               {isTyping && (
+                   <div className="flex justify-start">
+                       <div className="bg-white/10 p-4 rounded-[20px] rounded-tl-sm flex gap-1.5 items-center">
+                           <div className="w-1.5 h-1.5 bg-white/60 rounded-full animate-bounce" />
+                           <div className="w-1.5 h-1.5 bg-white/60 rounded-full animate-bounce delay-100" />
+                           <div className="w-1.5 h-1.5 bg-white/60 rounded-full animate-bounce delay-200" />
+                       </div>
+                   </div>
                )}
             </div>
 
-            {/* Input Cockpit */}
-            <div className="p-8 bg-slate-950/80 border-t border-white/5 backdrop-blur-3xl">
-              <div className="flex items-center gap-4 mb-4 overflow-x-auto hide-scrollbar">
-                 <div className="flex gap-2 shrink-0">
-                    <span className="px-3 py-1 bg-white/5 rounded-full text-[8px] font-black text-slate-500 uppercase flex items-center gap-1"><Brain size={10}/> Context High</span>
-                    <span className="px-3 py-1 bg-white/5 rounded-full text-[8px] font-black text-slate-500 uppercase flex items-center gap-1"><ShieldCheck size={10}/> Guardrails On</span>
-                 </div>
-              </div>
-              
-              <form onSubmit={(e) => handleSend(e)} className="flex gap-4 items-center">
-                <div className="relative flex-1 group">
+            {/* Input */}
+            <div className="p-3 bg-slate-900 border-t border-white/5 shrink-0 pb-safe">
+               <form onSubmit={handleSend} className="flex gap-2">
                   <input 
-                    className="w-full bg-white/5 border-2 border-white/5 rounded-[32px] px-8 py-6 text-base text-white focus:outline-none focus:border-brand-500/50 transition-all placeholder:text-slate-700 pr-16 shadow-inner" 
-                    value={input} 
-                    onChange={e => setInput(e.target.value)} 
-                    placeholder={lang === 'es' ? 'Sincroniza tu duda...' : 'Sync neural query...'} 
+                    className="flex-1 bg-white/5 border border-white/10 rounded-[20px] px-5 py-3 text-sm text-white focus:outline-none focus:border-amber-400 transition-all placeholder:text-slate-500" 
+                    placeholder={lang === 'es' ? 'Pregunta algo...' : 'Ask something...'}
+                    value={input}
+                    onChange={e => { setInput(e.target.value); setMood('thinking'); }}
+                    onBlur={() => setMood('idle')}
+                    onKeyDown={(e) => { if(e.key === 'Enter') handleSend(); }}
                   />
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                     <button 
-                        type="button" 
-                        onClick={toggleRecording}
-                        className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${isRecording ? 'bg-red-500 text-white animate-pulse' : 'bg-brand-500/10 text-brand-400 border border-brand-500/20 hover:bg-brand-500/20'}`}
-                      >
-                        <Mic size={20}/>
-                     </button>
-                  </div>
-                </div>
-                <button 
-                  disabled={!input.trim() || isTyping} 
-                  className={`w-20 h-20 rounded-[28px] flex items-center justify-center shadow-2xl transition-all active:scale-90 ${input.trim() ? 'bg-brand-500 text-white' : 'bg-white/5 text-slate-700'}`}
-                >
-                  <Send size={28} fill="currentColor" className={isTyping ? 'animate-spin' : ''}/>
-                </button>
-              </form>
+                  <button type="submit" disabled={!input.trim()} className="w-12 h-12 bg-amber-400 hover:bg-amber-500 rounded-[20px] flex items-center justify-center text-amber-950 disabled:opacity-50 shadow-lg active:scale-95 transition-all"><Send size={20}/></button>
+               </form>
             </div>
           </motion.div>
         )}

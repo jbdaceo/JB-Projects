@@ -1,5 +1,6 @@
-import React, { useState, useEffect, Suspense, ReactNode, ErrorInfo, Component, useCallback } from 'react';
-import { AppSection, Language, User, PassportStamp } from './types';
+import React, { useState, useEffect, Suspense, useCallback, ReactNode, Component } from 'react';
+import ReactDOM from 'react-dom/client';
+import { AppSection, Language, PassportStamp } from './types';
 import Sidebar from './components/Sidebar';
 import MobileNav from './components/MobileNav';
 import Home from './components/Home'; 
@@ -9,87 +10,96 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAudioInitialization } from './hooks/useAudioInitialization';
 import { triggerHaptic } from './utils/performance';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, Globe, Loader2 } from 'lucide-react';
+import Mascot from './components/Mascot';
+import AIAssistant from './components/AIAssistant';
+import './index.css';
 
-const Mascot = React.lazy(() => import('./components/Mascot'));
+// Lazy Load Pages for Performance
 const LessonGenerator = React.lazy(() => import('./components/LessonGenerator'));
 const SpeakingPractice = React.lazy(() => import('./components/SpeakingPractice'));
 const VocabularyTool = React.lazy(() => import('./components/VocabularyTool'));
-const CoachingSessions = React.lazy(() => import('./components/CoachingSessions'));
 const Community = React.lazy(() => import('./components/Community'));
-const ChatPage = React.lazy(() => import('./components/ChatPage'));
 const KidsZone = React.lazy(() => import('./components/KidsZone'));
 const WorldsPortal = React.lazy(() => import('./components/WorldsPortal'));
-const WorldPage = React.lazy(() => import('./components/WorldPage'));
-const LiveClassroom = React.lazy(() => import('./components/LiveClassroom'));
 const JobsBoard = React.lazy(() => import('./components/JobsBoard'));
-const AIAssistant = React.lazy(() => import('./components/AIAssistant'));
 const Passport = React.lazy(() => import('./components/Passport'));
+const LiveClassroom = React.lazy(() => import('./components/LiveClassroom'));
+const SocialFeed = React.lazy(() => import('./components/SocialFeed'));
 
 interface ErrorBoundaryProps { children?: ReactNode; }
 interface ErrorBoundaryState { hasError: boolean; }
 
-// Fix: Use the imported Component class directly to ensure proper type resolution of this.props and this.state
 class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // Fix: Correct state initialization for Component
-  public state: ErrorBoundaryState = { hasError: false };
+  state: ErrorBoundaryState = { hasError: false };
 
-  public static getDerivedStateFromError(_: Error): ErrorBoundaryState { 
-    return { hasError: true }; 
-  }
-
-  public componentDidCatch(error: Error, errorInfo: ErrorInfo) { 
-    console.error("Uncaught error:", error, errorInfo); 
-  }
-
-  public render() {
-    // Fix: state property is now properly resolved through Component inheritance
+  static getDerivedStateFromError(error: any): ErrorBoundaryState { return { hasError: true }; }
+  
+  render() {
     if (this.state.hasError) {
       return (
-        <div className="p-10 text-center h-screen flex flex-col items-center justify-center bg-slate-950 text-white font-sans">
-          <div className="w-20 h-20 bg-red-500/20 rounded-3xl flex items-center justify-center mb-6">⚠️</div>
-          <h2 className="text-2xl font-black mb-4 uppercase italic">Neural Sync Failed</h2>
-          <button onClick={() => window.location.reload()} className="px-10 py-4 bg-brand-500 rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl active:scale-95 transition-all">Reload Pipeline</button>
+        <div className="h-dvh flex flex-col items-center justify-center bg-slate-950 p-8 text-center">
+          <h2 className="text-xl font-black text-white italic uppercase tracking-widest mb-4">Neural Link Offline</h2>
+          <button onClick={() => window.location.reload()} className="px-8 py-3 bg-brand-500 rounded-full font-bold uppercase text-xs tracking-widest text-white shadow-lg active:scale-95 transition-transform">Reconnect</button>
         </div>
       );
     }
-    // Fix: props property is now properly resolved through Component inheritance
-    return this.props.children || null;
+    return this.props.children;
   }
 }
+
+const pageVariants = {
+  initial: { opacity: 0, scale: 0.98, filter: "blur(10px)" },
+  animate: { opacity: 1, scale: 1, filter: "blur(0px)", transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] } },
+  exit: { opacity: 0, scale: 1.02, filter: "blur(10px)", transition: { duration: 0.3, ease: "easeIn" } }
+};
+
+const LoadingSpinner = () => (
+  <div className="h-[60vh] flex flex-col items-center justify-center gap-4">
+    <div className="relative">
+      <div className="absolute inset-0 bg-brand-500 blur-xl opacity-20 animate-pulse" />
+      <Loader2 className="w-8 h-8 text-brand-400 animate-spin relative z-10" />
+    </div>
+    <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 animate-pulse">Initializing...</span>
+  </div>
+);
 
 const AppContent: React.FC = () => {
   useAudioInitialization();
   const { user } = useAuth();
   const [activeSection, setActiveSection] = useState<AppSection>(AppSection.Home);
   const [historyStack, setHistoryStack] = useState<AppSection[]>([AppSection.Home]);
-  const [lang, setLang] = useState<Language>('es');
+  const [lang, setLang] = useState<Language>(() => (localStorage.getItem('tmc_preferred_lang') as Language) || 'es');
   const [showAuthModal, setShowAuthModal] = useState(true);
   const [tmcLevel, setTmcLevel] = useState<'Novice' | 'Semi Pro' | 'Pro'>('Novice');
-  const [levelProgress, setLevelProgress] = useState(10);
+  const [levelProgress, setLevelProgress] = useState(12);
   const [showLevelModal, setShowLevelModal] = useState(false);
   const [showAiAssistant, setShowAiAssistant] = useState(false);
   const [stamps, setStamps] = useState<PassportStamp[]>([]);
-  
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
     window.addEventListener('resize', handleResize);
+    localStorage.setItem('tmc_preferred_lang', lang);
     return () => window.removeEventListener('resize', handleResize);
+  }, [lang]);
+
+  const toggleLanguage = useCallback(() => {
+    triggerHaptic('medium');
+    setLang(l => l === 'es' ? 'en' : 'es');
   }, []);
 
   const refreshProgress = useCallback(() => {
-    const savedStamps = JSON.parse(localStorage.getItem('tmc_passport_stamps') || '[]');
-    setStamps(savedStamps);
-    
-    const xp = savedStamps.reduce((acc: number, s: PassportStamp) => acc + s.points, 0);
-    const calculatedLevel = Math.min(100, (xp / 5000) * 100);
-    setLevelProgress(calculatedLevel);
-    
-    if (xp > 3000) setTmcLevel('Pro');
-    else if (xp > 1000) setTmcLevel('Semi Pro');
-    else setTmcLevel('Novice');
+    try {
+      const savedStamps = JSON.parse(localStorage.getItem('tmc_passport_stamps_v8') || '[]');
+      setStamps(savedStamps);
+      const xp = savedStamps.reduce((acc: number, s: PassportStamp) => acc + s.points, 0);
+      setLevelProgress(Math.min(100, (xp / 5000) * 100) || 12);
+      if (xp > 3000) setTmcLevel('Pro');
+      else if (xp > 1000) setTmcLevel('Semi Pro');
+      else setTmcLevel('Novice');
+    } catch (e) { console.error('Progress sync error', e); }
   }, []);
 
   useEffect(() => {
@@ -98,109 +108,120 @@ const AppContent: React.FC = () => {
     return () => window.removeEventListener('tmc-progress-update', refreshProgress);
   }, [refreshProgress]);
 
-  const handleNavigate = (section: AppSection) => {
-    if (section === activeSection && section !== AppSection.Community) return;
+  const handleNavigate = useCallback((section: AppSection) => {
+    if (section === activeSection) return;
     setHistoryStack(prev => [...prev, section]);
     setActiveSection(section);
     triggerHaptic('light');
-  };
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [activeSection]);
 
-  const handleBack = () => {
-    if (historyStack.length <= 1) {
-      setActiveSection(AppSection.Home);
-      return;
-    }
+  const handleBack = useCallback(() => {
+    if (historyStack.length <= 1) return handleNavigate(AppSection.Home);
     const newStack = [...historyStack];
     newStack.pop(); 
-    const prevSection = newStack[newStack.length - 1];
     setHistoryStack(newStack);
-    setActiveSection(prevSection);
+    setActiveSection(newStack[newStack.length - 1]);
     triggerHaptic('medium');
-  };
-
-  const handleLangToggle = () => {
-    setLang(l => l === 'es' ? 'en' : 'es');
-    triggerHaptic('medium');
-  };
+  }, [historyStack, handleNavigate]);
 
   const renderContent = () => {
     switch (activeSection) {
       case AppSection.Home: return <Home onNavigate={handleNavigate} lang={lang} />;
-      case AppSection.Worlds: return <WorldPage lang={lang} onNavigate={handleNavigate} />;
-      case AppSection.WorldHub: return <WorldsPortal lang={lang} onNavigate={handleNavigate} />;
-      case AppSection.Chat: return <ChatPage lang={lang} />;
-      case AppSection.LiveClassroom: return <LiveClassroom lang={lang} />;
-      case AppSection.Lessons: return <LessonGenerator lang={lang} userTier={tmcLevel} />;
+      case AppSection.SocialFeed: return <SocialFeed lang={lang} />;
+      case AppSection.Worlds: return <WorldsPortal lang={lang} onNavigate={handleNavigate} />;
+      case AppSection.Lessons: return <LessonGenerator lang={lang} />;
       case AppSection.Speaking: return <SpeakingPractice lang={lang} onExit={handleBack} />;
       case AppSection.Vocab: return <VocabularyTool lang={lang} />;
-      case AppSection.Coaching: return <CoachingSessions lang={lang} />;
       case AppSection.Community: return <Community lang={lang} onNavigate={handleNavigate} />;
-      case AppSection.Kids: return <KidsZone lang={lang} />;
       case AppSection.Jobs: return <JobsBoard lang={lang} onNavigate={handleNavigate} />;
       case AppSection.Passport: return user ? <Passport lang={lang} user={user} stamps={stamps} /> : null;
+      case AppSection.LiveClassroom: return <LiveClassroom lang={lang} />;
+      case AppSection.Kids: return <KidsZone lang={lang} />;
       default: return <Home onNavigate={handleNavigate} lang={lang} />;
     }
   };
 
-  // Condition to hide global back button if component has its own internal navigation or immersive flow
-  // Added AppSection.Passport and AppSection.Kids to hide global back since they handle it internally or want no overlap
-  const hideGlobalBack = activeSection === AppSection.Home || activeSection === AppSection.Speaking || activeSection === AppSection.Community || activeSection === AppSection.Kids;
-
   return (
-    <div className={`absolute inset-0 bg-slate-950 text-slate-100 font-sans selection:bg-brand-500/30 flex overflow-hidden gpu-layer ${isMobile ? 'flex-col' : 'flex-row'}`}>
+    <div className="absolute inset-0 liquid-bg flex overflow-hidden font-sans select-none app-safe-area text-slate-100">
       <AuthModal isOpen={showAuthModal} onLogin={() => setShowAuthModal(false)} onGuest={() => setShowAuthModal(false)} lang={lang} />
       <LevelRequirementsModal isOpen={showLevelModal} onClose={() => setShowLevelModal(false)} lang={lang} currentLevel={tmcLevel} />
 
+      {/* Desktop Sidebar */}
       {!isMobile && (
-        <div className="h-full relative z-[50] shrink-0">
-          <Sidebar 
-            activeSection={activeSection} 
-            onNavigate={handleNavigate} 
-            lang={lang} 
-            onLangToggle={handleLangToggle} 
-            tmcLevel={tmcLevel} 
-            levelProgress={levelProgress} 
-            onOpenLevelInfo={() => setShowLevelModal(true)} 
-            onOpenAiAssistant={() => setShowAiAssistant(true)} 
-          />
-        </div>
+        <Sidebar 
+          activeSection={activeSection} 
+          onNavigate={handleNavigate} 
+          lang={lang} 
+          onLangToggle={toggleLanguage} 
+          tmcLevel={tmcLevel} 
+          levelProgress={levelProgress} 
+          onOpenLevelInfo={() => setShowLevelModal(true)} 
+          onOpenAiAssistant={() => setShowAiAssistant(true)} 
+        />
       )}
 
-      <main className="flex-1 relative h-full overflow-hidden flex flex-col w-full">
+      {/* Main Content Area */}
+      <main className="flex-1 relative flex flex-col min-w-0">
+        {/* Mobile Header Controls */}
         <AnimatePresence>
-          {!hideGlobalBack && (
-            <motion.button 
-              initial={{ opacity: 0, scale: 0.8, x: -20 }}
-              animate={{ opacity: 1, scale: 1, x: 0 }}
-              exit={{ opacity: 0, scale: 0.8, x: -20 }}
-              onClick={handleBack} 
-              className={`fixed z-[200] facetime-glass p-4 rounded-[24px] text-white shadow-2xl active:scale-90 transition-all flex items-center justify-center
-                ${isMobile ? 'top-[calc(12px+env(safe-area-inset-top))] left-4' : 'top-8 left-8 sm:left-[304px]'}`}
+          {isMobile && (
+            <motion.div 
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="absolute top-0 left-0 right-0 z-[60] p-4 flex justify-between items-center pointer-events-none"
             >
-              <ChevronLeft size={24} strokeWidth={2.5} />
-            </motion.button>
+               {historyStack.length > 1 ? (
+                 <motion.button 
+                   whileTap={{ scale: 0.9 }}
+                   onClick={handleBack} 
+                   className="pointer-events-auto w-10 h-10 bg-white/10 backdrop-blur-md rounded-full flex items-center justify-center text-white border border-white/10 shadow-lg"
+                 >
+                   <ChevronLeft size={20} />
+                 </motion.button>
+               ) : <div />}
+               
+               <motion.button 
+                 whileTap={{ scale: 0.9 }}
+                 onClick={toggleLanguage}
+                 className="pointer-events-auto px-4 py-2 bg-white/10 backdrop-blur-md rounded-full flex items-center gap-2 border border-white/10 shadow-lg"
+               >
+                 <Globe size={14} className="text-brand-400" />
+                 <span className="text-[10px] font-black text-white uppercase tracking-widest">{lang.toUpperCase()}</span>
+               </motion.button>
+            </motion.div>
           )}
         </AnimatePresence>
 
-        <div className={`flex-1 overflow-y-auto hide-scrollbar scroll-smooth w-full 
-          ${isMobile ? 'pt-[calc(20px+env(safe-area-inset-top))] pb-[calc(100px+env(safe-area-inset-bottom))] px-4' : (activeSection === AppSection.Kids ? 'pt-0' : 'lg:pt-10 lg:pb-10 lg:px-10 px-6 pt-10')}`}>
-          <div className={`${activeSection === AppSection.Kids ? 'max-w-none' : 'max-w-7xl'} mx-auto min-h-full flex flex-col`}>
-            <AnimatePresence mode="wait">
-              <motion.div key={activeSection} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.35 }} className="h-full flex flex-col">
-                <ErrorBoundary>
-                  <Suspense fallback={<div className="flex items-center justify-center h-full"><motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }} className="w-10 h-10 border-4 border-brand-500 border-t-transparent rounded-full" /></div>}>
+        {/* Scrollable Content Container */}
+        <div className={`flex-1 overflow-y-auto hide-scrollbar scroll-smooth ${isMobile ? 'pb-32 pt-20 px-4' : 'p-8 lg:p-12'}`}>
+          <div className="max-w-[1400px] mx-auto min-h-full">
+            <Suspense fallback={<LoadingSpinner />}>
+              <ErrorBoundary>
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={activeSection}
+                    variants={pageVariants}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                    className="h-full"
+                  >
                     {renderContent()}
-                  </Suspense>
-                </ErrorBoundary>
-              </motion.div>
-            </AnimatePresence>
+                  </motion.div>
+                </AnimatePresence>
+              </ErrorBoundary>
+            </Suspense>
           </div>
         </div>
       </main>
       
-      <Suspense fallback={null}><AIAssistant isOpen={showAiAssistant} onClose={() => setShowAiAssistant(false)} lang={lang} currentSection={activeSection} onNavigate={handleNavigate} /></Suspense>
-      <Suspense fallback={null}><Mascot lang={lang} /></Suspense>
+      {/* Global Components */}
+      <AIAssistant isOpen={showAiAssistant} onClose={() => setShowAiAssistant(false)} lang={lang} currentSection={activeSection} onNavigate={handleNavigate} />
+      <Mascot lang={lang} />
       
+      {/* Mobile Bottom Navigation */}
       {isMobile && (
         <div className="fixed bottom-0 left-0 right-0 z-[100] pb-safe">
           <MobileNav activeSection={activeSection} onNavigate={handleNavigate} lang={lang} />
@@ -210,10 +231,8 @@ const AppContent: React.FC = () => {
   );
 };
 
-const App: React.FC = () => (
+export default () => (
   <AuthProvider>
     <AppContent />
   </AuthProvider>
 );
-
-export default App;

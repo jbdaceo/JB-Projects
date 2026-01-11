@@ -1,6 +1,7 @@
 
 import React, { useState, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
+import { getPronunciation, decodeBase64Audio, decodeAudioData } from '../services/gemini';
 
 // --- HAPTIC FEEDBACK ENGINE ---
 export const triggerHaptic = (pattern: 'light' | 'medium' | 'heavy' | 'success' | 'error' = 'light') => {
@@ -12,6 +13,27 @@ export const triggerHaptic = (pattern: 'light' | 'medium' | 'heavy' | 'success' 
       case 'success': navigator.vibrate([10, 30, 10]); break; // Da-da-da
       case 'error': navigator.vibrate([30, 50, 30]); break; // Buzz-buzz
     }
+  }
+};
+
+// Global Text-to-Speech Handler for Cards
+export const speakText = async (text: string, onStart?: () => void, onEnd?: () => void) => {
+  onStart?.();
+  try {
+    const base64 = await getPronunciation(text);
+    if (base64) {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+      const buffer = await decodeAudioData(decodeBase64Audio(base64), ctx);
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(ctx.destination);
+      source.start();
+      source.onended = () => onEnd?.();
+    } else {
+      onEnd?.();
+    }
+  } catch (e) {
+    onEnd?.();
   }
 };
 
@@ -40,27 +62,21 @@ export const OptimizedImage = React.memo(({
 
   const imageSrcSet = useMemo(() => {
     if (!src) return '';
-    // Check if source is a URL or base64 to avoid errors
     if (src.startsWith('data:')) return undefined;
-    
-    // SKIP optimization for GitHub raw content or SVGs or already processed URLs
     if (src.includes('raw.githubusercontent.com') || src.endsWith('.svg') || src.includes('dicebear')) {
         return undefined;
     }
-    
-    // Add auto=format for WebP/AVIF support on Unsplash and other CDNs
     const sizes = [400, 800, 1200];
     return sizes.map(size => {
         const separator = src.includes('?') ? '&' : '?';
-        // Add auto=format if not already present
         const fmtParam = src.includes('auto=format') ? '' : '&auto=format';
         return `${src}${separator}w=${size}&q=80${fmtParam} ${size}w`;
     }).join(', ');
   }, [src]);
 
   if (hasError) {
-    return <div className={`w-full h-full bg-slate-800 flex items-center justify-center ${className}`}>
-      <span className="text-slate-400 text-sm">Failed to load</span>
+    return <div className={`w-full h-full bg-slate-900 flex items-center justify-center ${className} rounded-[inherit]`}>
+      <span className="text-slate-600 text-[10px] font-black uppercase tracking-widest italic">Sync Failed</span>
     </div>;
   }
 
@@ -69,7 +85,7 @@ export const OptimizedImage = React.memo(({
       className={`relative overflow-hidden ${aspectRatio === 'square' ? 'aspect-square' : ''} ${className} gpu-layer`}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      transition={{ duration: 0.3 }}
+      transition={{ duration: 0.4 }}
     >
       <picture>
         {imageSrcSet && <source srcSet={imageSrcSet} type="image/jpeg" />}
@@ -82,7 +98,7 @@ export const OptimizedImage = React.memo(({
           onError={() => setHasError(true)}
           width={width}
           height={height}
-          className={`w-full h-full object-cover transition-opacity duration-300 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
+          className={`w-full h-full object-cover transition-all duration-700 ease-out ${isLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-105'}`}
         />
       </picture>
     </motion.div>
@@ -95,34 +111,29 @@ OptimizedImage.displayName = 'OptimizedImage';
 export const useAnimationVariants = () => {
   return useMemo(() => ({
     slideUp: {
-      hidden: { opacity: 0, y: 20 },
+      hidden: { opacity: 0, y: 30 },
       visible: { 
         opacity: 1, y: 0,
-        transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] as const }
+        transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] as const }
       }
     },
     scaleIn: {
-      hidden: { opacity: 0, scale: 0.95 },
+      hidden: { opacity: 0, scale: 0.94 },
       visible: { 
         opacity: 1, scale: 1,
-        transition: { duration: 0.3, ease: [0.34, 1.56, 0.64, 1] as const }
+        transition: { duration: 0.4, ease: [0.34, 1.56, 0.64, 1] as const }
       }
     },
     container: {
       hidden: { opacity: 0 },
       visible: {
         opacity: 1,
-        transition: { staggerChildren: 0.05, delayChildren: 0.1 }
+        transition: { staggerChildren: 0.08, delayChildren: 0.1 }
       }
     },
     listItem: {
-      hidden: { opacity: 0, x: -10 },
-      visible: { opacity: 1, x: 0, transition: { duration: 0.25 } }
-    },
-    success: {
-      scale: [1, 1.15, 0.95, 1],
-      rotate: [0, 5, -5, 0],
-      transition: { duration: 0.6, ease: "easeOut" }
+      hidden: { opacity: 0, x: -20 },
+      visible: { opacity: 1, x: 0, transition: { duration: 0.3, ease: "easeOut" } }
     }
   }), []);
 };

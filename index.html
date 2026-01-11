@@ -11,17 +11,14 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="El Camino" />
     <meta name="theme-color" content="#020617" />
-    <meta name="description" content="Immersive Learning Systems: Learn English & Spanish with AI. Conecta Colombia y USA." />
+    <meta name="description" content="Immersive Learning Systems: Master English with AI. Your path to global wealth." />
     
     <link rel="manifest" href="./manifest.json" />
     <link rel="apple-touch-icon" href="https://api.dicebear.com/7.x/shapes/png?seed=TMC&backgroundColor=020617&shape1Color=facc15" />
-    
-    <!-- CRITICAL: Index CSS must be loaded -->
     <link rel="stylesheet" href="./index.css" />
 
-    <title>El Camino | Immersive Learning Systems</title>
+    <title>El Camino | Global Immersion Hub</title>
 
-    <!-- Performance Hints -->
     <link rel="preconnect" href="https://cdn.tailwindcss.com" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -32,133 +29,32 @@
       tailwind.config = {
         theme: {
           extend: {
-            screens: {
-              'xs': '375px', // Small mobile
-              'mobile-l': '425px', // Large mobile
-            },
             colors: {
               brand: {
-                50: 'hsl(var(--brand-hue) var(--brand-sat) 95%)',
-                100: 'hsl(var(--brand-hue) var(--brand-sat) 90%)',
-                200: 'hsl(var(--brand-hue) var(--brand-sat) 80%)',
-                300: 'hsl(var(--brand-hue) var(--brand-sat) 70%)',
-                400: 'hsl(var(--brand-hue) var(--brand-sat) 60%)',
-                500: 'hsl(var(--brand-hue) var(--brand-sat) 50%)',
-                600: 'hsl(var(--brand-hue) var(--brand-sat) 45%)', // Primary
-                700: 'hsl(var(--brand-hue) var(--brand-sat) 35%)',
-                800: 'hsl(var(--brand-hue) var(--brand-sat) 20%)',
-                900: 'hsl(var(--brand-hue) var(--brand-sat) 10%)',
+                50: '#f0f4ff', 100: '#e0e9fe', 200: '#c1d3fe', 300: '#92b2fd',
+                400: '#5c8afb', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8',
+                800: '#1e40af', 900: '#1e3a8a', 950: '#020617',
               }
             },
             fontFamily: {
               sans: ['Plus Jakarta Sans', 'sans-serif'],
               display: ['Bricolage Grotesque', 'sans-serif'],
-              retro: ['"Press Start 2P"', 'cursive'],
             },
-            spacing: {
-              'safe-top': 'env(safe-area-inset-top)',
-              'safe-bottom': 'env(safe-area-inset-bottom)',
-              'safe-left': 'env(safe-area-inset-left)',
-              'safe-right': 'env(safe-area-inset-right)',
+            animation: {
+              'spin-slow': 'spin 12s linear infinite',
+              'shimmer': 'shimmer 2s linear infinite',
+            },
+            keyframes: {
+              shimmer: {
+                '0%': { transform: 'translateX(-100%)' },
+                '100%': { transform: 'translateX(100%)' }
+              }
             }
           }
         }
       }
     </script>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Bricolage+Grotesque:wght@600;700;800&family=Press+Start+2P&display=swap" rel="stylesheet">
-    <style>
-      :root {
-        --brand-hue: 220;
-        --brand-sat: 90%;
-      }
-      
-      /* PWA Native Feel Resets */
-      html, body {
-        height: 100%;
-        width: 100%;
-        overflow: hidden; /* Prevent body scroll, handle in containers */
-        overscroll-behavior-y: none; /* Disable pull-to-refresh rubberbanding */
-        -webkit-tap-highlight-color: transparent; /* Remove tap highlight on iOS */
-        -webkit-touch-callout: none; /* Disable long-press menu */
-        user-select: none; /* App-like selection behavior (enable on specific text) */
-      }
-
-      body {
-        font-family: 'Plus Jakarta Sans', sans-serif;
-        background-color: #020617;
-        color: #f1f5f9;
-        margin: 0;
-        padding: 0;
-      }
-
-      /* Allow text selection in specific areas */
-      p, h1, h2, h3, h4, h5, h6, input, textarea {
-        user-select: text;
-      }
-
-      h1, h2, h3 {
-        font-family: 'Bricolage Grotesque', sans-serif;
-      }
-
-      .colombia-gradient {
-        background: linear-gradient(135deg, #FCD116 0%, #003893 50%, #CE1126 100%);
-      }
-      .usa-gradient {
-        background: linear-gradient(135deg, #B22234 0%, #FFFFFF 50%, #3C3B6E 100%);
-      }
-
-      /* Native-like Blur Surface */
-      .native-glass {
-        background: rgba(15, 23, 42, 0.75);
-        backdrop-filter: blur(20px) saturate(180%);
-        -webkit-backdrop-filter: blur(20px) saturate(180%);
-        border-top: 1px solid rgba(255, 255, 255, 0.08);
-      }
-
-      .glass-morphism {
-        background: rgba(15, 23, 42, 0.6);
-        backdrop-filter: blur(24px) saturate(180%);
-        -webkit-backdrop-filter: blur(24px) saturate(180%);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-      }
-
-      .mesh-bg {
-        background-color: #020617;
-        background-image: 
-          radial-gradient(at 0% 0%, hsl(var(--brand-hue), 60%, 10%) 0, transparent 50%), 
-          radial-gradient(at 50% 0%, hsl(var(--brand-hue), 60%, 15%) 0, transparent 50%), 
-          radial-gradient(at 100% 0%, hsl(calc(var(--brand-hue) + 40), 60%, 10%) 0, transparent 50%);
-        background-attachment: fixed;
-        transition: background-image 1s ease;
-      }
-
-      .hide-scrollbar::-webkit-scrollbar {
-        display: none;
-      }
-      .hide-scrollbar {
-        -ms-overflow-style: none;
-        scrollbar-width: none;
-      }
-
-      /* Native active state simulation */
-      .active-scale {
-        transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1);
-      }
-      .active-scale:active {
-        transform: scale(0.96);
-      }
-      
-      /* Skeleton Animation */
-      @keyframes pulse-fast {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.5; }
-      }
-      .animate-pulse-fast {
-        animation: pulse-fast 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-      }
-      
-      #global-error { display: none; }
-    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Bricolage+Grotesque:wght@600;700;800&display=swap" rel="stylesheet">
   <script type="importmap">
 {
   "imports": {
@@ -178,69 +74,8 @@
 }
 </script>
 </head>
-  <body class="mesh-bg text-slate-200 antialiased">
-    <!-- Global Error Trap -->
-    <div id="global-error" style="position:fixed;inset:0;background:#020617;z-index:10000;display:none;flex-direction:column;align-items:center;justify-content:center;padding:20px;text-align:center;">
-        <h2 style="color:#ef4444;font-size:24px;font-weight:bold;margin-bottom:10px;">Application Crashed</h2>
-        <p id="error-message" style="color:#94a3b8;margin-bottom:20px;font-family:monospace;background:#1e293b;padding:10px;border-radius:8px;">Unknown Error</p>
-        <button onclick="window.location.reload()" style="background:#3b82f6;color:white;padding:10px 20px;border-radius:8px;border:none;font-weight:bold;cursor:pointer;">Reload App</button>
-    </div>
-    <script>
-      window.onerror = function(msg, url, lineNo, columnNo, error) {
-        document.getElementById('global-error').style.display = 'flex';
-        document.getElementById('error-message').textContent = msg;
-        return false;
-      };
-      window.onunhandledrejection = function(event) {
-        document.getElementById('global-error').style.display = 'flex';
-        document.getElementById('error-message').textContent = 'Promise Rejection: ' + event.reason;
-      };
-    </script>
-
-    <div id="root" class="h-full w-full">
-      <!-- High Fidelity Skeleton Loader (Instant Paint) -->
-      <div class="h-full w-full flex overflow-hidden bg-slate-950">
-        <!-- Sidebar Skeleton (Desktop) -->
-        <div class="hidden lg:block w-72 h-full border-r border-white/5 bg-slate-950 p-6 space-y-8 flex-shrink-0">
-           <div class="flex items-center gap-4">
-              <div class="w-12 h-12 rounded-2xl bg-white/5 animate-pulse-fast"></div>
-              <div class="space-y-2">
-                <div class="h-4 w-24 bg-white/5 rounded animate-pulse-fast"></div>
-                <div class="h-3 w-16 bg-white/5 rounded animate-pulse-fast"></div>
-              </div>
-           </div>
-           <div class="space-y-2">
-              <div class="h-12 w-full rounded-2xl bg-white/5 animate-pulse-fast"></div>
-              <div class="h-12 w-full rounded-2xl bg-white/5 animate-pulse-fast"></div>
-              <div class="h-12 w-full rounded-2xl bg-white/5 animate-pulse-fast"></div>
-              <div class="h-12 w-full rounded-2xl bg-white/5 animate-pulse-fast"></div>
-           </div>
-        </div>
-        
-        <!-- Mobile Header Skeleton -->
-        <div class="lg:hidden fixed top-0 left-0 right-0 h-16 bg-slate-950 border-b border-white/5 z-50 flex items-center justify-between px-4">
-           <div class="w-8 h-8 rounded-full bg-white/5 animate-pulse-fast"></div>
-           <div class="w-32 h-6 rounded bg-white/5 animate-pulse-fast"></div>
-           <div class="w-8 h-8 rounded-full bg-white/5 animate-pulse-fast"></div>
-        </div>
-
-        <!-- Main Content Skeleton -->
-        <div class="flex-1 p-4 pt-20 lg:pt-8 lg:p-8 space-y-8 overflow-hidden w-full">
-           <!-- Hero Card -->
-           <div class="w-full h-64 lg:h-96 rounded-[40px] bg-white/5 animate-pulse-fast border border-white/5"></div>
-           <!-- Widgets -->
-           <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div class="h-32 rounded-[24px] bg-white/5 animate-pulse-fast"></div>
-              <div class="h-32 rounded-[24px] bg-white/5 animate-pulse-fast"></div>
-              <div class="h-32 rounded-[24px] bg-white/5 animate-pulse-fast"></div>
-              <div class="h-32 rounded-[24px] bg-white/5 animate-pulse-fast"></div>
-           </div>
-        </div>
-      </div>
-    </div>
-    
-    <!-- CRITICAL: Entry Point for React Application -->
+  <body class="bg-slate-950 text-slate-100 antialiased overflow-hidden">
+    <div id="root" class="h-full w-full"></div>
     <script type="module" src="./index.tsx"></script>
   </body>
 </html>
-    
